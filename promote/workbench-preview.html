@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>内容中台 · Workbench 预览</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card-hi: #0f172a;
+    --fg: #e2e8f0; --muted: #94a3b8; --faint: #475569;
+    --line: #334155; --line-dim: #1e293b;
+    --accent: #6366f1; --red: #ef4444; --green: #22c55e;
+    --amber: #f59e0b; --purple: #8b5cf6; --blue: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    font-size: 14px; line-height: 1.6;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 6px 10px; text-align: left; vertical-align: top; }
+
+  header.top {
+    background: #020617; border-bottom: 1px solid var(--line-dim);
+    padding: 0 24px; height: 52px;
+    display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  header.top .brand { font-weight: 800; font-size: 16px; }
+  header.top .crumb { color: var(--muted); font-size: 13px; }
+  header.top .stat { font-size: 12px; color: var(--faint); }
+  header.top .stat strong { color: var(--fg); font-weight: 600; }
+  header.top .grow { flex: 1; }
+  .btn-danger {
+    padding: 5px 12px; border-radius: 6px; border: 1px solid #7f1d1d;
+    background: var(--card); color: #f87171; font-size: 12px; font-weight: 700;
+  }
+
+  main { padding: 18px 24px 40px; display: flex; flex-direction: column; gap: 14px; }
+  section.card {
+    background: var(--card); border: 1px solid var(--line-dim); border-radius: 10px;
+    padding: 16px; box-shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  section.card h2 {
+    margin: 0 0 12px 0; font-size: 13px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+
+  .grid-2col { display: grid; grid-template-columns: 1.1fr .9fr; gap: 14px; }
+
+  .pending-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .pending-cell {
+    background: var(--card-hi); border: 1px solid var(--line-dim); border-radius: 8px;
+    padding: 10px 12px; text-align: center;
+  }
+  .pending-cell .lab { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .pending-cell .val { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .pending-cell.hot .val { color: var(--amber); }
+
+  .agent-row {
+    display: grid; grid-template-columns: 36px 1fr 240px 220px;
+    gap: 14px; align-items: stretch;
+    background: var(--card-hi);
+    border: 1px solid var(--line-dim); border-left: 4px solid var(--accent);
+    border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+  }
+  .agent-row .num {
+    font-size: 18px; font-weight: 800; color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .agent-row .meta .name { font-size: 14px; font-weight: 700; }
+  .agent-row .meta .desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .agent-row .meta .day { font-size: 10px; color: var(--faint); margin-top: 4px; text-transform: uppercase; }
+  .agent-row .stats { font-size: 11px; color: var(--muted); }
+  .agent-row .stats .row { display: flex; justify-content: space-between; gap: 8px; }
+  .agent-row .stats strong { color: var(--fg); }
+  .agent-row .ctrl { display: flex; flex-direction: column; gap: 6px; }
+  .ctrl-btn {
+    padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--card); color: var(--fg); font-size: 11px; cursor: pointer;
+  }
+  .ctrl-btn.on { background: rgba(34,197,94,.15); border-color: var(--green); color: #86efac; }
+  .ctrl-btn.gate { opacity: .55; cursor: not-allowed; }
+
+  .pill {
+    display: inline-block; padding: 1px 7px; font-size: 10px; font-weight: 700;
+    border-radius: 999px; letter-spacing: .03em;
+  }
+  .pill-low   { background: rgba(34,197,94,.15);  color: #86efac; border: 1px solid rgba(34,197,94,.3); }
+  .pill-high  { background: rgba(239,68,68,.15);  color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+  .pill-gate  { background: rgba(139,92,246,.15); color: #c4b5fd; border: 1px solid rgba(139,92,246,.3); }
+  .pill-auto  { background: rgba(34,197,94,.15);  color: #86efac; }
+  .pill-paused{ background: rgba(245,158,11,.18); color: #fcd34d; }
+  .pill-stop  { background: rgba(239,68,68,.18);  color: #fca5a5; }
+  .pill-zero  { background: var(--card); color: var(--faint); border: 1px solid var(--line-dim); }
+
+  .inline-panel {
+    margin-top: 10px; padding: 12px;
+    background: rgba(99,102,241,.05); border: 1px dashed rgba(99,102,241,.4);
+    border-radius: 8px;
+  }
+  .inline-panel.hot {
+    background: rgba(239,68,68,.06); border: 1px dashed rgba(239,68,68,.4);
+  }
+  .inline-panel h3 {
+    margin: 0 0 8px 0; font-size: 12px; color: var(--muted); letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .review-card {
+    display: grid; grid-template-columns: 100px 1fr 220px;
+    gap: 12px; padding: 10px; background: var(--card);
+    border: 1px solid var(--line-dim); border-radius: 6px; margin-bottom: 8px;
+  }
+  .review-card .thumb {
+    width: 100px; height: 70px; border-radius: 6px; background: #0b1220;
+    display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 10px;
+  }
+  .review-card .title { font-weight: 700; font-size: 13px; color: var(--fg); }
+  .review-card .summary { font-size: 11px; color: var(--muted); margin-top: 3px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .review-card .tags { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .review-card .actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .recommend-pill {
+    background: rgba(245,158,11,.12); color: #fcd34d; border: 1px solid rgba(245,158,11,.3);
+    padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;
+  }
+  .recommend-pill.fail { background: rgba(239,68,68,.12); color: #fca5a5; border-color: rgba(239,68,68,.3); }
+  .recommend-pill.pass { background: rgba(34,197,94,.12); color: #86efac; border-color: rgba(34,197,94,.3); }
+  .btn-approve { padding: 5px 12px; border-radius: 6px; border: 1px solid #15803d;
+    background: rgba(34,197,94,.15); color: #86efac; font-size: 11px; cursor: pointer; font-weight: 700; }
+  .btn-reject  { padding: 5px 12px; border-radius: 6px; border: 1px solid #991b1b;
+    background: rgba(239,68,68,.15); color: #fca5a5; font-size: 11px; cursor: pointer; font-weight: 700; }
+  .btn-track  { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--card-hi); color: var(--fg); font-size: 11px; cursor: pointer; }
+
+  .copy-block {
+    background: #0b1220; border: 1px solid var(--line-dim); border-radius: 6px;
+    padding: 10px; font-family: ui-monospace, "SF Mono", monospace; font-size: 12px;
+    white-space: pre-wrap; color: var(--fg); margin: 6px 0 8px;
+  }
+
+  .tbl-card { overflow: auto; }
+  .tbl-card th { color: var(--muted); font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--line-dim); }
+  .tbl-card tbody tr:nth-child(even) { background: rgba(15,23,42,.3); }
+  .tbl-card tbody td { border-bottom: 1px solid var(--line-dim); }
+  .num-r { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .footer-note {
+    color: var(--faint); font-size: 11px; padding: 12px 0; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="brand">内容中台 · Workbench</span>
+  <span class="crumb">Day1 → Day7 流水线 · 全自动 + 人工兜底</span>
+  <span class="grow"></span>
+  <span class="stat">采集源 <strong>12</strong></span>
+  <span class="stat">活跃 <strong>4</strong></span>
+  <span class="stat">已发布 <strong>234</strong></span>
+  <span class="stat">合规复审 <strong>0</strong></span>
+  <span class="stat" style="color:#86efac;">● 系统正常</span>
+  <button class="btn-danger">⚠ 紧急停止</button>
+</header>
+
+<main>
+
+  <section class="card">
+    <h2>各阶段待办（按状态）</h2>
+    <div class="pending-strip">
+      <div class="pending-cell"><div class="lab">INGESTED</div><div class="val">0</div></div>
+      <div class="pending-cell hot"><div class="lab">CLASSIFIED</div><div class="val">1</div></div>
+      <div class="pending-cell"><div class="lab">TITLED</div><div class="val">0</div></div>
+      <div class="pending-cell hot"><div class="lab">COVERED</div><div class="val">2</div></div>
+      <div class="pending-cell"><div class="lab">COMPLIANCE_REVIEW</div><div class="val">0</div></div>
+      <div class="pending-cell"><div class="lab">COMPLIANCE_PASS</div><div class="val">0</div></div>
+      <div class="pending-cell"><div class="lab">PUBLISHED</div><div class="val">234</div></div>
+      <div class="pending-cell"><div class="lab">DISTRIBUTED</div><div class="val">2</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>九大 Agent · Day1 → Day7 顺序</h2>
+
+    <div class="agent-row" style="border-left-color:#6366f1;">
+      <div class="num">1</div>
+      <div class="meta">
+        <div class="name">Source 评分 <span class="pill pill-low">LOW</span></div>
+        <div class="desc">质量/稳定/风险权重打分，决定采集优先级</div>
+        <div class="day">DAY 1</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>2351</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>149ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn on">● 自动 ON</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#0ea5e9;">
+      <div class="num">2</div>
+      <div class="meta">
+        <div class="name">内容采集 <span class="pill pill-low">LOW</span></div>
+        <div class="desc">RSS / HTML / X 抓取 + URL hash + 内容 hash 去重（按 source 维度）</div>
+        <div class="day">DAY 2</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>7483</strong></div>
+        <div class="row"><span>失败</span><strong>12</strong></div>
+        <div class="row"><span>平均延迟</span><strong>4068ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn on">● 自动 ON</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#10b981;">
+      <div class="num">3</div>
+      <div class="meta">
+        <div class="name">分类打标 <span class="pill pill-low">LOW</span></div>
+        <div class="desc">Haiku tool-use → {category, tags, keywords}</div>
+        <div class="day">DAY 3</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>131</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>93ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn on">● 自动 ON</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#f59e0b;">
+      <div class="num">4</div>
+      <div class="meta">
+        <div class="name">标题生成 <span class="pill pill-low">LOW</span></div>
+        <div class="desc">Sonnet 3 候选 → Haiku 打分选优 + slug</div>
+        <div class="day">DAY 3</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>130</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>106ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn on">● 自动 ON</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#ec4899;">
+      <div class="num">5</div>
+      <div class="meta">
+        <div class="name">封面选图 <span class="pill pill-low">LOW</span></div>
+        <div class="desc">最高分辨率图 + sharp 多尺寸 + Haiku 文案</div>
+        <div class="day">DAY 4</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>132</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>18.5s</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn on">● 自动 ON</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#ef4444;">
+      <div class="num">6</div>
+      <div class="meta">
+        <div class="name">合规审查 <span class="pill pill-high">HIGH</span></div>
+        <div class="desc">黑名单正则 + Sonnet 多维打分　⚠ REVIEW 项需人工确认</div>
+        <div class="day">DAY 4</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>128</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>64ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn on">● 自动 ON</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="inline-panel hot">
+      <h3>⚠ 合规复审队列（机器建议 + 人工确认）</h3>
+      <div class="review-card">
+        <div class="thumb">封面缩略</div>
+        <div>
+          <div class="title">嫂子的诱惑 车震刺激吗</div>
+          <div class="summary">#情深叉喔 #糖心vlog 嫂子的诱惑 车震刺激吗 精液让你哥舔干净 https://t.co/EtBDQrvj52</div>
+          <div class="tags">
+            <span class="pill pill-high">adult</span>
+            <span class="pill pill-high">explicit</span>
+            <span class="pill pill-low">x.com</span>
+          </div>
+        </div>
+        <div class="actions">
+          <span class="recommend-pill fail">机器建议：拒绝</span>
+          <button class="btn-approve">✔ 通过</button>
+          <button class="btn-reject">✗ 拒绝</button>
+          <button class="btn-track">查看历史</button>
+        </div>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:8px;">
+        当前 0 条等待复审 · 历史 18 条已被自动判为 COMPLIANCE_FAIL
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#8b5cf6;">
+      <div class="num">7</div>
+      <div class="meta">
+        <div class="name">发布上站 <span class="pill pill-high">HIGH</span> <span class="pill pill-gate">🔐 HUMAN GATE</span></div>
+        <div class="desc">ISR revalidate + slug 唯一校验　🔐 人工审批后发布</div>
+        <div class="day">DAY 5</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>104</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>634ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn gate">● 自动锁定</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="inline-panel">
+      <h3>🔐 待发布队列（必须人工批准）</h3>
+      <div class="review-card">
+        <div class="thumb">cover.jpg</div>
+        <div>
+          <div class="title">When the desert blooms — 沙漠盛开时的蜜蜂狂欢</div>
+          <div class="summary">When the desert blooms, the female Dawson's bee emerges from her seclusion into a chaotic mating frenzy...</div>
+          <div class="tags">
+            <span class="pill pill-low">nature</span>
+            <span class="pill pill-low">@natgeo</span>
+            <span class="pill pill-low">tw1</span>
+          </div>
+        </div>
+        <div class="actions">
+          <span class="recommend-pill pass">机器建议：通过</span>
+          <button class="btn-approve">📤 立即发布</button>
+          <button class="btn-track">↩ 回滚到 COVERED</button>
+        </div>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:8px;">
+        当前 0 条等待发布 · 24h 已发布 104 条
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#1d9bf0;">
+      <div class="num">8</div>
+      <div class="meta">
+        <div class="name">社媒分发 <span class="pill pill-high">HIGH</span> <span class="pill pill-gate">🔐 HUMAN GATE</span></div>
+        <div class="desc">Sonnet 改写 X/Twitter 文案　🔐 人工确认文案后执行</div>
+        <div class="day">DAY 6</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>2</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>1225ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0002</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn gate">● 自动锁定</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+
+    <div class="inline-panel">
+      <h3>🔐 分发文案待确认（人工审完点击"已发出"）</h3>
+      <div class="review-card">
+        <div class="thumb">cover.jpg</div>
+        <div>
+          <div class="title">When the desert blooms — 沙漠盛开时的蜜蜂狂欢</div>
+          <div class="copy-block">When the desert blooms, female Dawson's bees burst out of solitude into a frenzy of mating chaos. 🐝🌵 Discover this rare wildlife spectacle on @natgeo.
+
+#nature #wildlife #natgeo</div>
+          <div style="font-size:11px;color:var(--muted);">字数 188 / 280 · 哈希标签 3 个</div>
+        </div>
+        <div class="actions">
+          <button class="btn-approve">✔ 已发出</button>
+          <button class="btn-track">📋 复制文案</button>
+          <button class="btn-track">查看历史</button>
+        </div>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:8px;">
+        当前 0 条等待发出 · 24h 已分发 2 条
+      </div>
+    </div>
+
+    <div class="agent-row" style="border-left-color:#14b8a6;">
+      <div class="num">9</div>
+      <div class="meta">
+        <div class="name">数据分析 <span class="pill pill-low">LOW</span></div>
+        <div class="desc">GA4 T+1 拉取 → analytics_daily → 周报回灌 Source 评分</div>
+        <div class="day">DAY 6</div>
+      </div>
+      <div class="stats">
+        <div class="row"><span>24h 成功</span><strong>3</strong></div>
+        <div class="row"><span>失败</span><strong>0</strong></div>
+        <div class="row"><span>平均延迟</span><strong>121ms</strong></div>
+        <div class="row"><span>成本</span><strong>$0.0000</strong></div>
+      </div>
+      <div class="ctrl">
+        <button class="ctrl-btn on">● 自动 ON</button>
+        <button class="ctrl-btn">▶ 手动运行</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid-2col">
+
+    <section class="card tbl-card">
+      <h2>采集源（12）· 状态 / 评分 / 累计</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>名称</th><th>平台</th><th>状态</th>
+            <th class="num-r">分</th><th class="num-r">灰度</th>
+            <th class="num-r">累计</th><th>最后采集</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>tw1</td><td>x</td><td><span class="pill pill-auto">active</span></td><td class="num-r">100</td><td class="num-r">100%</td><td class="num-r">15</td><td>04-27 10:51</td></tr>
+          <tr><td>tw2</td><td>x</td><td><span class="pill pill-auto">active</span></td><td class="num-r">63</td><td class="num-r">100%</td><td class="num-r">1</td><td>04-27 10:51</td></tr>
+          <tr><td>tw3</td><td>x</td><td><span class="pill pill-auto">active</span></td><td class="num-r">71</td><td class="num-r">100%</td><td class="num-r">6</td><td>04-27 10:50</td></tr>
+          <tr><td>tw4</td><td>x</td><td><span class="pill pill-auto">active</span></td><td class="num-r">60</td><td class="num-r">100%</td><td class="num-r">6</td><td>04-27 11:11</td></tr>
+          <tr><td>1qa</td><td>knit</td><td><span class="pill pill-paused">paused</span></td><td class="num-r">0</td><td class="num-r">100%</td><td class="num-r">15</td><td>04-27 05:29</td></tr>
+          <tr><td>12qa</td><td>knit</td><td><span class="pill pill-zero">inactive</span></td><td class="num-r">90</td><td class="num-r">100%</td><td class="num-r">14</td><td>04-25 07:51</td></tr>
+          <tr><td>2ksg 测试</td><td>2ksg</td><td><span class="pill pill-zero">inactive</span></td><td class="num-r">94</td><td class="num-r">100%</td><td class="num-r">20</td><td>04-25 06:51</td></tr>
+          <tr><td>3e</td><td>2ksg</td><td><span class="pill pill-zero">inactive</span></td><td class="num-r">100</td><td class="num-r">100%</td><td class="num-r">23</td><td>04-25 07:10</td></tr>
+          <tr><td>5rr</td><td>knit</td><td><span class="pill pill-zero">inactive</span></td><td class="num-r">100</td><td class="num-r">100%</td><td class="num-r">31</td><td>04-25 12:09</td></tr>
+          <tr><td>5tg</td><td>2ksg</td><td><span class="pill pill-zero">inactive</span></td><td class="num-r">100</td><td class="num-r">100%</td><td class="num-r">20</td><td>04-25 12:08</td></tr>
+          <tr><td>9p</td><td>2ksg</td><td><span class="pill pill-zero">inactive</span></td><td class="num-r">100</td><td class="num-r">100%</td><td class="num-r">26</td><td>04-25 07:25</td></tr>
+          <tr><td>knit 测试</td><td>knit</td><td><span class="pill pill-zero">inactive</span></td><td class="num-r">100</td><td class="num-r">100%</td><td class="num-r">80</td><td>04-25 07:47</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card tbl-card">
+      <h2>最近入库（12）· 流水线状态</h2>
+      <table>
+        <thead>
+          <tr><th>标题</th><th>来源</th><th>状态</th><th>时间</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>#菠萝啤beer · 老实人相亲杀猪盘…</td><td>tw4</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>11:11</td></tr>
+          <tr><td>#冉冉学姐 · 肉丝旗袍小姐姐被按在窗边…</td><td>tw4</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>11:11</td></tr>
+          <tr><td>#情深叉喔 · 嫂子的诱惑 车震…</td><td>tw4</td><td><span class="pill pill-stop">COMPLIANCE_FAIL</span></td><td>11:11</td></tr>
+          <tr><td>奶醒你😋</td><td>tw4</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>11:11</td></tr>
+          <tr><td>抖音什么时候可以给我发这种…</td><td>tw4</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>11:11</td></tr>
+          <tr><td>Successful conservation can lead…</td><td>tw1</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>10:51</td></tr>
+          <tr><td>Just bee yourself this weekend…</td><td>tw1</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>10:51</td></tr>
+          <tr><td>To celebrate Earth Month, Maejor…</td><td>tw1</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>10:51</td></tr>
+          <tr><td>For National Geographic Explorer Hana Raza…</td><td>tw1</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>10:51</td></tr>
+          <tr><td>This Earth Month, Maejor partnered…</td><td>tw1</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>10:51</td></tr>
+          <tr><td>When the desert blooms…</td><td>tw1</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>10:51</td></tr>
+          <tr><td>Dawson's bee mating frenzy…</td><td>tw1</td><td><span class="pill pill-auto">PUBLISHED</span></td><td>10:51</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="card tbl-card">
+    <h2>24h Agent 统计 · 成功 / 失败 / 延迟 / 成本</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Agent</th><th class="num-r">总数</th><th class="num-r">成功</th>
+          <th class="num-r">失败</th><th class="num-r">平均延迟</th><th class="num-r">成本 (USD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>source-scoring</td><td class="num-r">2351</td><td class="num-r">2351</td><td class="num-r">0</td><td class="num-r">149ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>ingestion:fanout</td><td class="num-r">2008</td><td class="num-r">2008</td><td class="num-r">0</td><td class="num-r">55ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>ingestion</td><td class="num-r">7495</td><td class="num-r">7483</td><td class="num-r">12</td><td class="num-r">4068ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>classification</td><td class="num-r">131</td><td class="num-r">131</td><td class="num-r">0</td><td class="num-r">93ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>title</td><td class="num-r">130</td><td class="num-r">130</td><td class="num-r">0</td><td class="num-r">106ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>cover</td><td class="num-r">132</td><td class="num-r">132</td><td class="num-r">0</td><td class="num-r">18.5s</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>compliance</td><td class="num-r">128</td><td class="num-r">128</td><td class="num-r">0</td><td class="num-r">64ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>publishing</td><td class="num-r">104</td><td class="num-r">104</td><td class="num-r">0</td><td class="num-r">634ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>distribution</td><td class="num-r">2</td><td class="num-r">2</td><td class="num-r">0</td><td class="num-r">1225ms</td><td class="num-r">$0.0002</td></tr>
+        <tr><td>analytics</td><td class="num-r">3</td><td class="num-r">3</td><td class="num-r">0</td><td class="num-r">121ms</td><td class="num-r">$0.0000</td></tr>
+        <tr><td>human:rerun</td><td class="num-r">4</td><td class="num-r">4</td><td class="num-r">0</td><td class="num-r">—</td><td class="num-r">$0.0000</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="footer-note">
+    内容中台 · 静态预览快照 · 数据时间 2026-04-27 11:15<br>
+    完整交互需启动 docker compose + pnpm dev 并访问 http://localhost:3000/workbench
+  </div>
+
+</main>
+
+</body>
+</html>

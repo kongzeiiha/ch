@@ -1,0 +1,25 @@
+{
+  "name": "ch-agents",
+  "private": true,
+  "version": "0.0.1",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"pnpm --filter @ch/api dev\" \"pnpm --filter @ch/web dev\"",
+    "build": "pnpm -r build",
+    "migrate": "pnpm --filter @ch/db migrate",
+    "seed": "pnpm --filter @ch/api seed",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "concurrently": "^8.2.2",
+    "playwright": "^1.59.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

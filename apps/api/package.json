@@ -1,0 +1,38 @@
+{
+  "name": "@ch/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "seed": "tsx scripts/seed.ts",
+    "stress": "tsx scripts/stress.ts",
+    "docs": "node scripts/build-agents-doc.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1035.0",
+    "@ch/agents": "workspace:*",
+    "@ch/db": "workspace:*",
+    "@fastify/cors": "^8.5.0",
+    "@google-analytics/data": "^5.2.1",
+    "@mozilla/readability": "^0.6.0",
+    "axios": "^1.15.2",
+    "bullmq": "^5.8.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.27.0",
+    "jsdom": "^29.0.2",
+    "playwright": "^1.59.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "rss-parser": "^3.13.0",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.1",
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

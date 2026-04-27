@@ -1,0 +1,27 @@
+{
+  "name": "@ch/web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "bash -c 'ulimit -n 65536; CHOKIDAR_USEPOLLING=1 WATCHPACK_POLLING=true next dev -p 3000'",
+    "build": "next build",
+    "export": "bash scripts/export-static.sh",
+    "preview": "node scripts/generate-preview.mjs",
+    "snapshot": "node scripts/snapshot-workbench.mjs",
+    "crawl-preview": "node scripts/generate-crawl-preview.mjs",
+    "start": "next start -p 3000"
+  },
+  "dependencies": {
+    "next": "^14.2.3",
+    "pg": "^8.11.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.4.0"
+  }
+}

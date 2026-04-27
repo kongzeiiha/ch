@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>内容中台 · 使用指南</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  :root {
+    --fg: #111;
+    --muted: #555;
+    --border: #d0d0d0;
+    --accent: #4338ca;
+    --bg-code: #f4f4f5;
+    --bg-warn: #fff7ed;
+    --bg-ok:   #f0fdf4;
+    --bg-info: #eff6ff;
+    --red: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", Helvetica, Arial, "Microsoft YaHei", sans-serif;
+    color: var(--fg);
+    font-size: 11.5pt;
+    line-height: 1.62;
+  }
+  h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; }
+  h1 { font-size: 26pt; margin: 0 0 6pt; color: var(--accent); }
+  h2 {
+    font-size: 17pt; margin: 22pt 0 8pt;
+    padding-bottom: 4pt;
+    border-bottom: 2px solid var(--accent);
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 13pt; margin: 14pt 0 6pt;
+    color: var(--accent);
+    page-break-after: avoid;
+  }
+  h4 { font-size: 11.5pt; margin: 10pt 0 4pt; }
+  p  { margin: 0 0 7pt; }
+  ul, ol { margin: 4pt 0 8pt; padding-left: 20pt; }
+  li { margin: 2pt 0; }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10pt;
+    background: var(--bg-code);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 9.5pt;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 8pt 10pt;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+    margin: 6pt 0 10pt;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 6pt 0 12pt;
+    font-size: 10.5pt;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 5pt 8pt;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f3f4f6; font-weight: 600; }
+  .box {
+    margin: 8pt 0 12pt;
+    padding: 9pt 12pt;
+    border-radius: 5px;
+    border-left: 3px solid;
+  }
+  .box.warn { background: var(--bg-warn); border-color: #ea580c; }
+  .box.ok   { background: var(--bg-ok);   border-color: #16a34a; }
+  .box.info { background: var(--bg-info); border-color: #2563eb; }
+  .cover {
+    text-align: center;
+    padding: 60pt 0 40pt;
+    page-break-after: always;
+  }
+  .cover .title { font-size: 32pt; color: var(--accent); font-weight: 800; }
+  .cover .subtitle { font-size: 14pt; color: var(--muted); margin-top: 10pt; }
+  .cover .meta { margin-top: 60pt; font-size: 11pt; color: var(--muted); line-height: 2; }
+  .toc {
+    padding: 16pt 20pt;
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    page-break-after: always;
+  }
+  .toc h2 { margin-top: 0; border: none; }
+  .toc ol { padding-left: 22pt; }
+  .toc li { margin: 3pt 0; }
+  .kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    background: #fff;
+    font-family: monospace;
+    font-size: 9.5pt;
+  }
+  .chip {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 9.5pt;
+    font-weight: 600;
+    margin-right: 3pt;
+  }
+  .chip.ok   { background: #dcfce7; color: #166534; }
+  .chip.warn { background: #fef3c7; color: #92400e; }
+  .chip.hi   { background: #fecaca; color: var(--red); }
+  .chip.lock { background: #ede9fe; color: #6d28d9; }
+  .page-break { page-break-before: always; }
+  .small { font-size: 10pt; color: var(--muted); }
+  .pipeline {
+    display: flex;
+    justify-content: space-between;
+    gap: 4pt;
+    margin: 10pt 0;
+    font-size: 9pt;
+    text-align: center;
+  }
+  .pipeline .stage {
+    flex: 1;
+    padding: 6pt 2pt;
+    background: #f3f4f6;
+    border-radius: 4px;
+    border-top: 3px solid var(--accent);
+  }
+  .pipeline .stage strong { display: block; font-size: 10pt; }
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<div class="cover">
+  <div class="title">内容中台</div>
+  <div class="subtitle">9-Agent 内容采集 · 分类 · 发布流水线</div>
+  <div class="subtitle">使用指南</div>
+  <div class="meta">
+    版本 1.0<br/>
+    2026-04-24<br/>
+    技术栈: TypeScript · Next.js · PostgreSQL · Redis · BullMQ · Groq LLM
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li>系统概览</li>
+    <li>快速启动</li>
+    <li>端口与服务</li>
+    <li>9 个 Agent 的职责</li>
+    <li>数据流与状态机</li>
+    <li>三道人工关卡</li>
+    <li>Workbench 操作手册</li>
+    <li>采集源管理</li>
+    <li>管理员 API</li>
+    <li>常见故障排查</li>
+    <li>性能调优参数</li>
+    <li>常用命令速查</li>
+    <li>文件结构</li>
+  </ol>
+</div>
+
+<!-- 1. 系统概览 -->
+<h2>1. 系统概览</h2>
+
+<p>内容中台是一套 <strong>9-Agent 自动化内容流水线</strong>：从 RSS / HTML 拉取文章 → LLM 分类打标 → 生成标题 → 选配封面 → 合规审查 → 发布上站 → 社媒分发 → T+1 数据分析。</p>
+
+<h3>核心能力</h3>
+<ul>
+  <li><strong>自动化</strong> 每小时定时 fan-out 所有激活源，items 一路自动流转</li>
+  <li><strong>人工可控</strong> 3 道人工关卡（合规、发布、分发）不会自动放行</li>
+  <li><strong>可观察</strong> Workbench UI 实时显示每个 Agent 的待处理数、成本、队列状态</li>
+  <li><strong>可插拔</strong> LLM 当前用 Groq 免费档（llama-3.1-8b-instant），可换 Anthropic / OpenAI / 任意 OpenAI 兼容 endpoint</li>
+  <li><strong>幂等安全</strong> BullMQ jobId 去重、SHA256 URL 指纹、SimHash 内容去重</li>
+</ul>
+
+<h3>系统拓扑</h3>
+<table>
+<tr><th>层</th><th>组件</th><th>作用</th></tr>
+<tr><td>前端</td><td>Next.js 14 App Router</td><td>站点 + Workbench 控制台</td></tr>
+<tr><td>后端</td><td>Fastify + BullMQ</td><td>API + 9 个 worker 进程</td></tr>
+<tr><td>存储</td><td>PostgreSQL 16</td><td>sources / raw_items / items / agent_runs / analytics_daily / distribution_tasks</td></tr>
+<tr><td>队列</td><td>Redis 7 + BullMQ</td><td>9 个命名队列</td></tr>
+<tr><td>对象存储</td><td>MinIO（S3 协议）</td><td>封面多尺寸图</td></tr>
+<tr><td>LLM</td><td>Groq（免费）</td><td>分类 / 标题 / 合规打分 / 封面文案</td></tr>
+</table>
+
+<!-- 2. 快速启动 -->
+<h2>2. 快速启动</h2>
+
+<h3>前置要求</h3>
+<ul>
+  <li>Node.js ≥ 18, pnpm ≥ 8</li>
+  <li>Docker + Docker Compose</li>
+  <li>Groq API Key（免费，去 <code>console.groq.com</code> 申请）</li>
+</ul>
+
+<h3>五步启动</h3>
+<pre><code># 1. 起基础设施（Postgres + Redis + MinIO）
+pnpm infra:up
+
+# 2. 跑数据库迁移
+pnpm migrate
+
+# 3. 种入示例采集源（6 个历史类 RSS）
+pnpm seed
+
+# 4. 起 API 和 Web 前端
+pnpm dev
+# 会同时启动:
+#   API:  http://localhost:4000
+#   Web:  http://localhost:3000
+
+# 5. 打开浏览器访问 workbench
+open http://localhost:3000/workbench
+</code></pre>
+
+<div class="box ok">
+<strong>成功标志</strong>：API 日志出现 <code>workers started: 9</code> 和 <code>Server listening at http://0.0.0.0:4000</code>。
+</div>
+
+<h3>环境变量（.env）</h3>
+<pre><code>DATABASE_URL=postgresql://ch:ch@localhost:5433/ch
+REDIS_URL=redis://localhost:6381
+S3_ENDPOINT=http://localhost:9002
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_BUCKET=ch-media
+
+GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
+GROQ_MODEL_LARGE=llama-3.1-8b-instant
+GROQ_MODEL_MEDIUM=llama-3.1-8b-instant
+GROQ_MODEL_SMALL=llama-3.1-8b-instant
+
+AUTO_PIPELINE_INTERVAL_MS=4000
+ALERT_QUEUE_THRESHOLD=100
+ALERT_LLM_FAIL_RATE=0.15
+</code></pre>
+
+<!-- 3. 端口与服务 -->
+<h2>3. 端口与服务</h2>
+<table>
+<tr><th>端口</th><th>服务</th><th>说明</th></tr>
+<tr><td>3000</td><td>Next.js Web</td><td>站点首页 + <code>/workbench</code> + <code>/admin/*</code></td></tr>
+<tr><td>4000</td><td>Fastify API</td><td><code>/admin/*</code> 接口 + 9 worker 进程</td></tr>
+<tr><td>5433</td><td>PostgreSQL</td><td>容器端口 <code>ch-postgres-1</code></td></tr>
+<tr><td>6381</td><td>Redis</td><td>容器端口 <code>ch-redis-1</code></td></tr>
+<tr><td>9002</td><td>MinIO API (S3)</td><td>对象上传端点</td></tr>
+<tr><td>9003</td><td>MinIO Console</td><td>浏览器管理界面</td></tr>
+</table>
+
+<div class="box info">
+端口和常见本地服务（Postgres 5432、Redis 6379）错开，避免和其他项目冲突。
+</div>
+
+<!-- 4. 9 个 Agent -->
+<h2>4. 9 个 Agent 的职责</h2>
+
+<div class="pipeline">
+  <div class="stage"><strong>1</strong>Source 评分</div>
+  <div class="stage"><strong>2</strong>内容采集</div>
+  <div class="stage"><strong>3</strong>分类打标</div>
+  <div class="stage"><strong>4</strong>标题生成</div>
+  <div class="stage"><strong>5</strong>封面选图</div>
+  <div class="stage"><strong>6</strong>合规审查</div>
+  <div class="stage"><strong>7</strong>发布上站</div>
+  <div class="stage"><strong>8</strong>社媒分发</div>
+  <div class="stage"><strong>9</strong>数据分析</div>
+</div>
+
+<table>
+<tr><th>#</th><th>Agent</th><th>干什么</th><th>LLM</th><th>人工</th></tr>
+<tr><td>1</td><td>source-scoring</td><td>给每个源打质量/稳定性/风险分，决定采集优先级</td><td>否</td><td>—</td></tr>
+<tr><td>2</td><td>ingestion</td><td>拉 RSS / HTML，去重后存 <code>raw_items</code> + <code>items</code>（<code>INGESTED</code>）</td><td>否</td><td>—</td></tr>
+<tr><td>3</td><td>classification</td><td>LLM 分类为 16 个预设 category + 抽 tags / keywords</td><td>是</td><td>—</td></tr>
+<tr><td>4</td><td>title</td><td>LLM 生成 3 候选标题、选最优、写 120~180 字摘要</td><td>是</td><td>—</td></tr>
+<tr><td>5</td><td>cover</td><td>抽正文首图 → 多尺寸 sharp 裁切 → LLM 生成 alt 文案 → 上传 S3</td><td>是</td><td>—</td></tr>
+<tr><td>6</td><td>compliance</td><td>黑名单正则 + LLM 对 6 维度（政敏/色/暴/版/医/金）打分</td><td>是</td><td>⚠ 机器建议复核</td></tr>
+<tr><td>7</td><td>publishing</td><td>写 <code>slug</code>、触发 ISR revalidate</td><td>否</td><td>🔐 发布需点批准</td></tr>
+<tr><td>8</td><td>distribution</td><td>为已发布文章生成 X/Twitter 文案</td><td>是</td><td>🔐 复制文案后手动发</td></tr>
+<tr><td>9</td><td>analytics</td><td>T+1 从 GA4 拉 PV/UV → <code>analytics_daily</code></td><td>否</td><td>—</td></tr>
+</table>
+
+<!-- 5. 数据流 -->
+<h2>5. 数据流与状态机</h2>
+
+<h3>items 表状态流转</h3>
+<pre><code>INGESTED          ← ingestion worker 插入时的初始状态
+    ↓  classification 完成
+CLASSIFIED
+    ↓  title 完成
+TITLED
+    ↓  cover 完成
+COVERED
+    ↓  compliance 完成
+COMPLIANCE_REVIEW ← 机器判定有风险，等人工审核
+COMPLIANCE_PASS   ← 人工批准 或 机器直接判过
+COMPLIANCE_FAIL   ← 人工拒绝 或 机器判明显违规
+    ↓  人工点「批准发布」
+PUBLISHED         ← 站点可见
+    ↓  distribution 生成文案后
+DISTRIBUTED       ← 人工点「已发出」后
+</code></pre>
+
+<h3>Worker 交接链路</h3>
+<p>每个 worker 完成后<strong>直接把下一个 job 塞进队列</strong>，不等 auto-pipeline 轮询：</p>
+<pre><code>ingestion → classification → title → cover → compliance
+                                                  ↓
+                                     (人工批准) → publishing
+                                                  ↓
+                                     (人工确认) → distribution
+</code></pre>
+
+<p><code>auto-pipeline</code>（默认 4 秒轮询）作为兜底，定期检查有没有被漏下的 item，把它们补进队列。</p>
+
+<!-- 6. 三道人工关卡 -->
+<h2>6. 三道人工关卡</h2>
+
+<div class="box warn">
+<strong>⚠ 合规复核</strong> · 位置：「流水线」tab 合规审查卡片下方<br/>
+<strong>触发条件</strong>：LLM 在 6 个维度（政敏/色低俗/暴恐/版权/医疗夸大/金融诱导）里有任意一项评分 ≥2<br/>
+<strong>你要做什么</strong>：
+<ul>
+  <li>看风险标签（红色 chip）和文章摘要，判断是否真有问题</li>
+  <li>点 <span class="chip ok">✓ 批准</span> → item 转 <code>COMPLIANCE_PASS</code></li>
+  <li>点 <span class="chip hi">✗ 拒绝</span> → 填拒绝原因 → item 转 <code>COMPLIANCE_FAIL</code>，不会再参与后续流程</li>
+</ul>
+</div>
+
+<div class="box info">
+<strong>🔐 发布关卡</strong> · 位置：发布上站卡片下方<br/>
+<strong>触发条件</strong>：item 到达 <code>COMPLIANCE_PASS</code> 状态<br/>
+<strong>你要做什么</strong>：
+<ul>
+  <li>勾选要发布的文章（或全不选即等于批准全部）</li>
+  <li>点 <span class="chip lock">批准全部 N 篇</span> / <span class="chip lock">批准选中 K 篇</span></li>
+  <li>后端写 slug、触发 Next.js ISR revalidate，站点立即可见</li>
+</ul>
+</div>
+
+<div class="box info">
+<strong>🔐 分发关卡</strong> · 位置：社媒分发卡片下方<br/>
+<strong>触发条件</strong>：item 达到 <code>PUBLISHED</code> 后，点「执行」按钮生成文案<br/>
+<strong>你要做什么</strong>：
+<ul>
+  <li>点「<strong>复制文案</strong>」把 LLM 生成的推文复制走</li>
+  <li>手动发到 X / Twitter / 其它平台</li>
+  <li>发完回来点 <span class="chip lock">✓ 已发出</span> 记录</li>
+</ul>
+</div>
+
+<!-- 7. Workbench 操作手册 -->
+<h2>7. Workbench 操作手册</h2>
+
+<p>地址：<code>http://localhost:3000/workbench</code></p>
+
+<h3>7.1 顶部 Header</h3>
+<ul>
+  <li><strong>冲刺开始</strong> 日期选择器：修改后所有 Agent 卡片的 "Day N" 标签会以此为基准换算成真实日期</li>
+  <li><strong>总计 / 队列 / 成本</strong> 三个实时数字</li>
+  <li><strong>🛑 紧急停止</strong> 一键把所有 Agent 的 auto 模式关掉、设 <code>globalStop=true</code>。再点一次「▶ 恢复运行」解除</li>
+</ul>
+
+<h3>7.2 三个 Tab</h3>
+
+<h4>流水线</h4>
+<ul>
+  <li>9 张卡片从上到下对应 9 个 Agent</li>
+  <li>每张卡片：大数字是待处理数；右边 3 个按钮 <code>⚡ 自动/手动</code>、<code>⏸ 暂停</code>、<code>▶ 执行</code></li>
+  <li>⚡ <strong>自动</strong>：auto-pipeline 会自动把满足条件的 item 塞进这个队列</li>
+  <li>⏸ <strong>暂停</strong>：worker 不再处理该队列的新 job</li>
+  <li>▶ <strong>执行</strong>：立刻手动触发一批（当 auto 关闭时用）</li>
+</ul>
+
+<h4>采集源</h4>
+<ul>
+  <li><code>+ 添加来源</code> 展开表单：名称 / Feed URL / platform / ID 四个字段，点紫色「添加」按钮保存</li>
+  <li>每个源右侧 4 按钮：<code>活跃/停用</code>（切换 status）、<code>采集</code>（同步拉取一次）、<code>编辑</code>、<code>删除</code></li>
+  <li>「删除」如果该源下已有文章，会弹二次确认框问你是否级联删除</li>
+</ul>
+
+<h4>队列 & 成本</h4>
+<ul>
+  <li>左表：9 个队列的 <code>等待 / 运行 / 完成 / 失败</code> 数</li>
+  <li>右表：最近 24h 每个 Agent 的 <code>成功 / 失败 / 平均耗时 / 累计成本</code></li>
+</ul>
+
+<!-- 8. 采集源管理 -->
+<h2>8. 采集源管理</h2>
+
+<h3>8.1 支持的 platform</h3>
+<table>
+<tr><th>platform</th><th>适用</th><th>config 必填</th><th>备注</th></tr>
+<tr><td><code>rss</code></td><td>RSS / Atom feed</td><td><code>feed_url</code>, <code>limit</code></td><td>默认模式，UI 表单直接支持</td></tr>
+<tr><td><code>html</code></td><td>固定 URL 列表</td><td><code>urls: string[]</code></td><td>不会自动发现文章，得提前列好 URL；UI 表单暂不支持，需 curl 塞</td></tr>
+</table>
+
+<h3>8.2 怎么找一个网站的 RSS URL</h3>
+<ol>
+  <li><strong>猜路径</strong>：网址后面挨个试 <code>/feed</code>, <code>/rss</code>, <code>/atom.xml</code>, <code>/index.xml</code>, <code>/?feed=rss2</code>。WordPress 站基本都有 <code>/feed</code></li>
+  <li><strong>源代码</strong>：浏览器查看网页 HTML 源码，搜 <code>application/rss+xml</code>，里面的 <code>href</code> 就是</li>
+  <li><strong>RSSHub</strong>：<code>rsshub.app</code> 提供 800+ 路由，支持微博/知乎/B 站/Twitter/YouTube 等原本没 RSS 的平台</li>
+  <li><strong>Google News 搜索 RSS</strong>：<code>https://news.google.com/rss/search?q=关键词&amp;hl=zh-CN&amp;gl=CN&amp;ceid=CN:zh-Hans</code></li>
+  <li><strong>平台套路</strong>：
+    <ul>
+      <li>Reddit：<code>https://www.reddit.com/r/话题/.rss</code></li>
+      <li>YouTube 频道：<code>https://www.youtube.com/feeds/videos.xml?channel_id=UCxxx</code></li>
+      <li>GitHub 用户：<code>https://github.com/用户名.atom</code></li>
+    </ul>
+  </li>
+</ol>
+
+<div class="box warn">
+<strong>验证技巧</strong>：浏览器直接打开那个 URL，应该看到 <code>&lt;?xml</code> 或 <code>&lt;rss</code> 开头的 XML。看到网页、搜索结果页、302 跳转都<strong>不是</strong> RSS。
+</div>
+
+<h3>8.3 通过 API 添加 HTML 源</h3>
+<pre><code>curl -X POST http://localhost:4000/admin/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "platform": "html",
+    "external_id": "my-picks",
+    "name": "我精选文章",
+    "url": "https://example.com",
+    "config": {
+      "urls": [
+        "https://example.com/article/1",
+        "https://example.com/article/2"
+      ]
+    }
+  }'
+</code></pre>
+
+<!-- 9. 管理员 API -->
+<h2>9. 管理员 API</h2>
+
+<table>
+<tr><th>方法</th><th>路径</th><th>作用</th></tr>
+<tr><td>GET</td><td><code>/admin/sources</code></td><td>列出所有采集源</td></tr>
+<tr><td>POST</td><td><code>/admin/sources</code></td><td>新增源</td></tr>
+<tr><td>PATCH</td><td><code>/admin/sources/:id</code></td><td>修改源（name/url/status/config）</td></tr>
+<tr><td>DELETE</td><td><code>/admin/sources/:id</code></td><td>删除源（有 items 时返 409；加 <code>?cascade=1</code> 级联删）</td></tr>
+<tr><td>POST</td><td><code>/admin/ingest/fanout</code></td><td>立即对所有 active 源 fanout 一轮</td></tr>
+<tr><td>POST</td><td><code>/admin/ingest/:id</code></td><td>采集单个源（同步模式返回 stats；<code>?async=1</code> 入队）</td></tr>
+<tr><td>GET</td><td><code>/admin/stats</code></td><td>总体 dashboard</td></tr>
+<tr><td>GET</td><td><code>/admin/items?limit=20</code></td><td>最近入库文章</td></tr>
+<tr><td>GET</td><td><code>/admin/pipeline/state</code></td><td>9 Agent 的 auto/paused 状态 + pending 计数</td></tr>
+<tr><td>GET</td><td><code>/admin/pipeline/review-queue</code></td><td>待合规审核 items</td></tr>
+<tr><td>GET</td><td><code>/admin/pipeline/publish-queue</code></td><td>待发布 items</td></tr>
+<tr><td>GET</td><td><code>/admin/pipeline/distribution-queue</code></td><td>待分发任务</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/approve-review/:itemId</code></td><td>通过合规审核</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/reject-review/:itemId</code></td><td>拒绝合规审核（需 reason）</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/approve-publish</code></td><td>批准发布（可传 itemIds 数组选择性发布）</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/confirm-distribution/:taskId</code></td><td>确认已完成分发</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/emergency-stop</code></td><td>紧急停止所有自动化</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/resume</code></td><td>恢复运行</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/rollback/:itemId</code></td><td>回滚到上一阶段</td></tr>
+<tr><td>POST</td><td><code>/admin/pipeline/rerun/:itemId</code></td><td>重跑当前阶段</td></tr>
+<tr><td>GET</td><td><code>/admin/pipeline/item-history/:itemId</code></td><td>查看单条 item 的全部 agent_runs 历史</td></tr>
+<tr><td>GET</td><td><code>/admin/day7/queues</code></td><td>9 个 BullMQ 队列的详细计数</td></tr>
+<tr><td>GET</td><td><code>/admin/day7/agent-runs</code></td><td>近 24h Agent 运行汇总</td></tr>
+</table>
+
+<!-- 10. 常见故障 -->
+<h2>10. 常见故障排查</h2>
+
+<h3>10.1 端口 4000 已占用（EADDRINUSE）</h3>
+<p><code>tsx watch</code> 偶尔在热重载时旧进程没退出。解决：</p>
+<pre><code>lsof -ti :4000 | grep -v 5121 | xargs kill -9
+pnpm --filter @ch/api dev &amp;
+</code></pre>
+<p class="small"><code>5121</code> 是 Chrome Helper 的 PID，它把 4000 加到自己的网络池里但并不监听。</p>
+
+<h3>10.2 删除源报 FK 违反约束（23503）</h3>
+<p>错误信息：<code>violates foreign key constraint items_source_id_fkey</code>。</p>
+<p>原因：该源下还有 items。<strong>方案</strong>：</p>
+<ul>
+  <li><strong>推荐</strong>：点「活跃/停用」改为 inactive，源不会再被采集，文章保留</li>
+  <li>彻底删：点「删除」→ 第一次 confirm → 后端返 409+itemCount → 第二次 confirm → 加 <code>?cascade=1</code> 级联删除 items</li>
+</ul>
+
+<h3>10.3 classification 报 "400 Failed to call a function"</h3>
+<p>Groq 小模型对 function calling 支持差。我们已切换到 JSON mode：把 tool schema 注入 system prompt，让模型直出 JSON 再反序列化。如果仍失败，检查 <code>anthropic.ts</code> 里的 <code>useJsonMode</code> 分支。</p>
+
+<h3>10.4 LLM 报 429 Rate Limit</h3>
+<p>Groq 免费档 <code>llama-3.1-8b-instant</code> 只有 <strong>6000 TPM</strong>。</p>
+<ul>
+  <li>LLM worker 并发必须 <strong>=1</strong>，不能提高</li>
+  <li>每次调用输入不能太长（已经把 MAX_CONTENT 压到 1200~1800 字）</li>
+  <li>想彻底摆脱限流：升级 Groq 付费档，或换 Anthropic / OpenAI</li>
+</ul>
+
+<h3>10.5 队列大量 "item not found" 失败</h3>
+<p>通常是刚刚 TRUNCATE 或 级联删除时，worker 正在处理那些 items。是副作用，不影响新数据。清掉：</p>
+<pre><code>cd apps/api &amp;&amp; ../../node_modules/.bin/tsx scripts/clear-failed.ts</code></pre>
+
+<h3>10.6 "Feed not recognized as RSS 1 or 2"</h3>
+<p>填的 URL 不是合法 RSS（比如百度 / 谷歌搜索跳转链接、普通网页）。用 8.2 的方法找到真正的 feed URL，编辑源修正。</p>
+
+<h3>10.7 publishing 日志报 <code>revalidate failed 404</code></h3>
+<p>Next.js 那边没有 <code>/revalidate</code> 路由。<strong>不影响发布</strong>：item 已经标 <code>PUBLISHED</code>，只是没触发 ISR 主动刷新。打开页面刷新一次即可。要彻底解决就在 <code>apps/web</code> 加个 <code>/revalidate</code> API Route。</p>
+
+<!-- 11. 性能调优 -->
+<h2>11. 性能调优参数</h2>
+
+<h3>吞吐量速查</h3>
+<table>
+<tr><th>Agent</th><th>并发</th><th>单条耗时</th><th>调优建议</th></tr>
+<tr><td>ingestion</td><td>6</td><td>1-3s</td><td>源多就加，纯网络 I/O</td></tr>
+<tr><td>classification</td><td><strong>1</strong></td><td>1-2s</td><td>不能加，受 Groq TPM 限制</td></tr>
+<tr><td>title</td><td><strong>1</strong></td><td>2-4s</td><td>同上</td></tr>
+<tr><td>cover</td><td>3</td><td>3-6s</td><td>主要是图片下载 + sharp，可再加</td></tr>
+<tr><td>compliance</td><td><strong>1</strong></td><td>1-2s</td><td>受 Groq TPM 限制</td></tr>
+<tr><td>publishing</td><td>2</td><td>~100ms</td><td>DB 写 + ISR，可加高</td></tr>
+<tr><td>distribution</td><td>3</td><td>2-4s</td><td>生成文案用 LLM，稍占额度</td></tr>
+</table>
+
+<h3>关键调参文件</h3>
+<table>
+<tr><th>参数</th><th>位置</th><th>推荐值</th></tr>
+<tr><td>auto-pipeline 轮询间隔</td><td><code>.env</code> <code>AUTO_PIPELINE_INTERVAL_MS</code></td><td>4000 (4s)</td></tr>
+<tr><td>BullMQ 重试 backoff</td><td><code>packages/agents/src/queue.ts</code></td><td>exponential, delay: 500</td></tr>
+<tr><td>分类喂给 LLM 的字数</td><td><code>categorize.ts</code> <code>MAX_CONTENT</code></td><td>1200</td></tr>
+<tr><td>标题喂给 LLM 的字数</td><td><code>title/generate.ts</code> <code>MAX_CONTENT</code></td><td>1500</td></tr>
+<tr><td>合规喂给 LLM 的字数</td><td><code>compliance/score.ts</code> <code>MAX_CONTENT</code></td><td>1800</td></tr>
+<tr><td>Ingestion 单源拉取条数</td><td>source.config.limit</td><td>20</td></tr>
+</table>
+
+<h3>端到端参考</h3>
+<ul>
+  <li><strong>6 个 RSS 源，每源 15 条 = 90 条</strong>：从点 fanout 到全部发布完，约 <strong>2-3 分钟</strong></li>
+  <li><strong>单条新文章</strong>：首条出现 ~10 秒；后续每 5-10 秒一条</li>
+  <li><strong>Groq 成本</strong>：免费档 0 元；换 Anthropic Haiku 约 $0.0002/条，换 Opus 约 $0.003/条</li>
+</ul>
+
+<!-- 12. 常用命令 -->
+<h2>12. 常用命令速查</h2>
+
+<h3>系统</h3>
+<pre><code>pnpm infra:up             # 起 Postgres / Redis / MinIO
+pnpm infra:down           # 停
+pnpm infra:logs           # 看容器日志
+pnpm migrate              # 跑数据库迁移
+pnpm seed                 # 种入默认 6 个历史 RSS 源
+pnpm dev                  # 同时启动 API 和 Web
+pnpm build                # 全仓库构建
+</code></pre>
+
+<h3>数据库（直连）</h3>
+<pre><code># 连上 psql
+docker exec -it ch-postgres-1 psql -U ch ch
+
+# 看 items 状态分布
+docker exec ch-postgres-1 psql -U ch ch -c \
+  "SELECT status, COUNT(*) FROM items GROUP BY status;"
+
+# 看源列表
+docker exec ch-postgres-1 psql -U ch ch -c \
+  "SELECT external_id, name, status, last_fetch_at FROM sources;"
+
+# 清空所有数据（保留 sources）
+docker exec ch-postgres-1 psql -U ch ch -c \
+  "TRUNCATE items, raw_items, agent_runs, distribution_tasks, analytics_daily RESTART IDENTITY CASCADE;"
+</code></pre>
+
+<h3>BullMQ 队列</h3>
+<pre><code># 看所有队列状态
+curl http://localhost:4000/admin/day7/queues | jq
+
+# 清空所有失败任务
+cd apps/api &amp;&amp; ../../node_modules/.bin/tsx scripts/clear-failed.ts
+
+# 摧毁所有队列（含等待、运行、失败、完成）
+cd apps/api &amp;&amp; ../../node_modules/.bin/tsx scripts/cleanup-queues.ts
+
+# 重试所有失败任务
+cd apps/api &amp;&amp; ../../node_modules/.bin/tsx scripts/retry-failed.ts
+</code></pre>
+
+<h3>API 调试</h3>
+<pre><code># 触发一次全局 fanout
+curl -X POST http://localhost:4000/admin/ingest/fanout
+
+# 触发单个源同步采集
+curl -X POST http://localhost:4000/admin/ingest/&lt;SOURCE_ID&gt;
+
+# 看 pipeline 全局状态
+curl http://localhost:4000/admin/pipeline/state | jq
+
+# 紧急停止
+curl -X POST http://localhost:4000/admin/pipeline/emergency-stop
+</code></pre>
+
+<!-- 13. 文件结构 -->
+<h2>13. 文件结构</h2>
+<pre><code>ch/
+├── apps/
+│   ├── api/              # Fastify + BullMQ workers
+│   │   ├── src/
+│   │   │   ├── index.ts              # API 入口
+│   │   │   ├── admin.ts              # /admin/sources, /admin/ingest/*
+│   │   │   ├── admin-pipeline.ts     # /admin/pipeline/* (UI controls)
+│   │   │   ├── admin-day3/4/7.ts     # 各阶段专用接口
+│   │   │   ├── auto-pipeline.ts      # 4s 轮询兜底
+│   │   │   └── workers/
+│   │   │       ├── ingestion/        # RSS/HTML 采集
+│   │   │       ├── classification/   # LLM 分类
+│   │   │       ├── title/            # LLM 标题
+│   │   │       ├── cover/            # 封面选图 + sharp
+│   │   │       ├── compliance/       # 合规打分
+│   │   │       ├── publishing/       # 发布 + ISR
+│   │   │       ├── distribution/     # 社媒文案
+│   │   │       ├── source-scoring/   # 源评分
+│   │   │       └── analytics/        # GA4 拉取
+│   │   └── scripts/
+│   │       ├── seed.ts               # 种入默认源
+│   │       ├── stress.ts             # 压测
+│   │       ├── clear-failed.ts       # 清失败任务
+│   │       └── cleanup-queues.ts     # 摧毁所有队列
+│   └── web/              # Next.js 14
+│       └── src/app/
+│           ├── page.tsx              # 读者端首页
+│           ├── workbench/page.tsx    # 工作台（3 个 tab）
+│           ├── admin/                # 每日 admin 页面
+│           └── [category]/[slug]/    # 文章详情
+├── packages/
+│   ├── agents/
+│   │   └── src/
+│   │       ├── anthropic.ts          # LLM 调用封装（带 JSON mode fallback）
+│   │       ├── queue.ts              # BullMQ getQueue / startWorker
+│   │       └── runner.ts             # withRun 包装器（写 agent_runs）
+│   └── db/
+│       └── src/client.ts             # pg Pool + query()
+├── docker-compose.yml                # Postgres/Redis/MinIO
+├── .env                              # 配置
+└── promote/                          # 文档与预览
+    ├── user-guide.html               # 本文档
+    ├── workbench-preview.html
+    └── one-week-sprint-plan.md
+</code></pre>
+
+<div style="margin-top: 40pt; padding-top: 14pt; border-top: 1px solid var(--border); color: var(--muted); font-size: 10pt; text-align: center;">
+内容中台 · 使用指南 · 2026-04-24
+</div>
+
+</body>
+</html>

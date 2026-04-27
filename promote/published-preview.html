@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>内容中台 · 已发布预览（234 篇）</title>
+<style>
+  :root {
+    --fg: #111827; --muted: #6b7280; --faint: #9ca3af;
+    --bg: #ffffff; --card: #ffffff; --line: #e5e7eb; --soft: #f9fafb;
+    --accent: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    font-size: 14px; line-height: 1.6; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header.site {
+    border-bottom: 1px solid var(--line); padding: 24px 32px;
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  }
+  header.site h1 { font-size: 22px; font-weight: 700; margin: 0; }
+  header.site .sub { color: var(--muted); font-size: 13px; }
+
+  section.stats {
+    background: var(--soft); border-bottom: 1px solid var(--line);
+    padding: 16px 32px; display: flex; flex-wrap: wrap; gap: 24px;
+    font-size: 12px; color: var(--muted);
+  }
+  section.stats strong { color: var(--fg); font-size: 16px; font-weight: 700; margin-right: 4px; }
+  section.stats .pill {
+    display: inline-block; padding: 2px 9px; border: 1px solid var(--line);
+    border-radius: 12px; background: #fff; margin-right: 6px;
+  }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 24px 24px 80px; }
+  h2.section-title { font-size: 16px; font-weight: 700; margin: 24px 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+
+  .grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .card {
+    display: block; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden; color: var(--fg);
+  }
+  .card:hover { border-color: var(--accent); text-decoration: none; }
+  .card .thumb-blank {
+    display: block; width: 100%; aspect-ratio: 3/2; background: linear-gradient(135deg,#dbeafe 0%, #fef3c7 100%);
+    color: var(--muted); font-size: 11px; text-align: center; padding: 28% 12px 0;
+  }
+  .card-body { padding: 12px 14px; }
+  .card .cat { display: inline-block; font-size: 11px; color: var(--accent); margin-bottom: 4px; }
+  .card h2 {
+    font-size: 14px; font-weight: 600; margin: 0 0 6px; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .card p { font-size: 12px; color: var(--muted); margin: 0 0 6px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .meta { font-size: 11px; color: var(--faint); }
+
+  .article {
+    border-top: 1px solid var(--line); padding: 32px 0;
+    max-width: 760px; margin: 0 auto;
+  }
+  .article h1 { font-size: 22px; font-weight: 700; margin: 8px 0 12px; }
+  .article .art-meta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
+  .article .summary {
+    background: var(--soft); border-left: 3px solid var(--fg);
+    padding: 10px 14px; border-radius: 4px; color: #374151; margin: 14px 0;
+  }
+  .article .art-cover {
+    width: 100%; aspect-ratio: 16/9; border-radius: 6px; margin: 12px 0;
+    background: linear-gradient(135deg,#dbeafe 0%, #fef3c7 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 12px;
+  }
+  .article p { color: #374151; }
+  .article .cat { color: var(--accent); }
+
+  footer { text-align: center; padding: 32px 0; color: var(--faint); font-size: 11px;
+    border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <h1>内容中台 · 已发布预览</h1>
+  <span class="sub">site = http://localhost:3000　·　数据快照 2026-04-27 11:15</span>
+</header>
+
+<section class="stats">
+  <span><strong>234</strong>篇已发布</span>
+  <span><strong>2</strong>篇已分发到 X</span>
+  <span><strong>18</strong>篇被合规拒</span>
+  <span style="margin-left:auto;">
+    <span class="pill">其他 · 149</span>
+    <span class="pill">互联网产品 · 85</span>
+  </span>
+</section>
+
+<main>
+
+  <h2 class="section-title">首页 · 最新文章（按 published_at 排序）</h2>
+
+  <div class="grid">
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>For National Geographic Explorer Hana Raza, moments of wonder…</h2>
+        <p>For National Geographic Explorer Hana Raza, moments of wonder can come at the most surprising times—like when her camera trap photographed a Persian leopard…</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:52</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Just bee yourself this weekend</h2>
+        <p>Stream #SecretsOfTheBees on @DisneyPlus and @hulu.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:52</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Getting to see bees up close is always exciting</h2>
+        <p>For Dr. Sammy Ramsey, watching how broomstick bees protect their food for the next generation was truly unforgettable.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:52</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Allison Fong's moment of wonder? The North Pole</h2>
+        <p>Making the journey to the North Pole—and getting to see firsthand just what lives in the sea ice.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:52</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Successful conservation can take your breath away</h2>
+        <p>That's what @bertiegregory experienced while filming a gathering of fin whales. #StepIntoWonder</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:52</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Earth Month with Maejor</h2>
+        <p>Multi-platinum artist and producer Maejor partnered with National Geographic for his album Earth Moods: Frequencies (Vol. 1).</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>There's wonder above, below, and all around us</h2>
+        <p>The salt flats of Bolivia blur the line between Earth and the cosmos. 🌍💫 #StepIntoWonder</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Frequencies (Vol. 1) · A track designed for restoration</h2>
+        <p>This Earth Month, Maejor partnered with National Geographic for his new album. Take in the beauty.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Billie Eilish's eco-conscious touring revolution</h2>
+        <p>Appalled by how environmentally destructive the concert business can be, pop star @billieeilish decided to do things differently.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Our planet is a wondrous solar powerhouse 🌞✨</h2>
+        <p>For billions of years, plants have been capturing sunlight and turning it into life—nature's own incredible energy magic!</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>When the desert blooms — Dawson's bee mating frenzy</h2>
+        <p>The female Dawson's bee emerges from her seclusion into a chaotic mating frenzy. Learn more in #SecretsOfTheBees.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Sandesh Kadur on big cats and rare wonder</h2>
+        <p>For National Geographic Fellow @SandeshKadur, the natural world has always been a source of wonder—especially when it comes to big cats.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>When was the last time you thanked a bee?</h2>
+        <p>Bees look out for us by pollinating our crops, so we have to look out for the bees in return. Happy Earth Day!</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>20,000 bees in 30 seconds — how many can Bertie name?</h2>
+        <p>There are around 20,000 bees out there, so how many can @bertiegregory name in just 30 seconds?</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">其他</span>
+        <h2>Look closer · Drama from inside the hive 🐝</h2>
+        <p>Make a bee-line to @disneyplus and @hulu and stream #SecretsOfTheBees now!</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+    <a class="card" href="#article-1">
+      <div class="thumb-blank">cover · card.jpg</div>
+      <div class="card-body">
+        <span class="cat">互联网产品</span>
+        <h2>From insect threats to ocean discoveries — Earth Month roundup</h2>
+        <p>This Earth Month, dive into stories from the people working to understand and protect our planet.</p>
+        <div class="meta">tw1 · @NatGeo · 04-27 10:51</div>
+      </div>
+    </a>
+
+  </div>
+
+  <h2 class="section-title">分类页 · /c/其他（149 篇）</h2>
+  <p style="color:var(--muted); font-size:13px;">
+    分类页与首页同一栅格布局，按 published_at 倒序，每页 24 条 + 分页器。
+    点击 <span class="pill" style="display:inline-block; padding:1px 8px; border:1px solid var(--line); border-radius:10px;">其他</span>
+    即可看到 149 篇相同样式的卡片。
+  </p>
+
+  <h2 class="section-title">文章详情 · /a/[slug]</h2>
+
+  <article class="article" id="article-1">
+    <div class="art-meta">
+      <span>2026-04-27 10:52</span><span>·</span>
+      <span class="cat">其他</span><span>·</span>
+      <span>来源 tw1</span>
+    </div>
+    <h1>For National Geographic Explorer Hana Raza, moments of wonder come at the most surprising times</h1>
+    <div class="summary">
+      For National Geographic Explorer Hana Raza, moments of wonder can come at the most surprising times—like when her camera trap photographed a Persian leopard, an animal thought lost from the area for decades.
+    </div>
+    <div class="art-cover">cover · banner.jpg（1600×900）</div>
+    <p>
+      For National Geographic Explorer Hana Raza, moments of wonder can come at the most surprising
+      times—like when her camera trap photographed a Persian leopard, an animal thought lost from the
+      area for decades. The image confirmed what locals had whispered about for years and reignited
+      conservation efforts across the highland region.
+    </p>
+    <p>
+      Watch <a href="#">#StepIntoWonder</a> with National Geographic on @DisneyPlus and @hulu.
+    </p>
+
+    <div style="margin-top:32px; padding-top:16px; border-top:1px dashed var(--line);
+                font-size:12px; color:var(--muted);">
+      <strong>SEO ：</strong>
+      title / description / og:image / og:url / canonical / JSON-LD Article schema 全部由
+      Next.js 在 <code>generateMetadata()</code> 中输出 ·
+      <strong>缓存 ：</strong> ISR 60s + 发布时调
+      <code>POST /api/revalidate?path=/a/&lt;slug&gt;</code> 强刷
+    </div>
+  </article>
+
+</main>
+
+<footer>
+  内容中台 · 静态站点预览快照 · 234 篇真实数据 · 数据时间 2026-04-27 11:15<br>
+  完整体验：docker compose up -d &amp;&amp; pnpm dev → http://localhost:3000
+</footer>
+
+</body>
+</html>

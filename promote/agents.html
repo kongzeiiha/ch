@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>9-Agent 内容流水线 · 实现说明</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  :root {
+    --fg: #111;
+    --muted: #555;
+    --border: #d0d0d0;
+    --accent: #4338ca;
+    --bg-code: #f4f4f5;
+    --bg-info: #eff6ff;
+    --bg-warn: #fff7ed;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", Helvetica, Arial, "Microsoft YaHei", sans-serif;
+    color: var(--fg);
+    font-size: 11pt;
+    line-height: 1.62;
+  }
+  main { padding: 0 0 30pt; }
+  h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; }
+  h1 { font-size: 26pt; margin: 0 0 6pt; color: var(--accent); }
+  h2 {
+    font-size: 17pt; margin: 22pt 0 8pt;
+    padding-bottom: 4pt;
+    border-bottom: 2px solid var(--accent);
+    page-break-after: avoid;
+  }
+  h3 { font-size: 13pt; margin: 14pt 0 6pt; color: var(--accent); page-break-after: avoid; }
+  h4 { font-size: 11pt; margin: 10pt 0 4pt; }
+  p, li { margin: 0 0 6pt; }
+  ul, ol { margin: 4pt 0 8pt; padding-left: 20pt; }
+  li { margin: 2pt 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  hr { border: 0; border-top: 1px dashed var(--border); margin: 16pt 0; }
+  blockquote {
+    margin: 8pt 0;
+    padding: 6pt 12pt;
+    background: var(--bg-info);
+    border-left: 3px solid #2563eb;
+    border-radius: 4px;
+    color: #1e3a8a;
+    font-size: 10.5pt;
+  }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 9.5pt;
+    background: var(--bg-code);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 9pt;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 8pt 10pt;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+    margin: 6pt 0 10pt;
+  }
+  pre code { background: none; padding: 0; font-size: 9pt; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 6pt 0 12pt;
+    font-size: 10pt;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 4pt 7pt;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f3f4f6; font-weight: 600; }
+  strong { font-weight: 700; }
+  .cover {
+    text-align: center;
+    padding: 60pt 0 40pt;
+    page-break-after: always;
+  }
+  .cover .title { font-size: 32pt; color: var(--accent); font-weight: 800; }
+  .cover .subtitle { font-size: 14pt; color: var(--muted); margin-top: 10pt; }
+  .cover .meta { margin-top: 60pt; font-size: 11pt; color: var(--muted); line-height: 2; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="title">9-Agent 内容流水线</div>
+  <div class="subtitle">实现说明 / Implementation Reference</div>
+  <div class="meta">
+    项目: ch-agents · 内容中台<br/>
+    生成于 2026/4/27 09:43:05
+  </div>
+</div>
+
+<main>
+<h1>9-Agent 内容流水线 · 实现说明</h1>
+<blockquote>项目位置:<code>apps/api/src/workers/</code> 队列:BullMQ on Redis,9 条独立队列,worker 在 <a href="../apps/api/src/workers/index.ts">apps/api/src/workers/index.ts</a> 启动 状态机:<code>raw_items → INGESTED → CLASSIFIED → TITLED → COVERED → COMPLIANCE_PASS / FAIL / REVIEW → PUBLISHED → DISTRIBUTED</code> 审计:每个 agent 调用都包在 <code>withRun()</code> 里,在 <code>agent_runs</code> 表落一行(latency / cost / token / error)</blockquote>
+<hr/>
+<h2>总览</h2>
+<table><thead><tr><th>#</th><th>Agent</th><th>输入状态</th><th>输出状态</th><th>用 LLM</th><th>并发</th><th>触发方式</th></tr></thead><tbody><tr><td>1</td><td>source-scoring</td><td>—</td><td>—</td><td>❌ 纯 SQL</td><td>1</td><td>cron 每天 03:15 + 工作台「执行」</td></tr><tr><td>2</td><td>ingestion</td><td>—</td><td><code>INGESTED</code></td><td>❌</td><td>6</td><td>cron 每小时 + auto-pipeline 每 15s</td></tr><tr><td>3</td><td>classification</td><td><code>INGESTED</code></td><td><code>CLASSIFIED</code></td><td>✅ Haiku(可关)</td><td>1</td><td>上游持久化后入队</td></tr><tr><td>4</td><td>title</td><td><code>CLASSIFIED</code></td><td><code>TITLED</code></td><td>✅ Sonnet(可关)</td><td>1</td><td>同上</td></tr><tr><td>5</td><td>cover</td><td><code>TITLED</code></td><td><code>COVERED</code></td><td>✅ Haiku(只生成短语)</td><td>6</td><td>同上</td></tr><tr><td>6</td><td>compliance</td><td><code>COVERED</code></td><td><code>COMPLIANCE_PASS / FAIL / REVIEW</code></td><td>✅ Sonnet(L1 命中跳过)</td><td>1</td><td>同上</td></tr><tr><td>7</td><td>publishing</td><td><code>COMPLIANCE_PASS</code></td><td><code>PUBLISHED</code></td><td>❌</td><td>2</td><td><strong>人工门控</strong>,需 UI 批准</td></tr><tr><td>8</td><td>distribution</td><td><code>PUBLISHED</code></td><td><code>DISTRIBUTED</code></td><td>✅ Sonnet</td><td>3</td><td><strong>人工门控</strong>,UI 批准生成文案</td></tr><tr><td>9</td><td>analytics</td><td>—</td><td>写 <code>analytics_daily</code></td><td>❌</td><td>1</td><td>cron 每天 02:00</td></tr></tbody></table>
+<p><code>auto-pipeline</code> 每 15s tick 一次,凡是设了「⚡ 自动」的非门控 agent 就批量入队它的待处理项;门控 agent(publishing / distribution)永远不自动触发。</p>
+<hr/>
+<h2>1. Source Scoring · 源评分</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/source-scoring/scorer.ts">apps/api/src/workers/source-scoring/scorer.ts</a></p>
+<p><strong>目的</strong>:周期性给每个采集源打分,决定优先级、风险等级、是否拉黑/暂停。</p>
+<p><strong>实现</strong>:<strong>纯 SQL,零 LLM,零外部调用</strong>。一条 CTE 把每个源的指标聚合后,在 Node 里加权:</p>
+<pre><code>score = 50
+  + 已发布数 × 2
+  + 新鲜度(2 天内 +10 / 7 天内 0 / 更老 -10)
+  + 7 天活跃度(min 15)
+  + PV 阶梯(&gt;1w +10 / &gt;1k +6 / &gt;100 +3)
+  + 收入阶梯(&gt;$10 +5 / &gt;$1 +3)
+  - 合规 FAIL 数 × 5
+  - 合规 REVIEW 数 × 2</code></pre>
+<p><strong>输出</strong>:写回 <code>sources.score / risk_level / stability / status</code>:</p>
+<ul><li><code>risk_level</code>: 5+ FAIL → high,2+ FAIL 或 5+ REVIEW → medium,否则 low</li><li><code>status</code>: 20+ FAIL → blacklist,score &lt; 20 → paused,否则 active</li></ul>
+<p><strong>触发</strong>:<code>scheduler.ts</code> 每天 03:15 跑一次,工作台也可手动触发。</p>
+<hr/>
+<h2>2. Ingestion · 内容采集</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/ingestion/index.ts">apps/api/src/workers/ingestion/index.ts</a></p>
+<p><strong>目的</strong>:从配置的源拉原始内容、清洗、去重、入库,触发后续分类。</p>
+<p><strong>两层任务</strong>:</p>
+<ul><li><code>kind: 'fanout'</code> — 遍历所有 active 源,按 <code>grayscale_pct</code> 概率筛选后给每个源各发 1 个 ingest 任务</li><li><code>kind: 'ingest', sourceId</code> — 单源采集</li></ul>
+<p><strong>单源流程</strong>:</p>
+<pre><code>1. 查 sources WHERE id=… AND status='active'
+2. adapter = adapterFor(source.platform)        ← rss / html / 2ksg / knit
+3. candidates = await adapter.fetch(source)     ← 一次性拿到所有候选
+4. for c in candidates:
+     a. 用 dedupe_key 查 URL 级去重 → dupUrl
+     b. 短文本走 c.text;长文本走 readability(clean.ts)
+     c. 算 sha256(normalized) + simhash(64bit)
+     d. simhash 距离 ≤3 → dupContent(per-image 模式跳过此步)
+     e. INSERT raw_items + items(status=INGESTED) 一个事务
+     f. enqueue classification 任务(jobId=classify__&lt;itemId&gt;)
+5. 返回 IngestStats:{candidates, ingested, dupUrl, dupContent, cleanFail, errors, authFail?}</code></pre>
+<p><strong>Adapter 注册表</strong>(<a href="../apps/api/src/workers/ingestion/adapters/index.ts">adapters/index.ts</a>):</p>
+<table><thead><tr><th>platform</th><th>用途</th><th>关键文件</th></tr></thead><tbody><tr><td><code>rss</code></td><td>RSS / Atom</td><td><a href="../apps/api/src/workers/ingestion/adapters/rss.ts">rss.ts</a></td></tr><tr><td><code>html</code></td><td>固定 URL 列表(article / per-image / crawl)</td><td><a href="../apps/api/src/workers/ingestion/adapters/html.ts">html.ts</a></td></tr><tr><td><code>2ksg</code></td><td>图册 JSON API(自动探测 bucket + xo-hex 解码)</td><td><a href="../apps/api/src/workers/ingestion/adapters/json-2ksg.ts">json-2ksg.ts</a></td></tr><tr><td><code>knit</code></td><td>Cloudflare 编号图册(URL 模板推断 + cookie 注入)</td><td><a href="../apps/api/src/workers/ingestion/adapters/knit.ts">knit.ts</a></td></tr></tbody></table>
+<p><strong>鉴权失败检测</strong>:adapter 在请求被 403/503/全 bucket reject 时抛 <code>AdapterAuthError</code>,worker 捕获后在 <code>agent_runs.output</code> 写 <code>authFail: true</code>,工作台顶部红条提示去刷 cookie/token。</p>
+<p><strong>触发</strong>:cron 每小时整点 + auto-pipeline 每 15s + 工作台手动。worker 并发 6。</p>
+<hr/>
+<h2>3. Classification · 分类打标</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/classification/">apps/api/src/workers/classification/</a></p>
+<p><strong>目的</strong>:给 item 打分类、标签、关键词。</p>
+<p><strong>两条路径</strong>:</p>
+<ul><li><code>CLASSIFICATION_SKIP_LLM=1</code>:走 <a href="../apps/api/src/workers/classification/categorize.ts">categorize.ts:classifyByRules</a>。15 个固定分类(AI / 硬件 / 软件工程 / 网络安全 / ...)对应正则关键词组,文本里命中数最多的分类胜出,标签从命中词 + 标题分词中取。</li><li>默认:Haiku tool-use 调用 <a href="../apps/api/src/workers/classification/categorize.ts:95">classify</a>。<code>TAXONOMY_PROMPT</code> 走 prompt cache,温度 0,工具 schema 强制返回 <code>{category, tags[], keywords[]}</code>。</li></ul>
+<p><strong>入库</strong>:<code>items SET category, tags, keywords, status='CLASSIFIED'</code>,然后入队 title。</p>
+<hr/>
+<h2>4. Title · 标题生成</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/title/">apps/api/src/workers/title/</a></p>
+<p><strong>目的</strong>:生成 SEO 友好的标题、摘要、URL slug。</p>
+<p><strong>两条路径</strong>:</p>
+<ul><li><code>TITLE_SKIP_LLM=1</code>:用原始抓取标题作单一候选,正文前 180 字作摘要。</li><li>默认:Sonnet + tool-use 一次出 <strong>3 个不同风格的候选 + best_index + 摘要</strong>。System prompt 要求:候选 ≤30 字、风格分层(事实型/观点型/结果型)、摘要 120-180 字、英文原文翻译改写不直译。</li></ul>
+<p><strong>slug</strong>:<a href="../apps/api/src/workers/title/slug.ts">slug.ts:makeUniqueSlug</a> 把中文 → pinyin/拉丁化 → 唯一性校验(items_slug_key 唯一索引)。</p>
+<p><strong>入库</strong>:<code>title / summary / slug / title_version++ / status='TITLED'</code>,入队 cover。</p>
+<hr/>
+<h2>5. Cover · 封面与图集</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/cover/">apps/api/src/workers/cover/</a></p>
+<p><strong>目的</strong>:从 raw_items.media_urls 选/裁/上传封面图;HTML-list 类型的源还会留前 N 张作为图集。</p>
+<p><strong>流程</strong>:</p>
+<pre><code>1. 拉 media_urls(最多 20 张)
+2. 每张:axios 下载(限 6MB)→ sharp 读元数据 → 评分
+     score = width × height × aspectPenalty
+       width&lt;400 或 height&lt;260 直接淘汰
+       aspect &gt;3 或 &lt;0.5 给 0.25 倍惩罚
+3. 排序取 top-N(html 平台 N=6,其它 N=1)
+4. 每张图渲染 3 个尺寸:card 600×400 / og 1200×630 / thumb 240×160
+   sharp resize fit=cover position=attention,JPEG q=82 mozjpeg
+5. 上传 MinIO:covers/&lt;itemId&gt;/&lt;size&gt;.jpg(主图)+ covers/gallery/&lt;i&gt;/&lt;itemId&gt;/&lt;size&gt;.jpg(图集)
+6. (可选)Haiku 生成 ≤14 字封面短语 cover_copy
+7. UPDATE items SET cover_url=card 尺寸URL, cover_sizes=JSON 全部尺寸 + gallery, cover_copy
+8. 入队 compliance</code></pre>
+<p><strong>LLM</strong>:仅用于封面文案,写不出来不阻塞流水线。</p>
+<hr/>
+<h2>6. Compliance · 合规审核</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/compliance/">apps/api/src/workers/compliance/</a></p>
+<p><strong>目的</strong>:阻拦违规内容,介于 PASS / REVIEW(人工)/ FAIL 三种结局。</p>
+<p><strong>两层(L1 + L2)</strong>:</p>
+<p><strong>L1 黑名单</strong>(<a href="../apps/api/src/workers/compliance/blacklist.ts">blacklist.ts</a>):3 大类正则,命中即直接 FAIL,不调 LLM。</p>
+<ul><li><code>politics_sensitive</code>(占位,需按你的合规要求填)</li><li><code>nsfw_explicit</code></li><li><code>copyright_watermark</code>(版权水印 / Shutterstock / Getty 文字)</li></ul>
+<p><strong>L2 LLM 评分</strong>(<a href="../apps/api/src/workers/compliance/score.ts">score.ts</a>):L1 没命中时,Sonnet 对 6 个维度各打 0-3 分:</p>
+<ul><li>政治敏感 / 色情低俗 / 暴力恐怖 / 版权争议 / 医疗夸大 / 金融诱导</li></ul>
+<p><strong>决策</strong>(<a href="../apps/api/src/workers/compliance/decide.ts">decide.ts</a>):</p>
+<table><thead><tr><th>条件</th><th>状态</th><th>trigger</th></tr></thead><tbody><tr><td>L1 命中</td><td><code>COMPLIANCE_FAIL</code></td><td>blacklist</td></tr><tr><td>L2 任一维度 ≥3</td><td><code>COMPLIANCE_FAIL</code></td><td>llm_reject</td></tr><tr><td>L2 任一维度 ≥2</td><td><code>COMPLIANCE_REVIEW</code>(人工待定)</td><td>llm_review</td></tr><tr><td>L2 全 &lt;2</td><td><code>COMPLIANCE_PASS</code> → 入队 publishing</td><td>pass</td></tr><tr><td>L2 失败/未跑</td><td><code>COMPLIANCE_REVIEW</code></td><td>llm_review</td></tr></tbody></table>
+<p><strong>入库</strong>:<code>items SET status, compliance_status, risk_tags, compliance_reasons</code>(reasons 是 JSON,带触发原因 + 各维度分数 + L1 命中详情)。</p>
+<p><strong>人工门控</strong>:REVIEW 状态出现在工作台合规 agent 行下方,人工点「✓ 批准」(进 PASS)或「✗ 拒绝」(进 FAIL)。</p>
+<hr/>
+<h2>7. Publishing · 发布</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/publishing/index.ts">apps/api/src/workers/publishing/index.ts</a></p>
+<p><strong>目的</strong>:把 PASS 的 item 标记为 PUBLISHED,触发 Next.js ISR 重新验证页面。</p>
+<p><strong>流程</strong>:</p>
+<pre><code>1. 查 items.status,严格模式(PUBLISH_STRICT=1)只接受 COMPLIANCE_PASS / PUBLISHED;宽松模式什么状态都接
+2. 没有 slug 就用 title 现场生成一个
+3. UPDATE items SET status='PUBLISHED', slug, published_url='/a/&lt;slug&gt;', published_at=NOW()
+4. POST 到 web 应用的 /api/revalidate(密钥头 x-revalidate-secret),让以下页面立即可访问:
+   - /a/&lt;slug&gt;
+   - /
+   - /category/&lt;urlencoded&gt;
+   - /sitemap.xml</code></pre>
+<p><strong>关键点</strong>:<strong>不发到任何外部站点</strong>。文章只出现在本项目的 Next.js 站点(localhost:3000 或 SITE_URL),路由 <code>/a/&lt;slug&gt;</code> 由 [apps/web/src/app/a/[slug]/page.tsx](../apps/web/src/app/a/[slug]/page.tsx) 渲染。</p>
+<p><strong>人工门控</strong>:<code>auto: false</code> 默认,工作台「发布」tab 列出待发文章,人工勾选 → 「批准发布」入队。</p>
+<hr/>
+<h2>8. Distribution · 分发</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/distribution/">apps/api/src/workers/distribution/</a></p>
+<p><strong>目的</strong>:为外部社交平台改写文案。</p>
+<p><strong>当前实现</strong>:Sonnet 改写为 Twitter/X 推文(280 字符以内、2-3 个 hashtag、带文章链接)。</p>
+<p><strong>流程</strong>:</p>
+<pre><code>1. 查 items WHERE status='PUBLISHED'(并去重避免同一 item × 同一 channel 重复)
+2. Sonnet 改写得到 copy
+3. INSERT distribution_tasks (item_id, channel, copy, status='pending')
+4. UPDATE items SET status='DISTRIBUTED'</code></pre>
+<p><strong>关键点</strong>:<strong>不调 Twitter API</strong>,只生成文案写到 <code>distribution_tasks</code>。工作台「分发」tab 把每条 task 列出来 + 「复制文案」按钮,<strong>人工</strong> copy → 去 Twitter/X 粘贴 → 回工作台点「✓ 已发出」标记 status=sent。</p>
+<p><strong>为什么不自动发</strong>:各平台官方 API 对自动发文限制极严(微信公众号要审核账号、小红书无公开 API、Twitter 需要付费 API),手动复制粘贴是当前最务实的折中。</p>
+<p>要扩展其它渠道:在 <code>rewrite.ts</code> 里加 system prompt + DistributionItem 类型,在 <a href="../apps/api/src/admin-pipeline.ts">admin-pipeline.ts</a> 暴露选择 channel 的入口。</p>
+<hr/>
+<h2>9. Analytics · 数据回流</h2>
+<p><strong>文件</strong>:<a href="../apps/api/src/workers/analytics/">apps/api/src/workers/analytics/</a></p>
+<p><strong>目的</strong>:T+1 拉取 GA4 流量数据,作为 source-scoring 的输入信号。</p>
+<p><strong>两个 job kind</strong>:</p>
+<p><strong><code>pull</code></strong>(<a href="../apps/api/src/workers/analytics/ga4.ts">ga4.ts:pullAnalyticsYesterday</a>):</p>
+<pre><code>1. 查 GA4 Data API:dimension=pagePath BEGINS_WITH '/a/',metrics={PV, UV, avg_session_duration}
+2. 把 pagePath 解析成 slug → 查 items 表拿 item_id
+3. UPSERT analytics_daily (item_id, date, channel='site', pv, uv, avg_duration)</code></pre>
+<p><strong>降级</strong>:没设 <code>GA4_PROPERTY_ID</code> 或没装 <code>@google-analytics/data</code> 时直接 noop 返回,<strong>不阻塞流水线</strong>。</p>
+<p><strong><code>report</code></strong>(<a href="../apps/api/src/workers/analytics/report.ts">report.ts</a>):生成周报(top items / 分类 / 来源)。</p>
+<p><strong>触发</strong>:cron 每天 02:00 UTC(等昨日数据 settle)。</p>
+<p><strong>回路闭环</strong>:analytics_daily.pv / revenue → source-scoring SQL → 高 PV 源加分 → ingestion fanout 优先 → 高质量内容更多。</p>
+<hr/>
+<h2>跨 agent 共享基建</h2>
+<h3><code>withRun()</code>(<a href="../packages/agents/src/runner.ts">packages/agents/src/runner.ts</a>)</h3>
+<pre><code class="language-ts">withRun({ agent: 'classification', itemId }, async () =&gt; {
+  return { output, model, usage, cost }
+})</code></pre>
+<p>插入 <code>agent_runs</code> 行(running),回调跑完 UPDATE 成 success(带 latency / token / cost),失败 UPDATE 成 failed(带 error 前 2000 字)。所有 agent 强制走这个,工作台的成本统计、运行历史、auth-fail 检测全靠这张表。</p>
+<h3><code>callClaude()</code>(<a href="../packages/agents/src/anthropic.ts">packages/agents/src/anthropic.ts</a>)</h3>
+<p>Anthropic SDK 薄封装:</p>
+<ul><li>模型名简写:<code>haiku</code> / <code>sonnet</code> / <code>opus</code> → 实际 model id</li><li>prompt cache(<code>system: [{text, cache:true}]</code>)</li><li>自动算 cost:<code>input + cached + output × 各档单价</code>,返回 <code>costUsd</code></li><li>重试 3 次(指数退避),429 / 5xx 自动重试</li></ul>
+<h3>BullMQ 队列(<a href="../packages/agents/src/queue.ts">packages/agents/src/queue.ts</a>)</h3>
+<p>9 个队列名常量在 <code>QUEUE_NAMES</code>。worker 启动用 <code>startWorker(name, handler, {concurrency})</code>,job ID 模式 <code>&lt;agent&gt;__&lt;itemId&gt;</code> 自动去重(同一 item 并发重入只跑一次)。</p>
+<h3>Auto-pipeline(<a href="../apps/api/src/auto-pipeline.ts">apps/api/src/auto-pipeline.ts</a>)</h3>
+<p>每 15s tick:</p>
+<ul><li>跳过 <code>globalStop</code> 状态</li><li>跳过 <code>paused</code> 或 <code>auto: false</code> 的 agent</li><li>跳过 <code>publishing</code> / <code>distribution</code> 这两个硬人工门控(即使设了 auto 也不触发)</li><li>其它 agent 查待处理 SQL 计数,有的话批量入队(每次 LIMIT 200 防雪崩)</li></ul>
+<h3>灰度采样</h3>
+<p><code>sources.grayscale_pct</code>(0-100)在 fanout 时按概率筛选源。设 30 表示该源 30% 概率被本轮采集 — 用来给老/不稳定的源降权。</p>
+</main>
+
+</body>
+</html>
