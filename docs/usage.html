@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CH 内容中台 · 使用说明</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --accent-2: #7ee787; --warn: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.7;
+  }
+  main { max-width: 820px; margin: 0 auto; padding: 40px 28px 60px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 22px; margin-bottom: 28px; }
+  header h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 14px; }
+
+  h2 {
+    margin: 36px 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    font-size: 18px;
+  }
+  h3 { margin: 22px 0 8px; font-size: 15px; color: var(--accent); }
+  p { margin: 0 0 10px; }
+  ol, ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  code {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: #0d1117; border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px;
+    font-size: 12.5px; color: var(--accent-2);
+  }
+  pre {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: #0d1117; border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 14px;
+    overflow-x: auto; font-size: 12.5px;
+    line-height: 1.55; margin: 10px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: var(--text); }
+  .cmt { color: var(--muted); font-style: italic; }
+  .cmd { color: var(--accent); }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0;
+    font-size: 13px;
+  }
+  th, td {
+    text-align: left; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  th {
+    background: var(--panel); color: var(--muted);
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  td:first-child code { white-space: nowrap; }
+
+  .step {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 18px; margin: 10px 0;
+  }
+  .step .num {
+    display: inline-block;
+    background: var(--accent); color: #0d1117;
+    border-radius: 999px;
+    width: 22px; height: 22px; line-height: 22px;
+    text-align: center; font-weight: 700; font-size: 12px;
+    margin-right: 8px;
+  }
+  .step strong { color: var(--text); }
+  .step pre { margin: 8px 0 0; }
+
+  .callout {
+    background: rgba(210, 153, 34, 0.08);
+    border-left: 3px solid var(--warn);
+    padding: 10px 14px; margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 13.5px;
+  }
+  .callout strong { color: var(--warn); }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>CH 内容中台 · 使用说明</h1>
+  <div class="sub">从零起项目到日常运维的最短路径</div>
+</header>
+
+<h2>1. 起项目（5 分钟）</h2>
+
+<div class="step">
+  <span class="num">1</span><strong>准备环境</strong>
+  <pre><code><span class="cmt"># 需要 Node ≥ 20.10 + pnpm 9 + Docker</span>
+node --version && pnpm --version && docker --version</code></pre>
+</div>
+
+<div class="step">
+  <span class="num">2</span><strong>配置环境变量</strong>
+  <pre><code><span class="cmd">cp</span> .env.example .env
+<span class="cmt"># 至少填 GROQ_API_KEY；不填的话用 SKIP_LLM 也能跑</span></code></pre>
+</div>
+
+<div class="step">
+  <span class="num">3</span><strong>起基础设施 + 装依赖 + 跑迁移</strong>
+  <pre><code><span class="cmd">pnpm</span> infra:up      <span class="cmt"># Postgres + Redis + MinIO</span>
+<span class="cmd">pnpm</span> install
+<span class="cmd">pnpm</span> migrate</code></pre>
+</div>
+
+<div class="step">
+  <span class="num">4</span><strong>启动开发环境</strong>
+  <pre><code><span class="cmd">pnpm</span> dev
+<span class="cmt"># API → http://localhost:4000
+# Web → http://localhost:3000
+# Admin → http://localhost:3000/admin</span></code></pre>
+</div>
+
+<div class="step">
+  <span class="num">5</span><strong>验证</strong>
+  <pre><code><span class="cmd">curl</span> http://localhost:4000/health
+<span class="cmt"># → {"ok":true,"ts":...}</span></code></pre>
+</div>
+
+<div class="callout">
+  <strong>端口</strong>：Postgres 在宿主 <code>5433</code>，Redis 在 <code>6381</code>，MinIO 在 <code>9002/9003</code>（避开 macOS 上的常见占用）。<code>.env</code> 里的连接串用这套端口。
+</div>
+
+<h2>2. 日常使用</h2>
+
+<h3>添加一个信源</h3>
+<pre><code><span class="cmd">curl</span> -X POST http://localhost:4000/admin/sources \
+  -H 'content-type: application/json' \
+  -d '{
+    "platform": "rss",
+    "external_id": "techcrunch",
+    "name": "TechCrunch",
+    "url": "https://techcrunch.com/feed/",
+    "config": {}
+  }'</code></pre>
+
+<h3>立即触发一轮采集</h3>
+<pre><code><span class="cmd">curl</span> -X POST http://localhost:4000/admin/ingest/fanout</code></pre>
+
+<h3>看流水线状态</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/admin/stats
+<span class="cmd">curl</span> http://localhost:4000/admin/pipeline/state
+<span class="cmd">curl</span> http://localhost:4000/admin/pipeline/live-jobs</code></pre>
+
+<h3>放行人工闸口</h3>
+<p><strong>发布</strong>和<strong>分发</strong>是硬人工卡点，需要手动放行：</p>
+<ul>
+  <li>合规 REVIEW 列表 → <code>/admin/pipeline/review-queue</code> → 调 <code>approve-review/:itemId</code></li>
+  <li>等发布 → <code>/admin/pipeline/publish-queue</code> → 调 <code>approve-publish</code></li>
+  <li>等分发 → <code>/admin/day6/distribute/:id</code> 或批量 <code>/admin/day6/distribute-all</code></li>
+</ul>
+
+<h3>用 Web 控制台</h3>
+<table>
+  <tbody>
+    <tr><td><code>/admin</code></td><td>总览</td></tr>
+    <tr><td><code>/admin/day3</code></td><td>分类 + 标题</td></tr>
+    <tr><td><code>/admin/day4</code></td><td>封面 + 合规</td></tr>
+    <tr><td><code>/admin/day5</code></td><td>发布 + 信源打分</td></tr>
+    <tr><td><code>/admin/day6</code></td><td>分发 + 数据</td></tr>
+    <tr><td><code>/admin/day7</code></td><td>监控 / 告警 / 灰度</td></tr>
+    <tr><td><code>/workbench</code></td><td>流水线工作台</td></tr>
+  </tbody>
+</table>
+
+<h2>3. 常用命令</h2>
+
+<table>
+  <thead><tr><th>命令</th><th>作用</th></tr></thead>
+  <tbody>
+    <tr><td><code>pnpm dev</code></td><td>API + Web 一起起</td></tr>
+    <tr><td><code>pnpm infra:up / infra:down / infra:logs</code></td><td>起 / 停 / 看基础设施</td></tr>
+    <tr><td><code>pnpm migrate</code></td><td>跑数据库迁移</td></tr>
+    <tr><td><code>pnpm seed</code></td><td>灌种子数据</td></tr>
+    <tr><td><code>pnpm --filter @ch/api exec tsx scripts/test-all-agents.ts</code></td><td>跑 7 个 agent 综合测试</td></tr>
+    <tr><td><code>pnpm --filter @ch/api exec tsx scripts/test-classify-title.ts</code></td><td>跑 classify-title 单 agent 测试</td></tr>
+    <tr><td><code>scripts/retry-failed.ts</code></td><td>批量重试失败任务</td></tr>
+    <tr><td><code>scripts/clear-failed.ts</code></td><td>清空 failed 队列</td></tr>
+    <tr><td><code>scripts/inspect-failures.ts</code></td><td>看最近失败原因</td></tr>
+  </tbody>
+</table>
+
+<h2>4. 关键开关</h2>
+
+<h3>降级模式（无 LLM 配额时用）</h3>
+<pre><code><span class="cmt"># 都加在 .env 里，改完重启 API</span>
+CLASSIFICATION_SKIP_LLM=1   <span class="cmt"># 分类走关键词</span>
+TITLE_SKIP_LLM=1            <span class="cmt"># 标题用原标题</span>
+COVER_SKIP_LLM=1            <span class="cmt"># 封面文案用标题</span>
+COMPLIANCE_SKIP_LLM=1       <span class="cmt"># 合规黑名单干净就 PASS</span>
+DISTRIBUTION_SKIP_LLM=1     <span class="cmt"># 推文用规则版改写</span></code></pre>
+
+<h3>关闭自动调度</h3>
+<pre><code>DISABLE_AUTO_PIPELINE=1   <span class="cmt"># 不自动 enqueue agent</span>
+DISABLE_SCHEDULER=1       <span class="cmt"># 不跑 cron</span></code></pre>
+
+<h3>严格发布</h3>
+<pre><code>PUBLISH_STRICT=1   <span class="cmt"># 仅 COMPLIANCE_PASS 可发布</span></code></pre>
+
+<h2>5. 急停与恢复</h2>
+
+<pre><code><span class="cmt"># 全局急停（所有 agent 暂停调度，正在跑的 job 不打断）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/emergency-stop
+
+<span class="cmt"># 恢复</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/resume
+
+<span class="cmt"># 暂停单个 agent</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/set-paused \
+  -H 'content-type: application/json' \
+  -d '{"agent":"compliance","paused":true}'</code></pre>
+
+<h2>6. 出问题怎么查</h2>
+
+<table>
+  <thead><tr><th>现象</th><th>查这里</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>API 起不来</td>
+      <td><code>docker compose ps</code> 看容器；确认 <code>.env</code> 端口对得上 5433/6381/9002</td>
+    </tr>
+    <tr>
+      <td>队列堆积</td>
+      <td><code>GET /admin/day7/queues</code>；<code>GET /admin/pipeline/state</code> 看是否被暂停</td>
+    </tr>
+    <tr>
+      <td>某 item 卡住</td>
+      <td><code>GET /admin/pipeline/item-history/:itemId</code> 看 agent_runs 全链路</td>
+    </tr>
+    <tr>
+      <td>LLM 调用失败</td>
+      <td>看 <code>agent_runs.error</code>；临时设 <code>*_SKIP_LLM=1</code> 兜底</td>
+    </tr>
+    <tr>
+      <td>合规 REVIEW 一直堆</td>
+      <td>多半 LLM 不可用走了保守 fallback；批量 <code>/admin/day4/recheck/:id</code></td>
+    </tr>
+    <tr>
+      <td>封面下载 403</td>
+      <td>反盗链：在 source.config 里加 <code>referer / cookie</code></td>
+    </tr>
+    <tr>
+      <td>发布后站点不更新</td>
+      <td>检查 <code>WEB_URL</code> 和 <code>REVALIDATE_SECRET</code>；看 API 日志的 revalidate failed</td>
+    </tr>
+    <tr>
+      <td>有任务堆 failed</td>
+      <td><code>scripts/inspect-failures.ts</code> 看原因；<code>retry-failed.ts</code> 重试；<code>clear-failed.ts</code> 清掉</td>
+    </tr>
+  </tbody>
+</table>
+
+</main>
+</body>
+</html>

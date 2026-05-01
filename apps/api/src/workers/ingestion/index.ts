@@ -35,7 +35,7 @@ const SIMHASH_THRESHOLD = 3; // hamming distance out of 63 bits
 
 export async function ingestSource(sourceId: string): Promise<IngestStats> {
   const rows = await query<SourceRow>(
-    `SELECT id, platform, external_id, name, url, config
+    `SELECT id, platform, external_id, name, url, config, credential_id
      FROM sources WHERE id = $1 AND status = 'active'`,
     [sourceId],
   );
@@ -128,11 +128,11 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
       });
       stats.ingested++;
 
-      // Hand off to the Classification Agent. jobId dedupes retries.
-      await getQueue(QUEUE_NAMES.classification).add(
-        'classify',
+      // Hand off to the Classify+Title Agent. jobId dedupes retries.
+      await getQueue(QUEUE_NAMES.classifyTitle).add(
+        'classify-title',
         { itemId: persisted.itemId },
-        { jobId: `classify__${persisted.itemId}` },
+        { jobId: `classify-title__${persisted.itemId}` },
       );
     } catch (e: any) {
       // 23505 = unique_violation (dedupe_key race from concurrent fetches)

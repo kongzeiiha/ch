@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>工作台 UI 风格对比</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    background: #f3f4f7;
+    color: #1f2937;
+    height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  .topbar {
+    height: 56px; background:#fff; border-bottom: 1px solid #ececec;
+    padding: 0 24px;
+    display:flex; align-items:center; gap: 24px;
+  }
+  .title { font-weight: 700; font-size: 16px; }
+  .tabs { display:flex; gap: 6px; flex: 1; }
+  .tab {
+    padding: 6px 14px; border:1px solid #e5e7eb; border-radius: 8px;
+    background:#fff; cursor:pointer; font-size: 13px; color: #1f2937;
+  }
+  .tab:hover { background:#f9fafb; }
+  .tab.active { background:#1f2937; color:#fff; border-color:#1f2937; }
+  .desc { font-size: 12px; color: #6b7280; }
+  .frame-wrap {
+    flex: 1; padding: 16px 24px 24px; overflow: hidden;
+    display:flex; flex-direction: column;
+  }
+  iframe {
+    width: 100%; flex: 1; border: 1px solid #ececec;
+    border-radius: 12px; background:#fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+  }
+  .descbar {
+    background:#fff; padding: 8px 16px; border-radius: 8px;
+    border:1px solid #ececec; margin-bottom: 12px;
+    font-size: 13px; color: #4b5563; line-height: 1.6;
+  }
+  .descbar strong { color:#1f2937; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">工作台 UI 风格对比</div>
+    <div class="tabs">
+      <button class="tab active" data-src="a-modern-dark.html" data-desc="<strong>A · 现代深色 / Glass</strong> — 渐变 + 毛玻璃 + 卡片网格,9 个 Agent 卡片化,适合演示和给老板看。视觉冲击强,但信息密度低,长时间看会累。">A · 现代深色</button>
+      <button class="tab" data-src="b-linear-light.html" data-desc="<strong>B · Linear / Notion 极简</strong> — 浅色 + 表格化 + 三态 pill 切换。Agent 用列表而非卡片,信息密度高且不杂乱,适合每天高频使用的运营者。是我推荐的默认选项。">B · 极简浅色</button>
+      <button class="tab" data-src="c-ops-dense.html" data-desc="<strong>C · Ops 高密度控制台</strong> — 等宽字体 + 三栏 + log tail + 队列/成本 sidecar。仿 Grafana / k9s / htop 的 SRE 风格,信息密度最高,适合"出问题时排障"的场景,日常用偏硬核。">C · Ops 控制台</button>
+      <button class="tab" data-src="d-flow-pipeline.html" data-desc="<strong>D · 流水线视觉化</strong> — 把 9 个 Agent 画成横向流水线 + 流动箭头 + 闸门标记。最直观,新人 5 秒就能理解整个 pipeline。但屏幕小会需要横向滚动。">D · 流水线视觉化</button>
+    </div>
+  </div>
+  <div class="frame-wrap">
+    <div class="descbar" id="desc"></div>
+    <iframe id="frame" src="a-modern-dark.html"></iframe>
+  </div>
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const frame = document.getElementById('frame');
+  const desc  = document.getElementById('desc');
+  function setActive(tab) {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    frame.src = tab.dataset.src;
+    desc.innerHTML = tab.dataset.desc;
+  }
+  tabs.forEach(t => t.addEventListener('click', () => setActive(t)));
+  setActive(tabs[0]);
+</script>
+</body>
+</html>

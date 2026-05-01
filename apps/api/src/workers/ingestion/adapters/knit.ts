@@ -2,6 +2,7 @@ import axios from 'axios';
 import { createHash } from 'node:crypto';
 import { JSDOM } from 'jsdom';
 import { AdapterAuthError, type SourceAdapter, type SourceRow, type RawCandidate } from './types.js';
+import { resolveAuth } from './auth.js';
 
 /**
  * Adapter for knit.bid / lovecutes / MissKON family of numbered-gallery sites.
@@ -40,8 +41,10 @@ export const knitAdapter: SourceAdapter = {
 
   async fetch(source: SourceRow): Promise<RawCandidate[]> {
     const cfg = source.config as Config;
-    const cookie = cfg.cookie || '';
-    const userAgent = cfg.userAgent || DEFAULT_UA;
+    // Resolve auth from credential pool first, fall back to inline config.
+    const auth = await resolveAuth(source);
+    const cookie = auth.cookie || '';
+    const userAgent = auth.userAgent || cfg.userAgent || DEFAULT_UA;
     const urls = Array.isArray(cfg.urls) ? cfg.urls.filter(Boolean) : [];
 
     if (!urls.length) {

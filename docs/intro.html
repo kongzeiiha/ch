@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内容中台 · 这是什么</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f7f8fa;
+    color: #1f2328;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 50px 28px 80px; }
+
+  header { margin-bottom: 36px; }
+  header h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+  }
+  header .sub {
+    color: #59636e;
+    font-size: 16px;
+  }
+
+  h2 {
+    margin: 44px 0 14px;
+    font-size: 20px;
+    color: #1f2328;
+    border-bottom: 1px solid #d1d9e0;
+    padding-bottom: 8px;
+  }
+
+  p { margin: 0 0 12px; }
+
+  .lead {
+    font-size: 18px;
+    color: #1f2328;
+    line-height: 1.7;
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-left: 4px solid #0969da;
+    padding: 18px 24px;
+    border-radius: 4px;
+    margin: 12px 0 24px;
+  }
+
+  .pipeline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 22px 24px;
+    margin: 18px 0;
+    align-items: center;
+  }
+  .pipeline .step {
+    background: #f7f8fa;
+    border: 1px solid #d1d9e0;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 14px;
+    color: #1f2328;
+    white-space: nowrap;
+  }
+  .pipeline .step.gate {
+    background: #fff8c5;
+    border-color: #d4a72c;
+  }
+  .pipeline .arr {
+    color: #8c959f;
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin: 18px 0;
+  }
+  .features .card {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .features .card .icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: #ddf4ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+  .features .card h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .features .card p {
+    margin: 0;
+    font-size: 14px;
+    color: #59636e;
+    line-height: 1.6;
+  }
+
+  .who {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 4px 24px;
+    margin: 14px 0;
+  }
+
+  ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 14px 0;
+  }
+  .split > div {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 16px 20px;
+  }
+  .split h4 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .split.auto h4 { color: #1a7f37; }
+  .split.manual h4 { color: #9a6700; }
+
+  .timeline {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 8px 24px;
+    margin: 14px 0;
+  }
+  .timeline ol { padding-left: 0; list-style: none; counter-reset: step; }
+  .timeline li {
+    counter-increment: step;
+    padding: 14px 0 14px 50px;
+    position: relative;
+    border-bottom: 1px dashed #d1d9e0;
+  }
+  .timeline li:last-child { border-bottom: none; }
+  .timeline li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 14px;
+    width: 32px; height: 32px;
+    background: #0969da;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 32px;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .timeline .name {
+    font-weight: 600;
+    color: #1f2328;
+    margin-bottom: 2px;
+  }
+  .timeline .desc {
+    color: #59636e;
+    font-size: 14.5px;
+  }
+
+  @media (max-width: 600px) {
+    .split { grid-template-columns: 1fr; }
+    main { padding: 30px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>内容中台 · 这是什么</h1>
+  <div class="sub">一份给非技术同事的简介</div>
+</header>
+
+<p class="lead">
+  这是一套可以<strong>自动找内容、整理、审核、发布到自己网站，并同步发到社交媒体</strong>的系统。
+  内容运营只需要在每个关键节点点一下确认，剩下的脏活累活交给系统做。
+</p>
+
+<h2>它会替你做什么</h2>
+
+<div class="features">
+  <div class="card">
+    <div class="icon">🔍</div>
+    <h3>自动找素材</h3>
+    <p>盯住你设定的内容源（公众号、博客、Reddit、Twitter 等），有新内容就自动拉回来。</p>
+  </div>
+  <div class="card">
+    <div class="icon">🧹</div>
+    <h3>自动去重清洗</h3>
+    <p>同一篇文章被不同来源转载，只保留一份。内容近似的也能识别出来。</p>
+  </div>
+  <div class="card">
+    <div class="icon">🏷️</div>
+    <h3>自动分类起标题</h3>
+    <p>系统会判断这篇属于什么品类，提炼关键词、自动起一个吸引人的标题。</p>
+  </div>
+  <div class="card">
+    <div class="icon">🖼️</div>
+    <h3>自动配封面</h3>
+    <p>从文章原图里挑最合适的当封面，自动裁出多种尺寸（手机、PC、卡片）。</p>
+  </div>
+  <div class="card">
+    <div class="icon">🛡️</div>
+    <h3>自动合规审核</h3>
+    <p>从政治、色情、版权、医疗、金融等 6 个维度自动打分，明显违规直接拦下。</p>
+  </div>
+  <div class="card">
+    <div class="icon">🚀</div>
+    <h3>一键发布到网站</h3>
+    <p>你点确认后，文章立刻出现在网站首页、文章页、对应分类页。</p>
+  </div>
+  <div class="card">
+    <div class="icon">📣</div>
+    <h3>一键发到社媒</h3>
+    <p>系统会按 Twitter 等平台的调性把长文改成推文，加好 hashtag，等你点发出。</p>
+  </div>
+  <div class="card">
+    <div class="icon">📊</div>
+    <h3>自动看数据</h3>
+    <p>每天拉昨天的阅读量、用户数、停留时间。每周自动出一份 Top 10 报表。</p>
+  </div>
+</div>
+
+<h2>整体流程长这样</h2>
+
+<div class="pipeline">
+  <span class="step">找素材</span><span class="arr">→</span>
+  <span class="step">整理</span><span class="arr">→</span>
+  <span class="step">配图</span><span class="arr">→</span>
+  <span class="step gate">合规审核</span><span class="arr">→</span>
+  <span class="step gate">人工放行 · 发布</span><span class="arr">→</span>
+  <span class="step gate">人工放行 · 分发</span><span class="arr">→</span>
+  <span class="step">看数据</span>
+</div>
+
+<p style="font-size: 14px; color: #59636e;">
+  <strong style="color: #9a6700;">黄底</strong>是需要人工点一下的环节，其余系统自动完成。
+</p>
+
+<h2>什么是自动、什么需要人工</h2>
+
+<div class="split">
+  <div class="auto">
+    <h4>系统自动做</h4>
+    <ul>
+      <li>定时去各个信源拉新内容</li>
+      <li>判断重复、过滤垃圾</li>
+      <li>分类、起标题、写摘要</li>
+      <li>挑封面、压缩多尺寸</li>
+      <li>合规初判（明显违规直接拦）</li>
+      <li>生成社媒文案</li>
+      <li>每天拉数据、出报表</li>
+    </ul>
+  </div>
+  <div class="manual">
+    <h4>需要你点一下</h4>
+    <ul>
+      <li>合规标为"待复核"的文章 — 看一眼放不放</li>
+      <li>已审核完的文章 — 选择发布到网站</li>
+      <li>已发布的文章 — 选择发到哪些社媒</li>
+      <li>新增 / 暂停 / 删掉一个内容源</li>
+    </ul>
+  </div>
+</div>
+
+<h2>谁适合用</h2>
+
+<div class="who">
+  <ul>
+    <li><strong>自媒体 / 内容站运营</strong> — 想用自动化扩大产能，又要控住质量和合规风险</li>
+    <li><strong>聚合站</strong> — 从多个上游汇总信息再二次加工</li>
+    <li><strong>企业品宣团队</strong> — 持续输出行业信息 + 多平台分发</li>
+    <li><strong>个人独立站</strong> — 一个人也能维持每天稳定更新</li>
+  </ul>
+</div>
+
+<h2>一篇文章在系统里走过的 8 步</h2>
+
+<div class="timeline">
+  <ol>
+    <li>
+      <div class="name">选源打分</div>
+      <div class="desc">系统给每个内容源打分，质量好的多采，质量差的降级。</div>
+    </li>
+    <li>
+      <div class="name">采集</div>
+      <div class="desc">从激活的信源拉最新内容，过一遍去重和清洗。</div>
+    </li>
+    <li>
+      <div class="name">分类 + 起标题</div>
+      <div class="desc">判断品类、提取关键词、生成更吸引人的标题和摘要。</div>
+    </li>
+    <li>
+      <div class="name">配封面</div>
+      <div class="desc">从文章里挑分辨率最高、构图最合适的图当封面，自动裁多个尺寸。</div>
+    </li>
+    <li>
+      <div class="name">合规审核</div>
+      <div class="desc">分两道：先正则黑名单（很快），再 AI 6 维打分。结果分通过、待复核、不通过。</div>
+    </li>
+    <li>
+      <div class="name">发布到站（人工放行）</div>
+      <div class="desc">你在后台勾选、点发布，文章马上在网站上可见。</div>
+    </li>
+    <li>
+      <div class="name">分发到社媒（人工放行）</div>
+      <div class="desc">系统已经按平台调性写好推文，你选择发哪些、什么时候发。</div>
+    </li>
+    <li>
+      <div class="name">看数据</div>
+      <div class="desc">每天拉阅读量，每周出 Top 10 报表。差的源会被自动降权或停用。</div>
+    </li>
+  </ol>
+</div>
+
+<h2>能看到什么数据</h2>
+
+<ul>
+  <li><strong>每篇文章</strong>：发布日期、阅读量、用户数、平均停留时间</li>
+  <li><strong>每个内容源</strong>：累计产出、合规通过率、最近活跃度、综合得分</li>
+  <li><strong>每周报表</strong>：本周总 PV / UV / 收入、每日趋势、Top 10 文章</li>
+  <li><strong>当前流水线状态</strong>：每个阶段有多少文章在排队</li>
+</ul>
+
+</main>
+</body>
+</html>

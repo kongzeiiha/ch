@@ -12,3 +12,11 @@ minio-data
 promote/images
 apps/web/out
 apps/web/.staticexport-stash
+
+# Claude Code local-only settings (may contain personal access tokens / shell
+# command allowlists with credentials). The shared project rules go in
+# .claude/settings.json which IS tracked.
+.claude/settings.local.json
+
+# TypeScript incremental-build cache.
+*.tsbuildinfo

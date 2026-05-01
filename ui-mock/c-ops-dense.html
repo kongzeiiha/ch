@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>风格 C · Ops 高密度控制台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    background: #0a0a0a;
+    color: #d4d4d4;
+    min-height: 100vh;
+  }
+  /* Top status bar */
+  .topbar {
+    height: 28px; background:#161616; border-bottom:1px solid #2a2a2a;
+    display:flex; align-items:center; padding: 0 12px; gap: 24px;
+    font-size: 11px;
+  }
+  .topbar .lbl { color:#7c7c7c; }
+  .topbar .ok { color:#4ade80; }
+  .topbar .warn { color:#facc15; }
+  .topbar .bad { color:#f87171; }
+  .sep { color:#3a3a3a; }
+  .topbar .right { margin-left:auto; display:flex; gap: 16px; }
+
+  .layout { display:grid; grid-template-columns: 220px 1fr 280px; height: calc(100vh - 28px); }
+  .pane {
+    background:#0e0e0e; border-right:1px solid #2a2a2a; overflow-y:auto;
+  }
+  .pane:last-child { border-right:none; border-left:1px solid #2a2a2a; }
+  .pane-head {
+    padding: 6px 12px; font-size: 11px; color:#7c7c7c;
+    background: #161616; border-bottom:1px solid #2a2a2a;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    position: sticky; top: 0;
+  }
+
+  /* Left: agent list */
+  .agent-row {
+    padding: 8px 12px; border-bottom:1px solid #1a1a1a;
+    display:grid; grid-template-columns: 8px 1fr auto;
+    gap: 8px; align-items:center; cursor:pointer;
+  }
+  .agent-row:hover { background:#161616; }
+  .agent-row.selected { background:#1a1a2e; border-left: 2px solid #6366f1; padding-left: 10px; }
+  .agent-row .stat { width: 8px; height: 8px; border-radius: 50%; }
+  .stat.run { background:#4ade80; box-shadow:0 0 6px #4ade80; }
+  .stat.idle { background:#525252; }
+  .stat.gate { background:#facc15; }
+  .agent-row .name { font-weight:500; color:#fafafa; }
+  .agent-row .meta { font-size: 10px; color:#7c7c7c; margin-top: 2px; }
+  .badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    background:#1f1f1f; color:#a3a3a3;
+  }
+  .badge.gate { background:#3b2f10; color:#facc15; }
+  .badge.run  { background:#0d2818; color:#4ade80; }
+
+  /* Middle */
+  .mid-content { padding: 12px; }
+  .strip {
+    display:grid; grid-template-columns: repeat(8, 1fr);
+    border:1px solid #2a2a2a; background: #0e0e0e; margin-bottom: 12px;
+  }
+  .strip-cell {
+    padding: 8px 10px; border-right: 1px solid #1f1f1f;
+    text-align:center;
+  }
+  .strip-cell:last-child { border-right:none; }
+  .strip-cell .lbl { font-size: 10px; color:#7c7c7c; text-transform:uppercase; }
+  .strip-cell .num { font-size: 18px; font-weight: 600; color:#fafafa; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .strip-cell.alert .num { color:#facc15; }
+  .strip-cell.gate .num  { color:#fb923c; }
+
+  .section { margin-bottom: 14px; }
+  .sec-head {
+    font-size: 10px; color:#7c7c7c; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 6px 0; border-bottom:1px solid #2a2a2a; margin-bottom: 6px;
+  }
+  .sec-head .right { float:right; color:#facc15; }
+
+  /* Live tail (logs) */
+  .log {
+    background:#0a0a0a; border:1px solid #2a2a2a; padding: 8px;
+    height: 180px; overflow-y:auto; font-size: 11px; line-height: 1.55;
+  }
+  .log .ts { color:#525252; }
+  .log .ag { color:#60a5fa; }
+  .log .ok { color:#4ade80; }
+  .log .er { color:#f87171; }
+  .log .gt { color:#facc15; }
+
+  /* Active jobs table */
+  table { width:100%; border-collapse: collapse; }
+  th, td {
+    padding: 6px 10px; text-align:left; font-size:11px;
+    border-bottom: 1px solid #1f1f1f; vertical-align: top;
+  }
+  th { color:#7c7c7c; font-weight: 500; background:#0e0e0e; text-transform:uppercase; letter-spacing:0.5px; font-size:10px; }
+  tbody tr:hover { background:#161616; }
+  .col-narrow { width: 60px; color:#7c7c7c; font-variant-numeric: tabular-nums; }
+  .col-status { width: 80px; }
+  .col-act { width: 100px; text-align:right; }
+
+  td.title-cell { color:#fafafa; max-width: 360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  td .src { color:#7c7c7c; font-size:10px; }
+
+  .ibtn {
+    background:#1f1f1f; color:#d4d4d4; border:1px solid #2a2a2a;
+    padding: 2px 8px; font-size: 10px; cursor:pointer; border-radius: 2px;
+    font-family: inherit; margin-left: 4px;
+  }
+  .ibtn:hover { background:#2a2a2a; border-color:#3a3a3a; }
+  .ibtn.pass { color:#4ade80; }
+  .ibtn.fail { color:#f87171; }
+
+  /* Right pane: queue health + cost */
+  .qrow {
+    padding: 6px 12px; display:grid;
+    grid-template-columns: 1fr 30px 30px 30px;
+    gap: 4px; font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid #1a1a1a; font-size: 11px;
+  }
+  .qrow .qname { color:#a3a3a3; }
+  .qhead { color:#525252 !important; font-size:10px; }
+
+  .kv {
+    padding: 5px 12px; display:flex; justify-content:space-between;
+    font-size: 11px; border-bottom: 1px solid #1a1a1a;
+  }
+  .kv .k { color:#7c7c7c; }
+  .kv .v { color:#fafafa; font-variant-numeric: tabular-nums; }
+
+  /* Fake spark chart */
+  .spark {
+    height: 40px; padding: 6px 12px;
+    display:flex; align-items:flex-end; gap: 1px;
+  }
+  .spark .b {
+    flex: 1; background:#4ade80; opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <span><span class="lbl">host</span> ch-prod-01</span>
+    <span class="sep">│</span>
+    <span><span class="lbl">pg</span> <span class="ok">●</span> 0.8ms</span>
+    <span><span class="lbl">redis</span> <span class="ok">●</span> 1.2ms</span>
+    <span><span class="lbl">minio</span> <span class="ok">●</span> 4.0ms</span>
+    <span class="sep">│</span>
+    <span><span class="lbl">auto-pipeline</span> <span class="ok">tick=4s</span></span>
+    <span><span class="lbl">queue.fail</span> <span class="warn">7</span></span>
+    <div class="right">
+      <span><span class="lbl">cost.24h</span> $0.082</span>
+      <span><span class="lbl">runs.24h</span> 1,847</span>
+      <span><span class="lbl">uptime</span> 17h32m</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- LEFT: agent list -->
+    <aside class="pane">
+      <div class="pane-head">Agents (9)</div>
+      <div class="agent-row">
+        <span class="stat idle"></span>
+        <div><div class="name">source-scoring</div><div class="meta">cron 03:15 daily</div></div>
+        <span class="badge">off</span>
+      </div>
+      <div class="agent-row selected">
+        <span class="stat run"></span>
+        <div><div class="name">ingestion</div><div class="meta">3 active · NatGeo</div></div>
+        <span class="badge run">auto</span>
+      </div>
+      <div class="agent-row">
+        <span class="stat run"></span>
+        <div><div class="name">classification</div><div class="meta">1 active · 187/24h</div></div>
+        <span class="badge run">auto</span>
+      </div>
+      <div class="agent-row">
+        <span class="stat run"></span>
+        <div><div class="name">title</div><div class="meta">2 active · 187/24h</div></div>
+        <span class="badge run">auto</span>
+      </div>
+      <div class="agent-row">
+        <span class="stat idle"></span>
+        <div><div class="name">cover</div><div class="meta">156/24h · 340ms p50</div></div>
+        <span class="badge run">auto</span>
+      </div>
+      <div class="agent-row">
+        <span class="stat run"></span>
+        <div><div class="name">compliance</div><div class="meta">7 review · 142/24h</div></div>
+        <span class="badge run">auto</span>
+      </div>
+      <div class="agent-row">
+        <span class="stat gate"></span>
+        <div><div class="name">publishing</div><div class="meta">42 待批准</div></div>
+        <span class="badge gate">⚑</span>
+      </div>
+      <div class="agent-row">
+        <span class="stat gate"></span>
+        <div><div class="name">distribution</div><div class="meta">18 pending</div></div>
+        <span class="badge gate">⚑</span>
+      </div>
+      <div class="agent-row">
+        <span class="stat idle"></span>
+        <div><div class="name">analytics</div><div class="meta">下次 02:00</div></div>
+        <span class="badge">manual</span>
+      </div>
+    </aside>
+
+    <!-- MIDDLE: pipeline + active jobs + log tail -->
+    <main class="pane" style="border-right:1px solid #2a2a2a;">
+      <div class="pane-head">Pipeline · Live</div>
+      <div class="mid-content">
+        <div class="strip">
+          <div class="strip-cell"><div class="lbl">INGESTED</div><div class="num">128</div></div>
+          <div class="strip-cell"><div class="lbl">CLASSIFIED</div><div class="num">54</div></div>
+          <div class="strip-cell"><div class="lbl">TITLED</div><div class="num">31</div></div>
+          <div class="strip-cell"><div class="lbl">COVERED</div><div class="num">19</div></div>
+          <div class="strip-cell alert"><div class="lbl">REVIEW</div><div class="num">7</div></div>
+          <div class="strip-cell gate"><div class="lbl">PASS · 待发</div><div class="num">42</div></div>
+          <div class="strip-cell"><div class="lbl">PUBLISHED</div><div class="num">683</div></div>
+          <div class="strip-cell"><div class="lbl">DISTRIBUTED</div><div class="num">412</div></div>
+        </div>
+
+        <div class="section">
+          <div class="sec-head">Active Jobs (8) <span class="right">refresh 1s</span></div>
+          <table>
+            <thead>
+              <tr>
+                <th class="col-status">agent</th>
+                <th>title / source</th>
+                <th class="col-narrow">since</th>
+                <th class="col-narrow">attempt</th>
+                <th class="col-act">action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge run">ingestion</span></td>
+                <td class="title-cell">源:NatGeo Photography (rss) <div class="src">→ fetched 24 candidates</div></td>
+                <td class="col-narrow">38.2s</td>
+                <td class="col-narrow">1/3</td>
+                <td class="col-act"><button class="ibtn">log</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge run">classification</span></td>
+                <td class="title-cell">@bertiegregory is buzzing to show off his bee pun skills... <div class="src">x · NatGeoTV</div></td>
+                <td class="col-narrow">0.4s</td>
+                <td class="col-narrow">1/3</td>
+                <td class="col-act"><button class="ibtn">log</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge run">title</span></td>
+                <td class="title-cell">Behind the Scenes of NatGeo's Bee Episode <div class="src">html · rev9.com</div></td>
+                <td class="col-narrow">0.2s</td>
+                <td class="col-narrow">1/3</td>
+                <td class="col-act"><button class="ibtn">log</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge run">title</span></td>
+                <td class="title-cell">这家深圳工厂凭什么把成本压到 1/3 <div class="src">2ksg · 2024-12-1</div></td>
+                <td class="col-narrow">0.3s</td>
+                <td class="col-narrow">1/3</td>
+                <td class="col-act"><button class="ibtn">log</button></td>
+              </tr>
+              <tr>
+                <td><span class="badge run">compliance</span></td>
+                <td class="title-cell">医疗保健新发现:这种食物比药还管用? <div class="src">html · health-blog</div></td>
+                <td class="col-narrow">1.1s</td>
+                <td class="col-narrow">2/3</td>
+                <td class="col-act"><button class="ibtn">log</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section">
+          <div class="sec-head">Human Gate · Compliance Review (7)</div>
+          <table>
+            <thead>
+              <tr>
+                <th>title</th>
+                <th class="col-narrow">cat</th>
+                <th class="col-narrow">trigger</th>
+                <th class="col-narrow">score</th>
+                <th class="col-act">decide</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="title-cell">这家深圳工厂凭什么把成本压到 1/3 ...</td>
+                <td class="col-narrow">商业</td>
+                <td class="col-narrow">广告争议</td>
+                <td class="col-narrow">0.58</td>
+                <td class="col-act"><button class="ibtn pass">pass</button><button class="ibtn fail">fail</button></td>
+              </tr>
+              <tr>
+                <td class="title-cell">医疗保健新发现:这种食物比药还管用?</td>
+                <td class="col-narrow">健康</td>
+                <td class="col-narrow">医疗夸大</td>
+                <td class="col-narrow">0.62</td>
+                <td class="col-act"><button class="ibtn pass">pass</button><button class="ibtn fail">fail</button></td>
+              </tr>
+              <tr>
+                <td class="title-cell">Behind the Scenes of NatGeo's Bee Episode</td>
+                <td class="col-narrow">自然</td>
+                <td class="col-narrow">版权</td>
+                <td class="col-narrow">0.41</td>
+                <td class="col-act"><button class="ibtn pass">pass</button><button class="ibtn fail">fail</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section">
+          <div class="sec-head">agent_runs · live tail</div>
+          <div class="log">
+            <div><span class="ts">14:32:18.412</span> <span class="ag">[classification]</span> <span class="ok">success</span> item=92789d3f cat=自然 12ms</div>
+            <div><span class="ts">14:32:18.155</span> <span class="ag">[title]</span> <span class="ok">success</span> item=ec22847a slug=behind-the-scenes-of-natgeos-bee-episode-d43ece 8ms</div>
+            <div><span class="ts">14:32:17.901</span> <span class="ag">[ingestion]</span> <span class="ok">success</span> source=ee291aa4 candidates=24 ingested=18 dupUrl=4 dupContent=2</div>
+            <div><span class="ts">14:32:14.022</span> <span class="ag">[compliance]</span> <span class="gt">REVIEW</span> item=88ab12dc trigger=医疗夸大 score=0.62</div>
+            <div><span class="ts">14:32:13.118</span> <span class="ag">[cover]</span> <span class="ok">success</span> item=88ab12dc picked=https://pic.ylimg.com/... score=0.92 sizes=4</div>
+            <div><span class="ts">14:32:12.640</span> <span class="ag">[classification]</span> <span class="ok">success</span> item=2c019a8a cat=互联网产品 14ms</div>
+            <div><span class="ts">14:32:08.299</span> <span class="ag">[ingestion]</span> <span class="er">failed</span> source=knit01 reason=auth_status=403 cf_clearance expired</div>
+            <div><span class="ts">14:32:05.820</span> <span class="ag">[human:publish-gate]</span> <span class="ok">success</span> item=ec22847a decision=approve</div>
+            <div><span class="ts">14:32:01.402</span> <span class="ag">[publishing]</span> <span class="ok">success</span> item=ec22847a slug=behind-the-scenes... revalidate=4</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: queue + cost + spark -->
+    <aside class="pane">
+      <div class="pane-head">Queues</div>
+      <div class="qrow qhead"><span class="qname">name</span><span>act</span><span>wait</span><span>fail</span></div>
+      <div class="qrow"><span class="qname">ingestion</span><span style="color:#4ade80;">3</span><span style="color:#4ade80;">12</span><span style="color:#525252;">0</span></div>
+      <div class="qrow"><span class="qname">classification</span><span style="color:#4ade80;">1</span><span style="color:#4ade80;">24</span><span style="color:#525252;">0</span></div>
+      <div class="qrow"><span class="qname">title</span><span style="color:#4ade80;">2</span><span style="color:#4ade80;">8</span><span style="color:#525252;">0</span></div>
+      <div class="qrow"><span class="qname">cover</span><span style="color:#525252;">0</span><span style="color:#4ade80;">5</span><span style="color:#facc15;">1</span></div>
+      <div class="qrow"><span class="qname">compliance</span><span style="color:#4ade80;">1</span><span style="color:#4ade80;">3</span><span style="color:#f87171;">7</span></div>
+      <div class="qrow"><span class="qname">publishing</span><span style="color:#525252;">0</span><span style="color:#525252;">0</span><span style="color:#525252;">0</span></div>
+      <div class="qrow"><span class="qname">distribution</span><span style="color:#4ade80;">1</span><span style="color:#4ade80;">2</span><span style="color:#525252;">0</span></div>
+      <div class="qrow"><span class="qname">analytics</span><span style="color:#525252;">0</span><span style="color:#4ade80;">1</span><span style="color:#525252;">0</span></div>
+
+      <div class="pane-head" style="margin-top:0;">Cost · 24h</div>
+      <div class="kv"><span class="k">total</span><span class="v">$0.082</span></div>
+      <div class="kv"><span class="k">classification</span><span class="v">$0.000</span></div>
+      <div class="kv"><span class="k">title</span><span class="v">$0.000</span></div>
+      <div class="kv"><span class="k">compliance</span><span class="v">$0.000</span></div>
+      <div class="kv"><span class="k">distribution</span><span class="v">$0.082</span></div>
+
+      <div class="pane-head">Throughput · 1h</div>
+      <div class="spark">
+        <div class="b" style="height:30%"></div>
+        <div class="b" style="height:50%"></div>
+        <div class="b" style="height:42%"></div>
+        <div class="b" style="height:65%"></div>
+        <div class="b" style="height:80%"></div>
+        <div class="b" style="height:55%"></div>
+        <div class="b" style="height:90%"></div>
+        <div class="b" style="height:72%"></div>
+        <div class="b" style="height:60%"></div>
+        <div class="b" style="height:48%"></div>
+        <div class="b" style="height:88%"></div>
+        <div class="b" style="height:95%"></div>
+        <div class="b" style="height:70%"></div>
+        <div class="b" style="height:55%"></div>
+        <div class="b" style="height:85%"></div>
+        <div class="b" style="height:62%"></div>
+        <div class="b" style="height:48%"></div>
+        <div class="b" style="height:78%"></div>
+      </div>
+
+      <div class="pane-head">Sources Auth Status</div>
+      <div class="kv"><span class="k">knit01</span><span class="v" style="color:#f87171;">403</span></div>
+      <div class="kv"><span class="k">x:natgeo</span><span class="v" style="color:#4ade80;">ok</span></div>
+      <div class="kv"><span class="k">2ksg:default</span><span class="v" style="color:#4ade80;">ok</span></div>
+      <div class="kv"><span class="k">reddit:earthporn</span><span class="v" style="color:#4ade80;">ok</span></div>
+    </aside>
+  </div>
+</body>
+</html>

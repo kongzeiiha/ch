@@ -19,17 +19,20 @@ const { query } = await import('@ch/db');
 const { closeAll } = await import('@ch/agents');
 const { startWorkers } = await import('./workers/index.js');
 const { registerAdmin } = await import('./admin.js');
-const { registerDay1 } = await import('./admin-day1.js');
-const { registerDay3 } = await import('./admin-day3.js');
-const { registerDay4 } = await import('./admin-day4.js');
-const { registerDay5 } = await import('./admin-day5.js');
-const { registerDay6 } = await import('./admin-day6.js');
-const { registerDay7 } = await import('./admin-day7.js');
+const { registerInfra } = await import('./admin-infra.js');
+const { registerSourceScoring } = await import('./admin-source-scoring.js');
+const { registerClassifyTitle } = await import('./admin-classify-title.js');
+const { registerCoverCompliance } = await import('./admin-cover-compliance.js');
+const { registerPublishing } = await import('./admin-publishing.js');
+const { registerDistribution } = await import('./admin-distribution.js');
+const { registerOps } = await import('./admin-ops.js');
 const { initSentry, captureException } = await import('./sentry.js');
 const { startAlertPoller } = await import('./alerts.js');
 const { setupScheduler } = await import('./scheduler.js');
 const { registerPipelineAdmin } = await import('./admin-pipeline.js');
 const { startAutoPipeline, stopAutoPipeline } = await import('./auto-pipeline.js');
+const { registerOpLogHook, registerOpLogAdmin } = await import('./op-log.js');
+const { registerFeedbackAdmin } = await import('./admin-feedback.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
 
@@ -58,8 +61,7 @@ async function main(): Promise<void> {
     agents: [
       'source-scoring',
       'ingestion',
-      'classification',
-      'title',
+      'classify-title',
       'cover',
       'compliance',
       'publishing',
@@ -68,14 +70,22 @@ async function main(): Promise<void> {
     ],
   }));
 
+  // Operation log hook MUST be registered before any admin routes so the
+  // onResponse hook covers them. Catch-all only fires when handlers don't
+  // already log explicitly.
+  registerOpLogHook(app);
+  await registerOpLogAdmin(app);
+
   await registerAdmin(app);
-  await registerDay1(app);
-  await registerDay3(app);
-  await registerDay4(app);
-  await registerDay5(app);
-  await registerDay6(app);
-  await registerDay7(app);
+  await registerInfra(app);
+  await registerSourceScoring(app);
+  await registerClassifyTitle(app);
+  await registerCoverCompliance(app);
+  await registerPublishing(app);
+  await registerDistribution(app);
+  await registerOps(app);
   await registerPipelineAdmin(app);
+  await registerFeedbackAdmin(app);
 
   const workers = startWorkers();
   app.log.info(`workers started: ${workers.length}`);

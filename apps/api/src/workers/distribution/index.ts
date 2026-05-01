@@ -76,6 +76,9 @@ export function startDistributionWorker() {
         };
       });
     },
-    { concurrency: 3 },
+    // Distribution rewrite hits a Groq 6000 TPM ceiling. Concurrency=3 was
+    // saturating the bucket and producing 429s on every batch. Stay at 1 and
+    // let BullMQ serialize — the SDK retries with Retry-After backoff.
+    { concurrency: 1 },
   );
 }

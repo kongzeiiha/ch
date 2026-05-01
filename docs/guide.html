@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内容中台 · 操作指南</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f7f8fa;
+    color: #1f2328;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 50px 28px 80px; }
+
+  header { margin-bottom: 36px; }
+  header h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.01em; }
+  header .sub { color: #59636e; font-size: 16px; }
+
+  h2 {
+    margin: 44px 0 14px;
+    font-size: 20px;
+    border-bottom: 1px solid #d1d9e0;
+    padding-bottom: 8px;
+  }
+  h3 { margin: 24px 0 8px; font-size: 17px; color: #0969da; }
+
+  p { margin: 0 0 12px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+
+  .lead {
+    font-size: 17px;
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-left: 4px solid #0969da;
+    padding: 18px 24px;
+    border-radius: 4px;
+    margin: 12px 0 24px;
+  }
+
+  .pages {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 14px 0 22px;
+  }
+  .pages .page {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 16px 20px;
+  }
+  .pages .page .label {
+    display: inline-block;
+    font-size: 12px;
+    color: #59636e;
+    background: #f7f8fa;
+    border: 1px solid #d1d9e0;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-bottom: 8px;
+  }
+  .pages .page h4 { margin: 0 0 6px; font-size: 15px; }
+  .pages .page p { margin: 0; font-size: 13.5px; color: #59636e; line-height: 1.6; }
+
+  .step {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 16px 22px 16px 60px;
+    margin: 10px 0;
+    position: relative;
+  }
+  .step::before {
+    content: attr(data-num);
+    position: absolute;
+    left: 16px; top: 16px;
+    width: 30px; height: 30px;
+    background: #0969da;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 30px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .step strong { color: #1f2328; }
+  .step p:last-child { margin-bottom: 0; }
+  .step p { font-size: 14.5px; }
+
+  .scenario {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 10px 0;
+  }
+  .scenario h4 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    color: #0969da;
+  }
+  .scenario p { margin: 0 0 6px; font-size: 14.5px; }
+
+  .tip {
+    background: #ddf4ff;
+    border-left: 3px solid #0969da;
+    padding: 10px 16px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 14.5px;
+  }
+  .warn {
+    background: #fff8c5;
+    border-left: 3px solid #d4a72c;
+    padding: 10px 16px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 14.5px;
+  }
+  .warn strong { color: #9a6700; }
+  .danger {
+    background: #ffebe9;
+    border-left: 3px solid #cf222e;
+    padding: 10px 16px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 14.5px;
+  }
+  .danger strong { color: #cf222e; }
+
+  .faq {
+    background: white;
+    border: 1px solid #d1d9e0;
+    border-radius: 8px;
+    padding: 4px 24px;
+    margin: 14px 0;
+  }
+  .faq dl { margin: 12px 0; }
+  .faq dt { font-weight: 600; color: #1f2328; margin-top: 14px; }
+  .faq dd { margin: 4px 0 12px; color: #59636e; font-size: 14.5px; }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    margin: 0 2px;
+    border: 1px solid #d1d9e0;
+    background: #f7f8fa;
+  }
+  .badge.green { background: #dafbe1; border-color: #2da44e; color: #1a7f37; }
+  .badge.yellow { background: #fff8c5; border-color: #d4a72c; color: #9a6700; }
+  .badge.red { background: #ffebe9; border-color: #cf222e; color: #cf222e; }
+
+  @media (max-width: 600px) {
+    main { padding: 30px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>内容中台 · 操作指南</h1>
+  <div class="sub">非技术人员日常使用步骤</div>
+</header>
+
+<p class="lead">
+  你只需要在浏览器里打开公司的内容中台后台地址，登录后就能完成所有操作。
+  本指南描述每个页面是干什么的、什么时候需要你点一下。
+</p>
+
+<div class="warn">
+  <strong>第一次使用前</strong>：找运维或技术同事拿到后台地址、账号密码。系统部署、信源初始化这些一次性的事，由技术同事负责。
+</div>
+
+<h2>一、后台主要有哪些页面</h2>
+
+<div class="pages">
+  <div class="page">
+    <div class="label">总览</div>
+    <h4>主页 / 总览</h4>
+    <p>看每个阶段当前有多少文章在排队、最近的告警。</p>
+  </div>
+  <div class="page">
+    <div class="label">输入</div>
+    <h4>内容源</h4>
+    <p>添加 / 暂停 / 删除你想监控的来源（RSS、公众号、博客等）。</p>
+  </div>
+  <div class="page">
+    <div class="label">处理中</div>
+    <h4>分类 + 标题</h4>
+    <p>看系统对每篇文章自动给的分类、tags、新标题。如果不满意可以重跑。</p>
+  </div>
+  <div class="page">
+    <div class="label">处理中</div>
+    <h4>封面 + 合规</h4>
+    <p>看每篇文章的封面、合规审核结果。</p>
+  </div>
+  <div class="page">
+    <div class="label">人工放行</div>
+    <h4>待审核</h4>
+    <p>合规系统标了"待复核"的文章，需要你点放行或拒绝。</p>
+  </div>
+  <div class="page">
+    <div class="label">人工放行</div>
+    <h4>待发布</h4>
+    <p>已审核完的文章，你选哪些发到网站，点确认就上线。</p>
+  </div>
+  <div class="page">
+    <div class="label">人工放行</div>
+    <h4>待分发</h4>
+    <p>已发布的文章，选哪些发到 Twitter 等社媒，确认推文文案后发出。</p>
+  </div>
+  <div class="page">
+    <div class="label">查看</div>
+    <h4>数据 / 报表</h4>
+    <p>每篇文章的阅读量、本周 Top 10、每日趋势。</p>
+  </div>
+</div>
+
+<h2>二、第一次怎么用（5 分钟）</h2>
+
+<div class="step" data-num="1">
+  <strong>登录后台</strong>
+  <p>用技术同事给你的地址（类似 <em>后台.公司域名.com/admin</em>）打开，输入账号密码。</p>
+</div>
+<div class="step" data-num="2">
+  <strong>到 "内容源" 页面，添加你要监控的来源</strong>
+  <p>点 "新增信源" 按钮，填几个字段：</p>
+  <ul>
+    <li><strong>类型</strong>：选 RSS / HTML / Reddit 等（不确定的话选 RSS 多半都行）</li>
+    <li><strong>名称</strong>：随便起，自己看得懂就行（如 "TechCrunch"）</li>
+    <li><strong>地址</strong>：粘贴 RSS 地址或网页地址</li>
+  </ul>
+  <p>保存。系统会在下一轮采集（通常每小时一次）开始拉这个源。</p>
+</div>
+<div class="step" data-num="3">
+  <strong>等系统跑一会儿</strong>
+  <p>大约 10–30 分钟后回到 "总览" 页面，应该能看到陆续有文章进入流水线。</p>
+</div>
+<div class="step" data-num="4">
+  <strong>处理 "待审核" 的文章</strong>
+  <p>到 "待审核" 页面，看每篇文章被标记为待复核的原因，决定放行还是拒绝。</p>
+</div>
+<div class="step" data-num="5">
+  <strong>选择要发布的文章</strong>
+  <p>到 "待发布" 页面，预览每篇的标题 / 封面 / 摘要，勾选后点 "确认发布"，文章马上在你的网站上可见。</p>
+</div>
+<div class="step" data-num="6">
+  <strong>选择发到哪些社媒</strong>
+  <p>到 "待分发" 页面，看系统已经写好的推文文案。觉得合适就勾选 + 确认，不满意可以编辑后再发。</p>
+</div>
+
+<h2>三、日常工作流程</h2>
+
+<p>建议每天花 15–30 分钟跑一遍下面的循环：</p>
+
+<div class="step" data-num="1">
+  <strong>早上：看总览</strong>
+  <p>打开 "总览"，看昨天产出多少、当前每个阶段堆了多少。如果 "待审核" 或 "待发布" 堆得很多，今天要重点处理。</p>
+</div>
+<div class="step" data-num="2">
+  <strong>处理 "待审核"</strong>
+  <p>逐篇判断系统给的合规理由对不对：</p>
+  <ul>
+    <li>觉得没问题 → 点放行</li>
+    <li>确实有风险 → 点拒绝（这篇就到此为止，不会再走下去）</li>
+    <li>拿不准 → 跳过（保留在队列里晚点再看）</li>
+  </ul>
+</div>
+<div class="step" data-num="3">
+  <strong>选稿发布</strong>
+  <p>到 "待发布" 页面，预览每篇的<span class="badge">标题</span><span class="badge">封面</span><span class="badge">分类</span><span class="badge">摘要</span>，勾选你想发的。
+  如果想给标题做最后调整，可以点编辑。</p>
+</div>
+<div class="step" data-num="4">
+  <strong>分发到社媒</strong>
+  <p>到 "待分发" 页面，系统已经为每个平台准备好了文案。检查文案 → 选平台 → 确认发出。</p>
+</div>
+<div class="step" data-num="5">
+  <strong>下班前：看一眼数据</strong>
+  <p>到 "数据" 页面看今天发的文章是否有进站访问。周五看一下本周 Top 10 报表。</p>
+</div>
+
+<h2>四、常见场景</h2>
+
+<div class="scenario">
+  <h4>我加了一个新的内容源，但是没看到内容</h4>
+  <p>采集是按小时来的，加完之后等 1 小时左右。如果想立刻试，可以点 "立即采集" 按钮（在 "内容源" 页面每行的操作栏里）。</p>
+</div>
+
+<div class="scenario">
+  <h4>这篇文章的标题我不喜欢</h4>
+  <p>在 "分类 + 标题" 或 "待发布" 页面点 "重新生成标题"，系统会再起一组候选。也可以直接编辑改成你想要的。</p>
+</div>
+
+<div class="scenario">
+  <h4>封面图不太合适</h4>
+  <p>系统是从原文里挑的图。你可以在文章详情页的 "图集" 区切换其他候选图，或者上传一张自己的。</p>
+</div>
+
+<div class="scenario">
+  <h4>这篇文章被合规拦下来了，但我觉得没问题</h4>
+  <p>到 "待审核" 看具体原因。如果你判断系统过于敏感，点放行就会继续往后走。<strong>但要为这个判断负责。</strong></p>
+</div>
+
+<div class="scenario">
+  <h4>有篇文章我想紧急下架</h4>
+  <p>找到那篇文章 → 点 "回滚到上一状态" → 文章会从网站下线（具体下线在网站上多久内生效，由部署的缓存策略决定）。</p>
+</div>
+
+<div class="scenario">
+  <h4>某个内容源最近老出问题，先暂停</h4>
+  <p>"内容源" 页面找到它，点 "暂停"。系统就不再从它那里拉新内容了。想恢复时再点 "激活"。</p>
+</div>
+
+<div class="scenario">
+  <h4>系统推文文案我想改一下</h4>
+  <p>"待分发" 页面每条推文都可以编辑。改完保存再点发出即可。</p>
+</div>
+
+<h2>五、状态标签的意思</h2>
+
+<p>每篇文章在不同阶段会带不同的状态标签：</p>
+
+<ul style="line-height: 2.2; list-style: none; padding-left: 0;">
+  <li><span class="badge">已采集</span> 系统刚拉回来，还没处理</li>
+  <li><span class="badge">已分类</span> 已经分好品类、有 tags</li>
+  <li><span class="badge">已起标题</span> 已经生成新标题、摘要、网址</li>
+  <li><span class="badge">已配封面</span> 已经选好封面图</li>
+  <li><span class="badge green">合规通过</span> 自动审核通过，等你决定发不发</li>
+  <li><span class="badge yellow">待复核</span> 自动审核拿不准，<strong>需要人工判断</strong></li>
+  <li><span class="badge red">合规未通过</span> 自动审核拒绝，不会自动发布</li>
+  <li><span class="badge green">已发布</span> 文章已在网站上线</li>
+  <li><span class="badge green">已分发</span> 已发到至少一个社媒</li>
+</ul>
+
+<h2>六、紧急情况</h2>
+
+<div class="danger">
+  <strong>系统出了问题，全部停下来</strong>
+  <p>"总览" 页面有个红色的 <strong>"急停"</strong> 按钮，点一下整个流水线就停止采集和处理。已发布的文章不受影响。等问题解决后点 "恢复"。</p>
+</div>
+
+<div class="warn">
+  <strong>停掉某个阶段</strong>
+  <p>不想全停的话，可以只暂停某一步（比如只暂停采集）。在 "总览" 或 "管线控制" 页面找到对应开关。</p>
+</div>
+
+<h2>七、什么时候需要找技术同事</h2>
+
+<div class="faq">
+  <dl>
+    <dt>想接入新的平台（比如小红书、抖音、Telegram）</dt>
+    <dd>需要技术同事写一个新适配器，几天到一周的工作量。</dd>
+
+    <dt>系统报错 / 后台某个页面打不开</dt>
+    <dd>截图发给技术同事，附带操作时间。</dd>
+
+    <dt>想批量改一批文章的分类或标题</dt>
+    <dd>页面上能改单篇，批量需要技术同事跑一次脚本。</dd>
+
+    <dt>想加 / 改合规规则（比如"屏蔽关键词 X"）</dt>
+    <dd>关键词列表在代码里，需要技术同事修改后重新部署。</dd>
+
+    <dt>系统好像漏抓了某条内容</dt>
+    <dd>有可能被去重了，也可能信源那边格式变了。把 URL 发给技术同事查一下。</dd>
+
+    <dt>想要某个数据指标（"按作者维度看 PV"之类）</dt>
+    <dd>当前周报是固定模板，自定义维度的数据需要技术同事查库。</dd>
+  </dl>
+</div>
+
+<h2>八、几条小建议</h2>
+
+<ul>
+  <li><strong>不要点了发布就不管</strong> — 发布后过 10 分钟到网站上看一下文章页是不是好的。</li>
+  <li><strong>合规拿不准就拒绝</strong> — 出问题的代价远大于错过一篇文章。</li>
+  <li><strong>定期清理低质源</strong> — 每周看看哪些信源产出少 / 合规失败多，暂停掉。</li>
+  <li><strong>分发别一次发太多</strong> — 短时间往同一个社媒账号发太多容易触发对方风控。</li>
+  <li><strong>周报每周看一次</strong> — 能帮你发现哪个品类、哪个时间段的内容更受欢迎。</li>
+</ul>
+
+</main>
+</body>
+</html>

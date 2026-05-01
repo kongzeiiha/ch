@@ -11,14 +11,14 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
+import { logOperation } from './op-log.js';
 
 // ── In-memory automation state (single-process MVP) ───────────────────────
 // Key = agent key (see AGENT_KEYS below), value = true/false
 export const autoState: Map<string, boolean> = new Map([
   ['source-scoring',   false],
   ['ingestion',        false],
-  ['classification',   true],   // safe to auto
-  ['title',            true],
+  ['classify-title',   true],   // merged from old classification+title; safe to auto
   ['cover',            true],
   ['compliance',       true],
   ['publishing',       false],  // HUMAN GATE — cannot auto by default
@@ -33,8 +33,8 @@ export function setGlobalStop(v: boolean) { globalStop = v; }
 
 // Status → agent that processes it next
 const STATUS_TO_AGENT: Record<string, string> = {
-  INGESTED:          'classification',
-  CLASSIFIED:        'title',
+  INGESTED:          'classify-title',
+  CLASSIFIED:        'classify-title', // legacy backlog — picked up to finish title step
   TITLED:            'cover',
   COVERED:           'compliance',
   COMPLIANCE_PASS:   'publishing',
@@ -43,16 +43,12 @@ const STATUS_TO_AGENT: Record<string, string> = {
 
 // Agent → queue action
 const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
-  classification: async () => {
-    const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='INGESTED' LIMIT 200`);
-    const q = getQueue(QUEUE_NAMES.classification);
-    for (const { id } of items) await q.add('classify', { itemId: id }, { jobId: `classify__${id}` });
-    return { queued: items.length };
-  },
-  title: async () => {
-    const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='CLASSIFIED' LIMIT 200`);
-    const q = getQueue(QUEUE_NAMES.title);
-    for (const { id } of items) await q.add('title', { itemId: id }, { jobId: `title__${id}` });
+  'classify-title': async () => {
+    const items = await query<{ id: string }>(
+      `SELECT id FROM items WHERE status IN ('INGESTED', 'CLASSIFIED') LIMIT 200`,
+    );
+    const q = getQueue(QUEUE_NAMES.classifyTitle);
+    for (const { id } of items) await q.add('classify-title', { itemId: id }, { jobId: `classify-title__${id}` });
     return { queued: items.length };
   },
   cover: async () => {
@@ -105,8 +101,8 @@ const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
 // Rollback map: status → previous status + fields to clear
 const ROLLBACK_MAP: Record<string, { toStatus: string; clearFields?: string[] }> = {
   CLASSIFIED:        { toStatus: 'INGESTED',         clearFields: ['category', 'tags', 'keywords'] },
-  TITLED:            { toStatus: 'CLASSIFIED',        clearFields: ['title', 'summary', 'slug'] },
-  COVERED:           { toStatus: 'TITLED',            clearFields: ['cover_url', 'cover_sizes', 'cover_copy'] },
+  TITLED:            { toStatus: 'INGESTED',         clearFields: ['category', 'tags', 'keywords', 'title', 'summary', 'slug'] },
+  COVERED:           { toStatus: 'TITLED',           clearFields: ['cover_url', 'cover_sizes', 'cover_copy'] },
   COMPLIANCE_PASS:   { toStatus: 'COVERED',           clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
   COMPLIANCE_FAIL:   { toStatus: 'COVERED',           clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
   COMPLIANCE_REVIEW: { toStatus: 'COVERED',           clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
@@ -153,24 +149,48 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       const { ack } = req.body as { ack?: boolean };
       if (!ack) return reply.status(400).send({ error: `${agent} is a human gate. Pass ack:true to confirm auto mode.` });
     }
+    const before = autoState.get(agent) ?? false;
     autoState.set(agent, auto);
+    await logOperation(req, {
+      operation: 'pipeline.set-auto',
+      targetType: 'agent',
+      targetId: agent,
+      payload: { before, after: auto },
+    });
     return { agent, auto };
   });
 
   app.post('/admin/pipeline/set-paused', async (req, reply) => {
     const { agent, paused } = req.body as { agent: string; paused: boolean };
     if (!autoState.has(agent)) return reply.status(400).send({ error: 'unknown agent' });
+    const before = pausedState.get(agent) ?? false;
     pausedState.set(agent, paused);
+    await logOperation(req, {
+      operation: 'pipeline.set-paused',
+      targetType: 'agent',
+      targetId: agent,
+      payload: { before, after: paused },
+    });
     return { agent, paused };
   });
 
-  app.post('/admin/pipeline/emergency-stop', async () => {
+  app.post('/admin/pipeline/emergency-stop', async (req) => {
     setGlobalStop(true);
+    await logOperation(req, {
+      operation: 'system.emergency-stop',
+      targetType: 'system',
+      targetId: null,
+    });
     return { stopped: true };
   });
 
-  app.post('/admin/pipeline/resume', async () => {
+  app.post('/admin/pipeline/resume', async (req) => {
     setGlobalStop(false);
+    await logOperation(req, {
+      operation: 'system.resume',
+      targetType: 'system',
+      targetId: null,
+    });
     return { stopped: false };
   });
 
@@ -219,6 +239,12 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
        VALUES ('human:review', $1, 'success', '{"decision":"approve"}', NOW())`,
       [itemId],
     );
+    await logOperation(req, {
+      operation: 'compliance.approve',
+      targetType: 'item',
+      targetId: itemId,
+      payload: { decision: 'approve' },
+    });
     return { approved: itemId };
   });
 
@@ -236,6 +262,12 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
        VALUES ('human:review', $1, 'success', '{"decision":"reject"}', $2, NOW())`,
       [itemId, reason ?? null],
     );
+    await logOperation(req, {
+      operation: 'compliance.reject',
+      targetType: 'item',
+      targetId: itemId,
+      payload: { decision: 'reject', reason: reason ?? null },
+    });
     return { rejected: itemId };
   });
 
@@ -262,6 +294,7 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       : await query<{ id: string }>(`SELECT id FROM items WHERE status='COMPLIANCE_PASS' LIMIT 200`);
 
     const q = getQueue(QUEUE_NAMES.publishing);
+    const queuedIds: string[] = [];
     for (const { id } of candidates) {
       await q.add('publish', { itemId: id }, { jobId: `publish__${id}` });
       await query(
@@ -269,6 +302,14 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
          VALUES ('human:publish-gate', $1, 'success', '{"decision":"approve"}', NOW())`,
         [id],
       );
+      queuedIds.push(id);
+      // Per-item operation log so single-item history shows the publish event.
+      await logOperation(req, {
+        operation: 'publish.approve',
+        targetType: 'item',
+        targetId: id,
+        payload: { batch: itemIds ? true : false },
+      });
     }
     return { queued: candidates.length };
   });
@@ -292,6 +333,10 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
   // Mark distribution task as manually posted (human confirmed)
   app.post('/admin/pipeline/confirm-distribution/:taskId', async (req) => {
     const { taskId } = req.params as { taskId: string };
+    const before = await query<{ item_id: string; channel: string; status: string }>(
+      `SELECT item_id, channel, status FROM distribution_tasks WHERE id=$1`,
+      [taskId],
+    );
     await query(
       `UPDATE distribution_tasks SET status='done', executed_at=NOW() WHERE id=$1`,
       [taskId],
@@ -302,6 +347,16 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
          AND status='PUBLISHED'`,
       [taskId],
     );
+    await logOperation(req, {
+      operation: 'distribution.confirm',
+      targetType: 'distribution_task',
+      targetId: taskId,
+      payload: {
+        itemId: before[0]?.item_id ?? null,
+        channel: before[0]?.channel ?? null,
+        previousStatus: before[0]?.status ?? null,
+      },
+    });
     return { confirmed: taskId };
   });
 
@@ -328,6 +383,19 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
        VALUES ('human:rollback', $1, 'success', $2, NOW())`,
       [itemId, JSON.stringify({ from: item.status, to: rb.toStatus })],
     );
+    // PUBLISHED → COMPLIANCE_PASS rollback is the "紧急下线" path. Tag it
+    // distinctly so the audit log can call it out vs. ordinary state rollback.
+    const isUnpublish = item.status === 'PUBLISHED';
+    await logOperation(req, {
+      operation: isUnpublish ? 'item.unpublish' : 'item.rollback',
+      targetType: 'item',
+      targetId: itemId,
+      payload: {
+        from: item.status,
+        to: rb.toStatus,
+        clearedFields: rb.clearFields ?? [],
+      },
+    });
     return { itemId, from: item.status, to: rb.toStatus };
   });
 
@@ -346,12 +414,11 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     if (!agentKey) return reply.status(400).send({ error: `no agent mapped for status=${item.status}` });
 
     const queueMap: Record<string, string> = {
-      classification: QUEUE_NAMES.classification,
-      title:          QUEUE_NAMES.title,
-      cover:          QUEUE_NAMES.cover,
-      compliance:     QUEUE_NAMES.compliance,
-      publishing:     QUEUE_NAMES.publishing,
-      distribution:   QUEUE_NAMES.distribution,
+      'classify-title': QUEUE_NAMES.classifyTitle,
+      cover:            QUEUE_NAMES.cover,
+      compliance:       QUEUE_NAMES.compliance,
+      publishing:       QUEUE_NAMES.publishing,
+      distribution:     QUEUE_NAMES.distribution,
     };
     const qname = queueMap[agentKey];
     if (!qname) return reply.status(400).send({ error: `no queue for agent=${agentKey}` });
@@ -366,6 +433,12 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
        VALUES ('human:rerun', $1, 'success', $2, NOW())`,
       [itemId, JSON.stringify({ agent: agentKey, jobId })],
     );
+    await logOperation(req, {
+      operation: 'item.rerun',
+      targetType: 'item',
+      targetId: itemId,
+      payload: { agent: agentKey, jobId, fromStatus: item.status },
+    });
     return { itemId, agentKey, jobId };
   });
 
@@ -406,8 +479,7 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     const AGENT_QUEUES: Array<{ key: string; queue: keyof typeof QUEUE_NAMES }> = [
       { key: 'source-scoring', queue: 'sourceScoring' },
       { key: 'ingestion',      queue: 'ingestion' },
-      { key: 'classification', queue: 'classification' },
-      { key: 'title',          queue: 'title' },
+      { key: 'classify-title', queue: 'classifyTitle' },
       { key: 'cover',          queue: 'cover' },
       { key: 'compliance',     queue: 'compliance' },
       { key: 'publishing',     queue: 'publishing' },
@@ -489,7 +561,7 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
          FROM agent_runs WHERE finished_at IS NOT NULL
        ) ar
        LEFT JOIN items i ON i.id = ar.item_id
-       WHERE ar.rn <= 3`,
+       WHERE ar.rn <= 8`,
     );
     const recentByAgent: Record<string, typeof recent> = {};
     for (const r of recent) {

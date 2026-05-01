@@ -1,4 +1,5 @@
 import { callClaude, type Model } from '@ch/agents';
+import { getActiveRules, buildRulesPromptSection, recordRuleHits } from '../../memory-rules.js';
 
 export const DIMENSIONS = [
   '政治敏感',
@@ -59,7 +60,7 @@ const SYSTEM = `你是中文内容合规审核员。对文章在下列 6 个维�
 const MAX_CONTENT = 1_800;
 
 export async function scoreCompliance(
-  input: { title: string | null; content: string },
+  input: { title: string | null; content: string; category?: string | null },
   opts: { model?: Model } = {},
 ) {
   const userText = [
@@ -69,11 +70,21 @@ export async function scoreCompliance(
     .filter(Boolean)
     .join('\n\n');
 
+  // Pull active feedback-derived rules and append them to the system prompt.
+  // Cache stays effective for the BASE prompt; only the rules section varies.
+  // We pass them as a separate (uncached) block so cache hit rate stays high.
+  const scope = input.category ? `category=${input.category}` : null;
+  const rules = await getActiveRules('compliance', scope);
+  const rulesText = buildRulesPromptSection(rules);
+
+  const systemBlocks: { text: string; cache?: boolean }[] = [{ text: SYSTEM, cache: true }];
+  if (rulesText) systemBlocks.push({ text: rulesText });
+
   const r = await callClaude({
     model: opts.model ?? 'sonnet',
     maxTokens: 512,
     temperature: 0,
-    system: [{ text: SYSTEM, cache: true }],
+    system: systemBlocks,
     tools: [TOOL],
     toolChoice: { type: 'tool', name: 'score_risk' },
     messages: [{ role: 'user', content: userText }],
@@ -82,10 +93,18 @@ export async function scoreCompliance(
   if (!r.toolUse || r.toolUse.name !== 'score_risk') {
     throw new Error(`compliance: no tool call (text="${r.text.slice(0, 200)}")`);
   }
+
+  // Bump rule hit counters fire-and-forget. Do this only after a successful
+  // call so failed attempts don't pollute the rule's effectiveness signal.
+  if (rules.length > 0) {
+    void recordRuleHits(rules.map((r) => r.id));
+  }
+
   return {
     result: r.toolUse.input as RiskScores,
     model: r.model,
     usage: r.usage,
     cost: r.costUsd,
+    rulesApplied: rules.length,
   };
 }

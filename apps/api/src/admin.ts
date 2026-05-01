@@ -3,6 +3,7 @@ import { query } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import type { IngestionJob } from './workers/ingestion/index.js';
 import { ingestSource } from './workers/ingestion/index.js';
+import { logOperation } from './op-log.js';
 
 /**
  * Validate source config against its platform. Returns null when valid, or
@@ -46,7 +47,12 @@ function validateSourceConfig(platform: string, config: Record<string, unknown> 
       return null;
 
     case 'reddit':
-      if (!isNonEmptyArray(cfg.subreddits)) return 'reddit 平台必须填 config.subreddits (subreddit 列表,如 ["EarthPorn","photographs"])';
+      // Accept either single `subreddit` (new, one-source-per-sub batch model)
+      // or legacy `subreddits[]` (multiple subs in one source). At least one
+      // form must be present and non-empty.
+      if (!isNonEmptyString(cfg.subreddit) && !isNonEmptyArray(cfg.subreddits)) {
+        return 'reddit 平台必须填 config.subreddit (单 subreddit 名) 或 config.subreddits (subreddit 列表)';
+      }
       return null;
 
     case 'bluesky': {
@@ -96,11 +102,17 @@ function validateSourceConfig(platform: string, config: Record<string, unknown> 
 }
 
 export async function registerAdmin(app: FastifyInstance): Promise<void> {
-  // List sources
+  // List sources. credential_id + credential_name are joined in so the UI can
+  // surface "🔑 ZK01" — without this, sources backed by the credential pool
+  // appear to have no auth at all (their config carries no cookie by design).
   app.get('/admin/sources', async () => {
     const rows = await query(
-      `SELECT id, platform, external_id, name, url, status, score, last_fetch_at, config
-       FROM sources ORDER BY created_at DESC`,
+      `SELECT s.id, s.platform, s.external_id, s.name, s.url, s.status, s.score,
+              s.last_fetch_at, s.config, s.credential_id,
+              c.name AS credential_name, c.status AS credential_status
+       FROM sources s
+       LEFT JOIN credentials c ON c.id = s.credential_id
+       ORDER BY s.created_at DESC`,
     );
     return { sources: rows };
   });
@@ -112,15 +124,388 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       const { platform, external_id, name, url, config } = req.body;
       const err = validateSourceConfig(platform, config);
       if (err) return reply.code(400).send({ error: err });
-      const rows = await query(
+      const rows = await query<{ id: string; xmax: number }>(
         `INSERT INTO sources (platform, external_id, name, url, config, status)
          VALUES ($1, $2, $3, $4, $5, 'active')
          ON CONFLICT (platform, external_id) DO UPDATE SET
            name = EXCLUDED.name, url = EXCLUDED.url, config = EXCLUDED.config, status = 'active'
-         RETURNING *`,
+         RETURNING *, (xmax = 0) AS was_insert`,
         [platform, external_id, name, url, config ?? {}],
       );
-      return { source: rows[0] };
+      const source = rows[0] as any;
+      await logOperation(req, {
+        operation: source.was_insert ? 'source.create' : 'source.upsert',
+        targetType: 'source',
+        targetId: source.id,
+        payload: { platform, external_id, name, url, config: config ?? {} },
+      });
+      return { source };
+    },
+  );
+
+  // ── Credentials CRUD ──────────────────────────────────────────────────
+  // Shared credential pool. Lets one cookie/UA pair back many sources, so
+  // rotating a session token doesn't require updating 50 source rows.
+
+  app.get('/admin/credentials', async () => {
+    // We never return the cookie body in list views — UI shows length only.
+    // Same applies to credential_secrets: the password ciphertext is hidden,
+    // we only surface "has_secret" + the username and last refresh outcome.
+    const rows = await query(
+      `SELECT c.id, c.platform, c.name, c.status,
+              CASE WHEN c.cookie IS NULL THEN 0 ELSE length(c.cookie) END AS cookie_len,
+              c.user_agent,
+              c.last_used_at, c.last_auth_check_at, c.last_auth_ok,
+              c.created_at, c.updated_at,
+              (SELECT COUNT(*)::int FROM sources WHERE credential_id = c.id) AS source_count,
+              (cs.credential_id IS NOT NULL)            AS has_secret,
+              cs.username                                AS secret_username,
+              cs.last_refresh_at                         AS secret_last_refresh_at,
+              cs.last_refresh_ok                         AS secret_last_refresh_ok,
+              cs.last_refresh_error                      AS secret_last_refresh_error,
+              cs.consecutive_failures                    AS secret_consecutive_failures
+       FROM credentials c
+       LEFT JOIN credential_secrets cs ON cs.credential_id = c.id
+       ORDER BY c.platform, c.name`,
+    );
+    return { credentials: rows };
+  });
+
+  app.post<{ Body: { platform: string; name: string; cookie?: string; user_agent?: string } }>(
+    '/admin/credentials',
+    async (req, reply) => {
+      const { platform, name, cookie, user_agent } = req.body ?? ({} as any);
+      if (!platform || !name) return reply.code(400).send({ error: 'platform 和 name 必填' });
+      if (platform !== 'x' && platform !== 'knit' && platform !== 'bluesky') {
+        return reply.code(400).send({ error: `凭证池目前支持 platform: x / knit / bluesky` });
+      }
+      // X needs ct0 in the cookie for CSRF. Catch the most common paste mistake
+      // here so the user doesn't discover it only when ingestion fails.
+      if (platform === 'x' && cookie && !/(?:^|;\s*)ct0=/.test(cookie)) {
+        return reply.code(400).send({ error: 'X 凭证的 cookie 必须含 ct0=…（CSRF token）' });
+      }
+      const rows = await query(
+        `INSERT INTO credentials (platform, name, cookie, user_agent)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (platform, name) DO UPDATE SET
+           cookie = EXCLUDED.cookie,
+           user_agent = EXCLUDED.user_agent,
+           status = 'active',
+           last_auth_check_at = NULL,
+           last_auth_ok = NULL
+         RETURNING id, platform, name, status, length(cookie) AS cookie_len, user_agent`,
+        [platform, name, cookie ?? null, user_agent ?? null],
+      );
+      return { credential: rows[0] };
+    },
+  );
+
+  app.patch<{
+    Params: { id: string };
+    Body: { name?: string; cookie?: string; user_agent?: string; status?: string };
+  }>(
+    '/admin/credentials/:id',
+    async (req, reply) => {
+      const { id } = req.params;
+      const { name, cookie, user_agent, status } = req.body ?? ({} as any);
+      if (status && !['active', 'expired', 'revoked'].includes(status)) {
+        return reply.code(400).send({ error: 'status 必须是 active / expired / revoked' });
+      }
+      const rows = await query(
+        `UPDATE credentials SET
+           name       = COALESCE($2, name),
+           cookie     = COALESCE($3, cookie),
+           user_agent = COALESCE($4, user_agent),
+           status     = COALESCE($5, status),
+           last_auth_check_at = CASE WHEN $3 IS NOT NULL THEN NULL ELSE last_auth_check_at END,
+           last_auth_ok       = CASE WHEN $3 IS NOT NULL THEN NULL ELSE last_auth_ok END
+         WHERE id = $1
+         RETURNING id, platform, name, status, length(cookie) AS cookie_len, user_agent`,
+        [id, name ?? null, cookie ?? null, user_agent ?? null, status ?? null],
+      );
+      if (!rows.length) return reply.code(404).send({ error: 'credential not found' });
+
+      // Re-activating a credential is the user overriding our auto-revoke
+      // decision (or pasting a fresh cookie after the old one expired). Reset
+      // the secret's failure trail so the refresh scheduler will pick it up
+      // again next cycle. Without this, status flips back but failures stay
+      // at 3 and the scan keeps skipping it.
+      if (status === 'active') {
+        await query(
+          `UPDATE credential_secrets SET
+             consecutive_failures = 0,
+             last_refresh_error = NULL
+           WHERE credential_id = $1`,
+          [id],
+        ).catch(() => { /* secret may not exist */ });
+      }
+      return { credential: rows[0] };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/admin/credentials/:id',
+    async (req, reply) => {
+      const { id } = req.params;
+      // FK is ON DELETE SET NULL on sources, ON DELETE CASCADE on secrets.
+      const rows = await query(`DELETE FROM credentials WHERE id = $1 RETURNING id`, [id]);
+      if (!rows.length) return reply.code(404).send({ error: 'credential not found' });
+      return { ok: true };
+    },
+  );
+
+  // ── Credential secrets (encrypted username/password for auto-refresh) ──
+  // Stored in credential_secrets, AES-256-GCM encrypted with CREDENTIAL_SECRET_KEY.
+  // Set this once when adding the credential; the refresh worker uses it to
+  // re-login via stealth Playwright and rotate the cookie when it expires.
+
+  app.post<{ Params: { id: string }; Body: { username: string; password: string } }>(
+    '/admin/credentials/:id/secret',
+    async (req, reply) => {
+      const { id } = req.params;
+      const { username, password } = req.body ?? ({} as any);
+      if (!username || !password) {
+        return reply.code(400).send({ error: 'username 和 password 必填' });
+      }
+      // Verify the credential exists first; FK would catch this but the error
+      // is clearer this way.
+      const cred = await query<{ platform: string }>(
+        `SELECT platform FROM credentials WHERE id = $1`, [id],
+      );
+      if (!cred.length) return reply.code(404).send({ error: 'credential not found' });
+
+      const { encrypt } = await import('./crypto.js');
+      let blob: string;
+      try {
+        blob = encrypt(password);
+      } catch (e: any) {
+        return reply.code(500).send({ error: `加密失败：${e?.message}（检查 CREDENTIAL_SECRET_KEY 是否设置）` });
+      }
+      // Resetting failure count on every set is intentional — the user just
+      // gave us new credentials, treat it as a fresh start.
+      await query(
+        `INSERT INTO credential_secrets (credential_id, username, password_blob, consecutive_failures)
+         VALUES ($1, $2, $3, 0)
+         ON CONFLICT (credential_id) DO UPDATE SET
+           username = EXCLUDED.username,
+           password_blob = EXCLUDED.password_blob,
+           consecutive_failures = 0,
+           last_refresh_at = NULL,
+           last_refresh_ok = NULL,
+           last_refresh_error = NULL`,
+        [id, username, blob],
+      );
+      return { ok: true, has_secret: true };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/admin/credentials/:id/secret',
+    async (req, reply) => {
+      const { id } = req.params;
+      const rows = await query(
+        `DELETE FROM credential_secrets WHERE credential_id = $1 RETURNING credential_id`,
+        [id],
+      );
+      if (!rows.length) return reply.code(404).send({ error: 'no secret stored for this credential' });
+      return { ok: true };
+    },
+  );
+
+  // Trigger an immediate refresh attempt. Two modes:
+  //   - default (async): enqueue a refresh-one job, return the jobId
+  //   - ?sync=1: run the stealth login synchronously and return the result.
+  //     Useful for the workbench "立即刷新" button — user wants to see
+  //     success/failure right away.
+  app.post<{ Params: { id: string }; Querystring: { sync?: string } }>(
+    '/admin/credentials/:id/refresh',
+    async (req, reply) => {
+      const { id } = req.params;
+      const has = await query<{ id: string }>(
+        `SELECT cs.credential_id AS id FROM credential_secrets cs
+         JOIN credentials c ON c.id = cs.credential_id
+         WHERE cs.credential_id = $1 AND c.platform = 'x'`,
+        [id],
+      );
+      if (!has.length) {
+        return reply.code(404).send({
+          error: 'no X secret attached to this credential. POST /admin/credentials/:id/secret first.',
+        });
+      }
+
+      if (req.query.sync === '1') {
+        // Inline import so the playwright dep doesn't load on every cold start.
+        const { refreshOne } = await import('./workers/credential-refresh/index.js');
+        const result = await refreshOne(id);
+        return { mode: 'sync', ...result };
+      }
+      const q = getQueue(QUEUE_NAMES.credentialRefresh);
+      const job = await q.add(
+        'refresh-one',
+        { kind: 'refresh-one', credentialId: id },
+        { jobId: `refresh__${id}__${Date.now()}` },
+      );
+      return { mode: 'async', jobId: job.id };
+    },
+  );
+
+  // ── Batch import: create/update many handle-based sources at once.
+  // For X / Bluesky the natural unit is one source per handle (each handle has
+  // its own state — last_fetch_at, score, auth status). The user pastes a list
+  // of handles, the system materializes them as N source rows sharing the
+  // session cookie / limit knobs from `sharedConfig`. Reddit stays as-is
+  // because its existing model already accepts subreddits[] in one source.
+  app.post<{
+    Body: {
+      platform: 'x' | 'bluesky' | 'reddit';
+      handles: string[];
+      sharedConfig?: Record<string, unknown>;
+      /** Optional shared credential id. When set, every created source points
+       *  to this credential and we don't need an inline cookie in sharedConfig. */
+      credentialId?: string;
+      triggerFetch?: boolean;
+    };
+  }>(
+    '/admin/sources/batch-import',
+    async (req, reply) => {
+      const { platform, handles, sharedConfig = {}, credentialId, triggerFetch = false } = req.body ?? ({} as any);
+      if (platform !== 'x' && platform !== 'bluesky' && platform !== 'reddit') {
+        return reply.code(400).send({ error: 'platform 必须是 "x" / "bluesky" / "reddit"' });
+      }
+      if (!Array.isArray(handles) || handles.length === 0) {
+        return reply.code(400).send({ error: 'handles 必须是非空数组' });
+      }
+
+      // Normalize, dedupe, drop blanks. X/Bluesky handles are case-insensitive
+      // and may be pasted with leading @ or surrounding whitespace. Reddit
+      // accepts an optional /r/ prefix (e.g. "r/EarthPorn", "/r/photographs").
+      const seen = new Set<string>();
+      const normalized: string[] = [];
+      for (const raw of handles) {
+        if (typeof raw !== 'string') continue;
+        let h = raw.trim();
+        if (platform === 'reddit') {
+          h = h.replace(/^\/?r\//i, '').replace(/^\/+|\/+$/g, '');
+        } else {
+          h = h.replace(/^@/, '');
+        }
+        h = h.toLowerCase();
+        if (!h || seen.has(h)) continue;
+        seen.add(h);
+        normalized.push(h);
+      }
+      if (normalized.length === 0) {
+        return reply.code(400).send({ error: 'handles 全部为空/无效' });
+      }
+      if (normalized.length > 500) {
+        return reply.code(400).send({ error: '单次最多导入 500 个 handle' });
+      }
+
+      // If a credentialId is provided, validate it once up front and remember
+      // its cookie so per-handle config validation passes without us having to
+      // duplicate the cookie into every source row.
+      let credentialCookie: string | null = null;
+      if (credentialId) {
+        const credRows = await query<{ platform: string; status: string; cookie: string | null }>(
+          `SELECT platform, status, cookie FROM credentials WHERE id = $1`,
+          [credentialId],
+        );
+        if (!credRows.length) return reply.code(400).send({ error: 'credentialId 不存在' });
+        if (credRows[0].platform !== platform) {
+          return reply.code(400).send({ error: `credentialId 的 platform=${credRows[0].platform}，与导入 platform=${platform} 不一致` });
+        }
+        if (credRows[0].status !== 'active') {
+          return reply.code(400).send({ error: `credentialId 状态不是 active（当前 ${credRows[0].status}）` });
+        }
+        credentialCookie = credRows[0].cookie;
+      }
+
+      const created: Array<{ handle: string; sourceId: string }> = [];
+      const updated: Array<{ handle: string; sourceId: string }> = [];
+      const failed: Array<{ handle: string; reason: string }> = [];
+
+      for (const handle of normalized) {
+        try {
+          // Build per-source config by merging shared knobs with the per-handle
+          // identifier. We put the per-handle key last so callers can't
+          // accidentally override it via sharedConfig.
+          const config: Record<string, unknown> =
+            platform === 'x'
+              ? { ...sharedConfig, mode: 'user', screenName: handle }
+              : platform === 'bluesky'
+                ? { ...sharedConfig, mode: 'author', actor: handle }
+                : { ...sharedConfig, subreddit: handle };
+
+          // Validate against either the inline cookie OR the credential's
+          // cookie. The credential's cookie is NOT persisted into config — we
+          // only borrow it for the validator pass.
+          const cfgForValidation = credentialCookie
+            ? { ...config, cookie: credentialCookie }
+            : config;
+          const validationErr = validateSourceConfig(platform, cfgForValidation);
+          if (validationErr) {
+            failed.push({ handle, reason: validationErr });
+            continue;
+          }
+
+          const externalId = handle;
+          const name =
+            platform === 'x' ? `@${handle}` :
+            platform === 'reddit' ? `r/${handle}` :
+            handle;
+          const url =
+            platform === 'x' ? `https://x.com/${handle}` :
+            platform === 'reddit' ? `https://www.reddit.com/r/${handle}` :
+            `https://bsky.app/profile/${handle}`;
+
+          // ON CONFLICT (platform, external_id) tells us whether the row was
+          // pre-existing — we use xmax=0 to flag inserts. (Postgres exposes
+          // the system column for the ON CONFLICT path: xmax=0 ⇒ insert,
+          // xmax≠0 ⇒ update.)
+          const rows = await query<{ id: string; was_insert: boolean }>(
+            `INSERT INTO sources (platform, external_id, name, url, config, status, credential_id)
+             VALUES ($1, $2, $3, $4, $5, 'active', $6)
+             ON CONFLICT (platform, external_id) DO UPDATE SET
+               name = EXCLUDED.name,
+               url = EXCLUDED.url,
+               config = EXCLUDED.config,
+               status = 'active',
+               credential_id = EXCLUDED.credential_id
+             RETURNING id, (xmax = 0) AS was_insert`,
+            [platform, externalId, name, url, config, credentialId ?? null],
+          );
+          const row = rows[0]!;
+          (row.was_insert ? created : updated).push({ handle, sourceId: row.id });
+
+          if (triggerFetch) {
+            const q = getQueue<IngestionJob>(QUEUE_NAMES.ingestion);
+            await q.add(
+              'ingest',
+              { kind: 'ingest', sourceId: row.id },
+              { jobId: `ingest__batch__${row.id}__${Date.now()}` },
+            );
+          }
+        } catch (e: any) {
+          failed.push({ handle, reason: e?.message ?? String(e) });
+        }
+      }
+
+      await logOperation(req, {
+        operation: 'source.batch-import',
+        targetType: 'system',
+        targetId: null,
+        payload: {
+          platform,
+          createdCount: created.length,
+          updatedCount: updated.length,
+          failedCount: failed.length,
+          createdIds: created.map((c) => c.sourceId),
+          updatedIds: updated.map((u) => u.sourceId),
+          credentialId: credentialId ?? null,
+          triggerFetch,
+        },
+      });
+      return { platform, created, updated, failed, triggerFetch };
     },
   );
 
@@ -151,6 +536,14 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         [id, name ?? null, url ?? null, status ?? null, config ?? null],
       );
       if (!rows.length) return reply.code(404).send({ error: 'source not found' });
+      await logOperation(req, {
+        operation: 'source.update',
+        targetType: 'source',
+        targetId: id,
+        payload: {
+          changed: { name, url, status, config },
+        },
+      });
       return { source: rows[0] };
     },
   );
@@ -166,8 +559,18 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         // Deactivate first to stop any concurrent ingestion worker from
         // inserting new items for this source between the two DELETEs.
         await query(`UPDATE sources SET status = 'inactive' WHERE id = $1`, [id]);
+        const itemRows = await query<{ count: number }>(
+          `SELECT COUNT(*)::int AS count FROM items WHERE source_id = $1`,
+          [id],
+        );
         await query(`DELETE FROM items WHERE source_id = $1`, [id]);
         await query(`DELETE FROM sources WHERE id = $1`, [id]);
+        await logOperation(req, {
+          operation: 'source.delete',
+          targetType: 'source',
+          targetId: id,
+          payload: { cascade: true, deletedItemCount: itemRows[0]?.count ?? 0 },
+        });
         return { ok: true, cascade: true };
       }
       const rows = await query<{ count: number }>(
@@ -182,6 +585,12 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         });
       }
       await query(`DELETE FROM sources WHERE id = $1`, [id]);
+      await logOperation(req, {
+        operation: 'source.delete',
+        targetType: 'source',
+        targetId: id,
+        payload: { cascade: false },
+      });
       return { ok: true };
     },
   );
@@ -422,17 +831,22 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
 
   // Peek at the latest ingested items
   app.get('/admin/items', async (req) => {
-    const limit = Math.min(Number((req.query as any)?.limit ?? 20), 100);
-    const rows = await query(
-      `SELECT i.id, i.status, i.title, i.slug, i.category,
-              s.name AS source, r.url, i.created_at
-       FROM items i
-       JOIN sources s ON s.id = i.source_id
-       JOIN raw_items r ON r.id = i.raw_item_id
-       ORDER BY i.created_at DESC
-       LIMIT $1`,
-      [limit],
-    );
-    return { items: rows };
+    const q = (req.query as any) ?? {};
+    const limit = Math.min(Number(q.limit ?? 20), 100);
+    const offset = Math.max(0, Number(q.offset ?? 0));
+    const [rows, totalRows] = await Promise.all([
+      query(
+        `SELECT i.id, i.status, i.title, i.slug, i.category,
+                s.name AS source, r.url, i.created_at
+         FROM items i
+         JOIN sources s ON s.id = i.source_id
+         JOIN raw_items r ON r.id = i.raw_item_id
+         ORDER BY i.created_at DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset],
+      ),
+      query<{ cnt: string }>(`SELECT COUNT(*)::text AS cnt FROM items`),
+    ]);
+    return { items: rows, total: Number(totalRows[0]?.cnt ?? 0), limit, offset };
   });
 }

@@ -5,6 +5,9 @@ export interface SourceRow {
   name: string;
   url: string | null;
   config: Record<string, any>;
+  /** Optional pointer into the shared credential pool. When set, adapters
+   * should prefer the pool's cookie/user_agent over `config.cookie`. */
+  credential_id?: string | null;
 }
 
 export interface RawCandidate {

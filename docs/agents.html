@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 实现详解</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel-2: #1c232c;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --accent: #58a6ff; --green: #7ee787; --warn: #d29922; --err: #f85149;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.7;
+  }
+  body { display: flex; min-height: 100vh; }
+
+  nav.toc {
+    width: 240px; flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky; top: 0;
+    height: 100vh; overflow-y: auto;
+  }
+  nav.toc h2 {
+    margin: 0 20px 14px;
+    font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--muted);
+  }
+  nav.toc ol { margin: 0; padding: 0; list-style: none; counter-reset: section; }
+  nav.toc li { counter-increment: section; border-left: 2px solid transparent; }
+  nav.toc li:hover { border-left-color: var(--accent); }
+  nav.toc a {
+    display: block; padding: 7px 18px;
+    color: var(--text); text-decoration: none;
+    font-size: 13.5px;
+  }
+  nav.toc a::before {
+    content: counter(section, decimal) ". ";
+    color: var(--muted); margin-right: 6px;
+  }
+  nav.toc a:hover { background: var(--panel-2); color: var(--accent); }
+
+  main {
+    flex: 1; max-width: 920px;
+    padding: 40px 48px 80px;
+    margin: 0 auto;
+  }
+
+  header.hero { border-bottom: 1px solid var(--border); padding-bottom: 22px; margin-bottom: 30px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.01em; }
+  header.hero .sub { color: var(--muted); font-size: 14.5px; }
+
+  h2 {
+    margin: 44px 0 16px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 22px;
+  }
+  h2 .num {
+    display: inline-block;
+    width: 30px; height: 30px;
+    line-height: 30px; text-align: center;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 50%;
+    font-size: 14px; color: var(--accent);
+    margin-right: 10px; vertical-align: middle;
+    font-family: "SF Mono", monospace;
+  }
+  h3 {
+    margin: 22px 0 8px; font-size: 16px;
+    color: var(--accent);
+  }
+  h4 {
+    margin: 16px 0 6px; font-size: 12px;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  p { margin: 0 0 10px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  code {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: var(--code-bg); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px;
+    font-size: 12.5px; color: var(--green);
+  }
+  pre {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 14px;
+    overflow-x: auto; font-size: 12.5px; line-height: 1.55;
+    margin: 10px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: var(--text); }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left; padding: 9px 12px;
+    border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  th {
+    background: var(--panel); color: var(--muted);
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  td code { font-size: 12px; padding: 1px 5px; }
+
+  .meta {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 18px;
+    margin: 14px 0;
+  }
+  .meta dl {
+    display: grid; grid-template-columns: 110px 1fr;
+    gap: 4px 14px; margin: 0;
+    font-size: 13.5px;
+  }
+  .meta dt { color: var(--muted); }
+  .meta dd { margin: 0; }
+
+  .callout {
+    background: rgba(88,166,255,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px; margin: 12px 0;
+    border-radius: 0 4px 4px 0; font-size: 13.5px;
+  }
+  .callout.warn { background: rgba(210,153,34,0.08); border-left-color: var(--warn); }
+  .callout.err { background: rgba(248,81,73,0.08); border-left-color: var(--err); }
+  .callout strong { color: var(--accent); }
+  .callout.warn strong { color: var(--warn); }
+  .callout.err strong { color: var(--err); }
+
+  .badge {
+    display: inline-block; padding: 1px 8px;
+    border-radius: 999px; font-size: 11.5px;
+    border: 1px solid var(--border); background: var(--panel);
+    color: var(--muted); margin: 0 1px;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .badge.green { color: var(--green); border-color: rgba(126,231,135,0.3); }
+  .badge.yellow { color: var(--warn); border-color: rgba(210,153,34,0.3); }
+  .badge.red { color: var(--err); border-color: rgba(248,81,73,0.3); }
+  .badge.blue { color: var(--accent); border-color: rgba(88,166,255,0.3); }
+
+  .flow {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 18px; margin: 12px 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12.5px; line-height: 2;
+  }
+  .flow .step {
+    display: inline-block; padding: 2px 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; margin-right: 4px;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .gate-tag {
+    display: inline-block; vertical-align: middle;
+    background: rgba(210,153,34,0.15); color: var(--warn);
+    border: 1px solid rgba(210,153,34,0.4);
+    padding: 2px 9px; border-radius: 999px;
+    font-size: 11.5px; margin-left: 8px;
+  }
+
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    nav.toc { width: 100%; height: auto; position: relative; }
+    main { padding: 24px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#source-scoring">source-scoring</a></li>
+    <li><a href="#ingestion">ingestion</a></li>
+    <li><a href="#classify-title">classify-title</a></li>
+    <li><a href="#cover">cover</a></li>
+    <li><a href="#compliance">compliance</a></li>
+    <li><a href="#publishing">publishing</a></li>
+    <li><a href="#distribution">distribution</a></li>
+    <li><a href="#analytics">analytics</a></li>
+    <li><a href="#cross-cutting">公共横切层</a></li>
+    <li><a href="#summary">横向对比</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero">
+  <h1>Agent 实现详解</h1>
+  <div class="sub">
+    每个 agent 在代码层面真正做了什么 — 入口、状态守门、处理流水、依赖、容错、handoff
+  </div>
+</header>
+
+<!-- ========== 1. source-scoring ========== -->
+<section id="source-scoring">
+<h2><span class="num">1</span>source-scoring · 信源打分</h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><code>scoreAllSources()</code> · <a href="apps/api/src/workers/source-scoring/scorer.ts"><code>workers/source-scoring/scorer.ts</code></a></dd>
+  <dt>触发</dt><dd>auto-pipeline · 手动 <code>POST /admin/day5/score-now</code></dd>
+  <dt>LLM</dt><dd>无</dd>
+  <dt>状态变更</dt><dd>不动 items；只更新 sources 表</dd>
+  <dt>handoff</dt><dd>无下游</dd>
+</dl>
+</div>
+
+<h3>实现方式</h3>
+<p><strong>纯 SQL，单一事务</strong>。一条 CTE 把每个 source 的指标聚合出来，按公式打分 + 写回。</p>
+
+<h3>聚合的指标</h3>
+<table>
+  <thead><tr><th>信号</th><th>来源</th></tr></thead>
+  <tbody>
+    <tr><td><code>total / published / compliance_fail / compliance_review</code></td><td><code>items</code> 按 source_id 分组聚合</td></tr>
+    <tr><td><code>recent_ingested</code></td><td><code>items.created_at &gt; NOW() - 7 days</code></td></tr>
+    <tr><td><code>last_fetch_at</code></td><td><code>sources.last_fetch_at</code></td></tr>
+    <tr><td><code>week_pv / week_revenue</code></td><td><code>analytics_daily JOIN items WHERE date &gt;= CURRENT_DATE - 7</code></td></tr>
+  </tbody>
+</table>
+
+<h3>打分公式</h3>
+<pre><code>score = 50
+      + published × 2                                <span style="color:var(--muted);">// 质量</span>
+      + (近 2 天有抓 ? 10 : 7 天内 ? 0 : -10)         <span style="color:var(--muted);">// 新鲜度</span>
+      + min(15, recent_ingested)                     <span style="color:var(--muted);">// 活跃度</span>
+      - compliance_fail × 5 - compliance_review × 2  <span style="color:var(--muted);">// 风险扣</span>
+      + PV 加分 (0/3/6/10 阶梯, 阈值 100/1000/10000)
+      + 收入加分 (0/3/5 阶梯, 阈值 $1/$10)
+→ clamp(0, 100)</code></pre>
+
+<h3>风险等级 + 状态自动调整</h3>
+<ul>
+  <li><code>comp_fail ≥ 5</code> → <span class="badge red">risk_level = high</span></li>
+  <li><code>comp_fail ≥ 2 || comp_review ≥ 5</code> → <span class="badge yellow">risk_level = medium</span></li>
+  <li><code>comp_fail ≥ 20</code> → <code>status = blacklist</code>（强制拉黑）</li>
+  <li><code>score &lt; 20</code> → <code>status = paused</code>（自动暂停）</li>
+  <li><code>status = inactive</code> 永远不被自动改</li>
+</ul>
+
+<h3>写回字段</h3>
+<p><code>sources.score / risk_level / stability / status</code></p>
+</section>
+
+<!-- ========== 2. ingestion ========== -->
+<section id="ingestion">
+<h2><span class="num">2</span>ingestion · 采集</h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><code>ingestSource(sourceId)</code> · <code>fanout()</code> · <a href="apps/api/src/workers/ingestion/index.ts"><code>workers/ingestion/index.ts</code></a></dd>
+  <dt>触发</dt><dd>cron <code>0 * * * *</code> · <code>POST /admin/ingest/fanout</code> · <code>POST /admin/ingest/source/:id</code></dd>
+  <dt>LLM</dt><dd>无</dd>
+  <dt>状态变更</dt><dd>新增 raw_items + items（status=INGESTED）</dd>
+  <dt>handoff</dt><dd><code>enqueue classify-title__&lt;itemId&gt;</code></dd>
+</dl>
+</div>
+
+<h3>两种 job</h3>
+<ul>
+  <li><code>kind: 'fanout'</code> — 遍历所有 active 源，按 <code>grayscale_pct</code> 概率决定本轮是否采，命中的 enqueue 一条 <code>kind: 'ingest'</code></li>
+  <li><code>kind: 'ingest'</code> — 真干活，跑 <code>ingestSource(sourceId)</code></li>
+</ul>
+
+<h3>支持的 platform 适配器</h3>
+<table>
+  <thead><tr><th>platform</th><th>数据来源</th></tr></thead>
+  <tbody>
+    <tr><td><code>rss</code></td><td>标准 RSS / Atom</td></tr>
+    <tr><td><code>html</code></td><td>列表页 + 跳详情（Readability 解析）</td></tr>
+    <tr><td><code>reddit</code></td><td>subreddit JSON API</td></tr>
+    <tr><td><code>bluesky</code></td><td>AT Protocol</td></tr>
+    <tr><td><code>x</code></td><td>X / Twitter（需 cookie）</td></tr>
+    <tr><td><code>knit</code> · <code>json-2ksg</code></td><td>图集站专项</td></tr>
+    <tr><td><code>sitemap-images</code></td><td>站点 sitemap 图片源</td></tr>
+  </tbody>
+</table>
+
+<h3>对每条候选的处理流水</h3>
+<ol>
+  <li>算 <code>dedupeKey = sha256(platform:externalId)</code></li>
+  <li><strong>第一层去重</strong>：<code>urlAlreadySeen(sourceId, key)</code> — 命中 → <code>dupUrl++</code> 跳过</li>
+  <li><strong>内容获取分支</strong>：
+    <ul>
+      <li>适配器直给 <code>text</code>（≥20 字）→ 直接构造最小 Cleaned，跳 Readability</li>
+      <li>否则 → <code>clean(html, url)</code> 走 Readability 抽正文 + 收图（&lt;200 字 → <code>cleanFail++</code>）</li>
+    </ul>
+  </li>
+  <li><code>contentHash = sha256(normalize(content))</code></li>
+  <li><strong>第二层去重</strong>：<code>contentAlreadySeenForSource(sourceId, contentHash)</code> — 命中 → <code>dupContent++</code></li>
+  <li>算 <code>simhash(content)</code> → <strong>第三层去重</strong>：<code>nearestSimhash(sourceId, fp)</code>，汉明距离 ≤ 3 → <code>dupContent++</code></li>
+  <li><code>persistIngested(...)</code> — 一个事务里 insert raw_items + items + 更新 <code>sources.last_fetch_at</code></li>
+  <li><code>enqueue classify-title__&lt;itemId&gt;</code>（jobId 去重并发）</li>
+</ol>
+
+<h3>容错</h3>
+<ul>
+  <li><code>AdapterAuthError</code> → 不抛，设 <code>stats.authFail = true</code> + <code>authStatus / authReason</code>，工作台高亮</li>
+  <li>pg <code>23505</code>（unique violation，并发抓同 dedupe_key）→ 当作 <code>dupUrl</code></li>
+  <li>其他异常 → <code>stats.errors++</code> + warn log</li>
+</ul>
+
+<h3>返回 stats</h3>
+<pre><code>{
+  candidates, ingested,
+  dupUrl, dupContent, cleanFail, errors,
+  authFail?, authStatus?, authReason?
+}</code></pre>
+</section>
+
+<!-- ========== 3. classify-title ========== -->
+<section id="classify-title">
+<h2><span class="num">3</span>classify-title · 分类 + 起标题</h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><code>classifyTitleOne(itemId)</code> · <a href="apps/api/src/workers/classify-title/index.ts"><code>workers/classify-title/index.ts</code></a></dd>
+  <dt>触发</dt><dd>ingestion enqueue · 重跑 <code>POST /admin/day3/reclassify/:id</code></dd>
+  <dt>LLM</dt><dd>haiku（分类）+ sonnet（标题）</dd>
+  <dt>状态守门</dt><dd>仅 <code>INGESTED / CLASSIFIED / TITLED</code></dd>
+  <dt>handoff</dt><dd><code>enqueue cover__&lt;itemId&gt;</code></dd>
+</dl>
+</div>
+
+<h3>最短长度门</h3>
+<ul>
+  <li>全 SKIP_LLM → 内容 ≥ 10 字</li>
+  <li>否则 → 内容 ≥ 40 字</li>
+  <li>不够 → <code>throw new Error('content too short')</code></li>
+</ul>
+
+<h3>Step 1 · 分类（仅 status=INGESTED 跑）</h3>
+<table>
+  <thead><tr><th>模式</th><th>实现</th></tr></thead>
+  <tbody>
+    <tr><td>LLM（默认）</td><td><code>classify()</code> · model = <code>CLASSIFICATION_MODEL ?? 'haiku'</code> · <code>categorize.ts</code></td></tr>
+    <tr><td>规则降级</td><td><code>classifyByRules({title, content})</code> — 关键词匹配映射到 taxonomy</td></tr>
+  </tbody>
+</table>
+
+<p>LLM 通过强制 toolUse 输出 strict JSON：<code>{ category, tags[], keywords[] }</code></p>
+<p>写库后 <span class="badge">INGESTED</span> → <span class="badge blue">CLASSIFIED</span></p>
+
+<h3>Step 2 · 起标题（总是跑）</h3>
+<table>
+  <tbody>
+    <tr><td>LLM</td><td><code>generateTitle()</code> · model = <code>TITLE_MODEL ?? 'sonnet'</code> · 生成 N 个候选 + 选最优 + 摘要</td></tr>
+    <tr><td>规则降级</td><td><code>generateTitleByRules({originalTitle, content})</code> — 沿用原标题 + 截前 220 字摘要</td></tr>
+  </tbody>
+</table>
+
+<p>输出：<code>{ candidates[], best_index, summary }</code></p>
+
+<h3>slug 生成</h3>
+<p><code>makeUniqueSlug(best, itemId)</code> · <a href="apps/api/src/workers/classify-title/slug.ts"><code>slug.ts</code></a></p>
+<ul>
+  <li>中文 → 拼音 ASCII</li>
+  <li>拼接 <code>&lt;stem&gt;-&lt;6 位 itemId hex&gt;</code>，<strong>确定性</strong>：同 itemId+title → 同 slug</li>
+  <li>防 unique 冲突重试</li>
+</ul>
+
+<h3>写回</h3>
+<p><code>title / summary / slug / title_version += 1 / status = TITLED</code></p>
+
+<div class="callout">
+  <strong>遥测聚合</strong>：两步的 token / cost / model 汇总后一并写 <code>agent_runs</code>，<code>model</code> 字段拼成形如 <code>"rule:keyword+rule:original-title"</code>。
+</div>
+</section>
+
+<!-- ========== 4. cover ========== -->
+<section id="cover">
+<h2><span class="num">4</span>cover · 封面</h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><code>coverOne(itemId)</code> · <a href="apps/api/src/workers/cover/index.ts"><code>workers/cover/index.ts</code></a></dd>
+  <dt>LLM</dt><dd>可选（封面文案 caption）</dd>
+  <dt>状态守门</dt><dd>仅 <code>TITLED / COVERED</code></dd>
+  <dt>handoff</dt><dd><code>enqueue compliance__&lt;itemId&gt;</code></dd>
+</dl>
+</div>
+
+<h3>关键查询（JOIN 三张表）</h3>
+<pre><code>SELECT i.id, i.status, i.title, r.media_urls, s.platform, s.config
+FROM items i
+JOIN raw_items r ON r.id = i.raw_item_id
+JOIN sources s   ON s.id = i.source_id</code></pre>
+
+<h3>挑图策略</h3>
+<ul>
+  <li>默认 <code>wantN = 1</code>（单封面）</li>
+  <li><code>platform = html</code> → <code>wantN = 6</code>（图集）</li>
+  <li>调 <code>pickTopN(media_urls, wantN, hint)</code> · <code>cover/select.ts</code></li>
+</ul>
+
+<h3>反盗链头部（按 platform 选）</h3>
+<table>
+  <thead><tr><th>platform</th><th>Referer</th><th>Cookie</th></tr></thead>
+  <tbody>
+    <tr><td><code>2ksg</code></td><td><code>https://uib.2ksg.com/</code>（可被 config.referer 覆盖）</td><td>—</td></tr>
+    <tr><td><code>knit</code></td><td><code>https://xx.knit.bid/</code></td><td><code>config.cookie</code></td></tr>
+    <tr><td><code>x</code></td><td><code>https://x.com/</code></td><td><code>config.cookie</code></td></tr>
+    <tr><td>其他</td><td>—（UA = <code>ch-agents/0.1</code>）</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h3>单图打分</h3>
+<ul>
+  <li>下载（timeout 15s · ≤6 MB · validateStatus &lt; 400）</li>
+  <li><code>sharp(buffer).metadata()</code> 读宽高 + format</li>
+  <li><strong>跳过</strong> <code>width &lt; 400 || height &lt; 260</code>（tracking 像素 / 图标）</li>
+  <li>长宽比 &lt; 0.5 或 &gt; 3 → 系数 × 0.25</li>
+  <li><code>score = width × height × aspectPenalty</code></li>
+</ul>
+
+<h3>有 picks → 上传 S3</h3>
+<ul>
+  <li>主图：<code>renderSizes(buffer)</code> 出多尺寸（card / 等），路径 <code>covers/&lt;itemId&gt;/&lt;size&gt;.jpg</code></li>
+  <li>图集额外：<code>covers/gallery/&lt;i&gt;/&lt;itemId&gt;/&lt;size&gt;.jpg</code></li>
+  <li>bucket 自动确保存在 + 公开读 policy（MinIO dev）</li>
+</ul>
+
+<h3>封面文案</h3>
+<table>
+  <tbody>
+    <tr><td><code>COVER_SKIP_LLM=1</code></td><td><code>cover_copy = item.title</code> · <code>model = "rule:title"</code></td></tr>
+    <tr><td>LLM</td><td><code>generateCaption(item.title)</code> · 失败不阻塞（<code>cover_copy = null</code>）</td></tr>
+  </tbody>
+</table>
+
+<h3>写回</h3>
+<p><code>cover_url</code>（主图 card 尺寸）/ <code>cover_sizes</code>（JSON，含 gallery）/ <code>cover_copy</code> / status = <code>COVERED</code></p>
+
+<div class="callout warn">
+  <strong>无 picks 的情况</strong>：状态仍然推到 COVERED，但 cover_url / cover_copy / model 都是 null。下游 compliance 不依赖 cover 字段，可以继续。
+</div>
+</section>
+
+<!-- ========== 5. compliance ========== -->
+<section id="compliance">
+<h2><span class="num">5</span>compliance · 合规审核</h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><code>complianceOne(itemId)</code> · <a href="apps/api/src/workers/compliance/index.ts"><code>workers/compliance/index.ts</code></a></dd>
+  <dt>LLM</dt><dd>sonnet（默认）· toolUse 强制结构化</dd>
+  <dt>状态守门</dt><dd><code>COVERED / COMPLIANCE_PASS / COMPLIANCE_REVIEW / COMPLIANCE_FAIL</code></dd>
+  <dt>handoff</dt><dd>仅 PASS → <code>enqueue publish__&lt;itemId&gt;</code></dd>
+</dl>
+</div>
+
+<h3>L1 · 正则黑名单</h3>
+<p><code>compliance/blacklist.ts</code>，跑在 <code>${title}\n\n${content}</code> 上。3 类规则：</p>
+<table>
+  <thead><tr><th>category</th><th>模式举例</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>politics_sensitive</code></td>
+      <td>（空，留位给监管对齐）</td>
+    </tr>
+    <tr>
+      <td><code>nsfw_explicit</code></td>
+      <td>
+        <code>调教/淫荡/裸体/无码/福利图</code> 等关键词；
+        <code>[写真]...NN P</code> 图集模式；
+        <code>(美胸|大尺度)...NN P</code> 组合模式；
+        <code>hardcore porn</code>；<code>露骨色情</code>
+      </td>
+    </tr>
+    <tr>
+      <td><code>copyright_watermark</code></td>
+      <td><code>版权所有,未经授权不得转载</code>；<code>© 2024 ... all rights reserved</code>；<code>shutterstock watermark</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>返回 <code>BlacklistHit[]</code>。<strong>只要命中就跳过 L2</strong>，黑名单永远赢。</p>
+
+<h3>L2 · LLM 6 维度打分</h3>
+<p>仅在 L1 干净 + 未 SKIP_LLM 时跑。<code>compliance/score.ts</code></p>
+
+<h4>6 个维度（每维 0-3）</h4>
+<ul>
+  <li><strong>政治敏感</strong> — 涉及政治人物 / 敏感事件 / 颠覆性言论 / 民族宗教冲突</li>
+  <li><strong>色情低俗</strong> — 露骨性描述 / 擦边球 / 低俗猎奇</li>
+  <li><strong>暴力恐怖</strong> — 暴力教唆 / 恐怖袭击细节 / 血腥描写</li>
+  <li><strong>版权争议</strong> — 直接搬运 / 未去水印 / 未授权段落</li>
+  <li><strong>医疗夸大</strong> — 无证医疗建议 / 包治百病 / 虚假疗效</li>
+  <li><strong>金融诱导</strong> — 非法集资 / 保本保收益 / 荐股荐币</li>
+</ul>
+
+<h4>调用细节</h4>
+<ul>
+  <li>System prompt 缓存（cache: true）</li>
+  <li>maxTokens = 512，temperature = 0</li>
+  <li>content 截断到 <strong>1800 字</strong>喂模型</li>
+  <li>toolUse 强制输出 <code>RiskScores = { scores, reasons }</code>，reasons 仅对 ≥2 给一句 ≤50 字理由</li>
+  <li>LLM 失败 → <code>risk = undefined</code>（不抛错）</li>
+</ul>
+
+<h3>Decide · 决策表</h3>
+<table>
+  <thead><tr><th>输入</th><th>决定</th><th>trigger</th></tr></thead>
+  <tbody>
+    <tr><td>黑名单命中</td><td><span class="badge red">COMPLIANCE_FAIL</span></td><td>blacklist</td></tr>
+    <tr><td>risk = undefined（LLM 跳过 / 失败）</td><td><span class="badge yellow">COMPLIANCE_REVIEW</span></td><td>llm_review</td></tr>
+    <tr><td>max(scores) ≥ 3</td><td><span class="badge red">COMPLIANCE_FAIL</span></td><td>llm_reject</td></tr>
+    <tr><td>max(scores) ≥ 2</td><td><span class="badge yellow">COMPLIANCE_REVIEW</span></td><td>llm_review</td></tr>
+    <tr><td>否则</td><td><span class="badge green">COMPLIANCE_PASS</span></td><td>pass</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>SKIP_LLM 特殊处理</strong>：L1 干净 + <code>COMPLIANCE_SKIP_LLM=1</code> 时合成全 0 分，自动 PASS（否则会因 risk=undefined 进 REVIEW）。
+</div>
+
+<h3>写回</h3>
+<pre><code>status / compliance_status: PASS|REVIEW|FAIL
+risk_tags: 命中维度数组
+compliance_reasons: JSON {
+  trigger, maxScore,
+  blacklist: BlacklistHit[],
+  scores, reasons
+}</code></pre>
+</section>
+
+<!-- ========== 6. publishing ========== -->
+<section id="publishing">
+<h2><span class="num">6</span>publishing · 发布<span class="gate-tag">人工闸口</span></h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><code>publishOne(itemId)</code> · <a href="apps/api/src/workers/publishing/index.ts"><code>workers/publishing/index.ts</code></a></dd>
+  <dt>触发</dt><dd>仅人工：<code>POST /admin/pipeline/approve-publish</code>（批量）· <code>POST /admin/day5/force-publish/:id</code>（单条）</dd>
+  <dt>LLM</dt><dd>无</dd>
+  <dt>handoff</dt><dd>无下游（distribution 是独立人工流程）</dd>
+</dl>
+</div>
+
+<div class="callout warn">
+  <strong>HARD_HUMAN_GATE</strong>：写在 <code>auto-pipeline.ts</code> 的硬过滤集合里，<strong>auto-pipeline 永远不会触发 publishing</strong>，无论 auto on/off 状态。
+</div>
+
+<h3>strict 模式</h3>
+<p><code>PUBLISH_STRICT=1</code> 时仅 <code>COMPLIANCE_PASS / PUBLISHED</code> 可发，其他状态返回 <code>{skipped, reason: "strict mode: status=..."}</code>。默认宽松（兼容历史数据）。</p>
+
+<h3>前置校验</h3>
+<ul>
+  <li>无 title → <code>throw new Error('item ... has no title')</code></li>
+  <li>item 不存在 → <code>{skipped, reason}</code></li>
+</ul>
+
+<h3>slug 兜底</h3>
+<p><code>item.slug</code> 为空 → <code>makeUniqueSlug(title, itemId)</code> 现补一个（兼容跳过 classify-title 的旧 item）。</p>
+
+<h3>写回</h3>
+<pre><code>UPDATE items SET
+  status = 'PUBLISHED',
+  slug = $slug,
+  published_url = `${SITE_URL}/a/${slug}`,
+  published_at = COALESCE(published_at, NOW())  <span style="color:var(--muted);">-- 重发不重置时间戳</span>
+WHERE id = $1</code></pre>
+
+<h3>ISR 刷新</h3>
+<p>fire-and-forget：POST 到 <code>${WEB_URL}/api/revalidate</code>，带 <code>x-revalidate-secret</code>，timeout 5s。<strong>失败不阻塞发布</strong>。</p>
+<pre><code>paths = ['/', '/a/&lt;slug&gt;', '/sitemap.xml']
++ category 存在 → '/category/&lt;encoded category&gt;'</code></pre>
+
+<h3>返回</h3>
+<pre><code>{ slug, publishedUrl, fullUrl, revalidated: paths[] }</code></pre>
+</section>
+
+<!-- ========== 7. distribution ========== -->
+<section id="distribution">
+<h2><span class="num">7</span>distribution · 社媒分发<span class="gate-tag">人工闸口</span></h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><code>distributeOne(itemId, channel='twitter')</code> · <a href="apps/api/src/workers/distribution/index.ts"><code>workers/distribution/index.ts</code></a></dd>
+  <dt>触发</dt><dd>仅人工：<code>POST /admin/day6/distribute/:id</code> · <code>POST /admin/day6/distribute-all</code></dd>
+  <dt>LLM</dt><dd>sonnet（默认）/ 规则版（<code>DISTRIBUTION_SKIP_LLM=1</code>）</dd>
+  <dt>状态变更</dt><dd>items: PUBLISHED → DISTRIBUTED；写 <code>distribution_tasks</code></dd>
+</dl>
+</div>
+
+<h3>前置校验</h3>
+<ul>
+  <li><code>WHERE status = 'PUBLISHED'</code> — 否则 skipped</li>
+  <li><code>published_url</code> 必须有</li>
+  <li><code>distribution_tasks WHERE item_id + channel</code> 已存在 → 跳过（幂等）</li>
+</ul>
+
+<h3>改写策略</h3>
+<table>
+  <thead><tr><th>模式</th><th>实现</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>DISTRIBUTION_SKIP_LLM=1</code></td>
+      <td>规则版：tags 取前 3 拼 hashtag；标题按 <code>280 - 23（t.co）- tags 长度</code> 截断 + <code>…</code>；末尾拼 <code>published_url</code></td>
+    </tr>
+    <tr>
+      <td>默认（sonnet）</td>
+      <td>system prompt 要求：≤280 字符、1-2 句、2-3 hashtag、不要 <code>【】</code> 格式；<br>maxTokens = 256，temperature = 0.7；system prompt 缓存</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>LLM 输入字段</h3>
+<p>title / category / tags（前 5）/ summary / published_url</p>
+
+<h3>写回</h3>
+<pre><code>INSERT INTO distribution_tasks (item_id, channel, copy, status='pending');
+UPDATE items SET status='DISTRIBUTED' WHERE id = $1;</code></pre>
+
+<div class="callout">
+  <strong>真实推送由外部完成</strong>：这一步只生成文案 + 入库待办。实际推送到 X 的动作由外部 worker 消费 <code>distribution_tasks WHERE status='pending'</code>，人工通过 <code>POST /admin/pipeline/confirm-distribution/:taskId</code> 确认完成。
+</div>
+
+<h3>返回</h3>
+<pre><code>{ channel, copy, model, costUsd }</code></pre>
+</section>
+
+<!-- ========== 8. analytics ========== -->
+<section id="analytics">
+<h2><span class="num">8</span>analytics · 数据回流</h2>
+
+<div class="meta">
+<dl>
+  <dt>入口</dt><dd><a href="apps/api/src/workers/analytics/index.ts"><code>workers/analytics/index.ts</code></a> dispatcher：<br>
+    <code>kind: 'pull'</code> → <code>pullAnalyticsYesterday()</code><br>
+    <code>kind: 'report'</code> → <code>generateWeeklyReport()</code></dd>
+  <dt>触发</dt><dd>cron <code>ANALYTICS_CRON</code>（默认 <code>0 2 * * *</code>）· <code>POST /admin/day6/analytics-pull</code> · <code>POST /admin/day6/report</code></dd>
+</dl>
+</div>
+
+<h3>Pull · GA4 数据拉取</h3>
+<p><code>analytics/ga4.ts</code></p>
+
+<h4>前置</h4>
+<ul>
+  <li><code>GA4_PROPERTY_ID</code> + <code>GOOGLE_APPLICATION_CREDENTIALS</code> 必须都有，否则<strong>静默返回空</strong>（不报错）</li>
+  <li><code>@google-analytics/data</code> 包动态 import，缺也不报错</li>
+</ul>
+
+<h4>GA4 API 调用</h4>
+<pre><code>property: 'properties/&lt;GA4_PROPERTY_ID&gt;'
+dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }]
+dimensions:  [{ name: 'pagePath' }]
+metrics:     [
+  { name: 'screenPageViews' },
+  { name: 'totalUsers' },
+  { name: 'averageSessionDuration' }
+]
+filter: pagePath BEGINS_WITH '/a/'
+limit:  10000</code></pre>
+
+<h4>写库（slug 解析 + upsert）</h4>
+<pre><code>SELECT id, slug FROM items
+WHERE slug = ANY($slugs) AND status IN ('PUBLISHED', 'DISTRIBUTED');
+
+INSERT INTO analytics_daily (item_id, date, channel='site', pv, uv, avg_duration, raw)
+VALUES ...
+ON CONFLICT (item_id, date, channel) DO UPDATE SET
+  pv = EXCLUDED.pv, uv = EXCLUDED.uv,
+  avg_duration = EXCLUDED.avg_duration,
+  raw = EXCLUDED.raw;</code></pre>
+<p>slug 在 items 里找不到的（过期 / 没发布）→ <code>skipped++</code></p>
+
+<h4>返回</h4>
+<pre><code>{ date, upserted, skipped }</code></pre>
+
+<h3>Report · 周报</h3>
+<p><code>analytics/report.ts</code> · 输出 markdown 字符串</p>
+
+<h4>3 个并行查询（近 7 天 channel=site）</h4>
+<ol>
+  <li><strong>Top 10 文章</strong>：<code>SUM(pv) DESC LIMIT 10</code></li>
+  <li><strong>每日趋势</strong>：按 date 聚合</li>
+  <li><strong>总和</strong>：总 PV / UV / 收入</li>
+</ol>
+
+<h4>输出格式</h4>
+<pre><code># 周报 YYYY-MM-DD ~ YYYY-MM-DD
+
+## 汇总
+| 指标 | 本周 |
+| 总 PV | 1,234 |
+...
+
+## 每日趋势
+| 日期 | PV | UV | 收入 |
+...
+
+## Top 10 文章
+| 标题(>30 字截断) | 分类 | PV | UV | 收入 |
+...</code></pre>
+<p>无数据时填：<em>（本周暂无数据，待 GA4 接入后自动填充）</em></p>
+</section>
+
+<!-- ========== 9. 横切层 ========== -->
+<section id="cross-cutting">
+<h2><span class="num">9</span>公共横切层</h2>
+
+<h3>withRun() · 统一审计</h3>
+<p><a href="packages/agents/src/runner.ts"><code>packages/agents/src/runner.ts</code></a></p>
+<p>所有 8 个 agent 调用都包在 <code>withRun({agent, itemId, inputHash}, fn)</code> 里：</p>
+<ul>
+  <li>开始前插入 <code>agent_runs</code> 行（status=running，记录起始时间）</li>
+  <li>成功 → UPDATE 写 output / model / token / cost / latency</li>
+  <li>失败 → UPDATE 写 error（截断 2000 字符）+ latency</li>
+  <li>异常会被重新抛出，BullMQ 仍按 attempts 重试</li>
+</ul>
+
+<h3>callClaude() · LLM 调用层</h3>
+<p><a href="packages/agents/src/anthropic.ts"><code>packages/agents/src/anthropic.ts</code></a></p>
+<p>名字虽叫 Claude，实际<strong>走 Groq（OpenAI 兼容协议）</strong>。统一封装：</p>
+<ul>
+  <li>3 个模型别名：opus / sonnet / haiku → 由 <code>GROQ_MODEL_LARGE / MEDIUM / SMALL</code> 映射</li>
+  <li>支持 toolUse 强制 JSON（用 system prompt 注入 schema + json_object 模式）</li>
+  <li>自动重试（408 / 429 / 5xx），指数退避，maxRetries 默认 3</li>
+  <li>统一返回 <code>{ text, toolUse, usage, costUsd, latencyMs }</code></li>
+  <li>cost 按 Groq 定价表算</li>
+</ul>
+
+<h3>BullMQ 队列层</h3>
+<p><a href="packages/agents/src/queue.ts"><code>packages/agents/src/queue.ts</code></a></p>
+<table>
+  <tbody>
+    <tr><td>重试</td><td>3 次，指数退避（500ms 起）</td></tr>
+    <tr><td>保留</td><td>成功 7 天 / 5000 条；失败 30 天</td></tr>
+    <tr><td>jobId 模板</td><td><code>&lt;agent&gt;__&lt;itemId&gt;</code> — 天然去重，并发触发只跑一次</td></tr>
+    <tr><td>concurrency</td><td>ingestion=6 · classify-title=1 · cover=6 · compliance=1 · publishing=2 · distribution=3 · 其他=默认</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ========== 10. 横向对比 ========== -->
+<section id="summary">
+<h2><span class="num">10</span>横向对比表</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Agent</th>
+      <th>状态变更</th>
+      <th>LLM</th>
+      <th>SKIP_LLM</th>
+      <th>人工闸口</th>
+      <th>下游 handoff</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>source-scoring</code></td>
+      <td>无（只动 sources）</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><code>ingestion</code></td>
+      <td>→ INGESTED</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>classify-title</td>
+    </tr>
+    <tr>
+      <td><code>classify-title</code></td>
+      <td>INGESTED → TITLED</td>
+      <td>haiku + sonnet</td>
+      <td>有</td>
+      <td>—</td>
+      <td>cover</td>
+    </tr>
+    <tr>
+      <td><code>cover</code></td>
+      <td>TITLED → COVERED</td>
+      <td>可选 caption</td>
+      <td>有</td>
+      <td>—</td>
+      <td>compliance</td>
+    </tr>
+    <tr>
+      <td><code>compliance</code></td>
+      <td>COVERED → PASS/REVIEW/FAIL</td>
+      <td>sonnet</td>
+      <td>有</td>
+      <td>REVIEW 需复核</td>
+      <td>publishing（仅 PASS）</td>
+    </tr>
+    <tr>
+      <td><code>publishing</code></td>
+      <td>PASS → PUBLISHED</td>
+      <td>—</td>
+      <td>—</td>
+      <td><strong>必须人工</strong></td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><code>distribution</code></td>
+      <td>PUBLISHED → DISTRIBUTED</td>
+      <td>sonnet</td>
+      <td>有</td>
+      <td><strong>必须人工</strong></td>
+      <td>外部 worker 消费 distribution_tasks</td>
+    </tr>
+    <tr>
+      <td><code>analytics</code></td>
+      <td>无（写 analytics_daily）</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—（终态）</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>统一观测口</strong>：所有 agent 调用都进 <code>agent_runs</code>，<code>SELECT * FROM agent_runs WHERE item_id=&lt;id&gt; ORDER BY started_at</code> 就是任意 item 的全链路追踪。
+</div>
+
+</section>
+
+</main>
+</body>
+</html>

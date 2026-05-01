@@ -39,7 +39,7 @@ async function uploadSizes(itemId: string, index: number, buffer: Buffer): Promi
   return urls;
 }
 
-async function coverOne(itemId: string) {
+export async function coverOne(itemId: string) {
   const rows = await query<ItemRow>(
     `SELECT i.id, i.status, i.title, r.media_urls, s.platform, s.config AS source_config
      FROM items i

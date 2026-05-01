@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { AdapterAuthError, type SourceAdapter, type SourceRow, type RawCandidate } from './types.js';
+import { resolveAuth } from './auth.js';
 
 /**
  * X (Twitter) adapter — replays the public web client's GraphQL calls using
@@ -110,9 +111,11 @@ export const xAdapter: SourceAdapter = {
 
   async fetch(source: SourceRow): Promise<RawCandidate[]> {
     const cfg = source.config as Config;
-    const cookie = cfg.cookie;
+    // Resolve auth from the credential pool first; fall back to inline config.
+    const auth = await resolveAuth(source);
+    const cookie = auth.cookie;
     if (!cookie) {
-      throw new AdapterAuthError(401, 'X adapter needs config.cookie');
+      throw new AdapterAuthError(401, 'X adapter needs cookie (set credential or config.cookie)');
     }
     const csrf = (cfg.csrfToken || extractCt0(cookie) || '').trim();
     if (!csrf) {
@@ -128,7 +131,7 @@ export const xAdapter: SourceAdapter = {
       'content-type': 'application/json',
       accept: '*/*',
       'accept-language': 'en-US,en;q=0.9',
-      'user-agent': cfg.userAgent || BROWSER_UA,
+      'user-agent': auth.userAgent || cfg.userAgent || BROWSER_UA,
       origin: 'https://x.com',
       referer: 'https://x.com/',
       cookie,

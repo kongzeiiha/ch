@@ -14,11 +14,12 @@ interface ItemRow {
   status: string;
   title: string | null;
   content: string | null;
+  category: string | null;
 }
 
-async function complianceOne(itemId: string) {
+export async function complianceOne(itemId: string) {
   const rows = await query<ItemRow>(
-    `SELECT id, status, title, content FROM items WHERE id = $1`,
+    `SELECT id, status, title, content, category FROM items WHERE id = $1`,
     [itemId],
   );
   const item = rows[0];
@@ -45,7 +46,7 @@ async function complianceOne(itemId: string) {
   if (blacklistHits.length === 0 && !skipLlm) {
     try {
       const r = await scoreCompliance(
-        { title: item.title, content: item.content ?? '' },
+        { title: item.title, content: item.content ?? '', category: item.category },
         { model: (process.env.COMPLIANCE_MODEL as Model) ?? 'sonnet' },
       );
       risk = r.result;

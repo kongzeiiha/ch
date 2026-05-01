@@ -8,13 +8,13 @@ const connection = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', 
 export const QUEUE_NAMES = {
   sourceScoring: 'source-scoring',
   ingestion: 'ingestion',
-  classification: 'classification',
-  title: 'title',
+  classifyTitle: 'classify-title',
   cover: 'cover',
   compliance: 'compliance',
   publishing: 'publishing',
   distribution: 'distribution',
   analytics: 'analytics',
+  credentialRefresh: 'credential-refresh',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

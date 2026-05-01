@@ -1,7 +1,7 @@
 import type { Job } from 'bullmq';
 import { query } from '@ch/db';
 import { QUEUE_NAMES, startWorker, withRun } from '@ch/agents';
-import { makeUniqueSlug } from '../title/slug.js';
+import { makeUniqueSlug } from '../classify-title/slug.js';
 import { revalidatePaths } from './revalidate.js';
 
 export interface PublishJob {

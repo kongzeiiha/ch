@@ -47,7 +47,7 @@ if (!process.env.DATABASE_URL) {
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
 
-const RAW_LIMIT = 200;
+const RAW_LIMIT = Number(process.env.RAW_LIMIT ?? 200);
 const VIDEO_BYTES_LIMIT = 80 * 1024 * 1024; // 80 MB cap per file
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
 

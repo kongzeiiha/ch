@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>风格 B · Linear / Notion 极简</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", -apple-system, "PingFang SC", sans-serif;
+    background: #fafafa;
+    color: #0f172a;
+    min-height: 100vh;
+  }
+  .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    background: #fff;
+    border-right: 1px solid #ececec;
+    padding: 18px 12px;
+  }
+  .brand {
+    font-size: 14px; font-weight: 600;
+    padding: 6px 10px; margin-bottom: 18px;
+    color: #0f172a; display:flex; align-items:center; gap:8px;
+  }
+  .brand::before {
+    content:''; width:8px; height:8px; border-radius:2px;
+    background: linear-gradient(135deg,#5b5bd6,#7c3aed);
+  }
+  .nav-item {
+    padding: 6px 10px; font-size: 13px; color: #525866;
+    border-radius: 6px; cursor:pointer; display:flex; align-items:center;
+    gap: 10px; margin-bottom: 1px;
+  }
+  .nav-item:hover { background: #f4f4f5; }
+  .nav-item.active { background: #f0f0fa; color: #5b5bd6; font-weight: 500; }
+  .nav-item .ic { width: 14px; opacity:0.6; }
+  .nav-section {
+    font-size: 11px; color: #9ca3af; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 12px 10px 4px;
+  }
+
+  /* Main */
+  .main { padding: 0; }
+  .header {
+    height: 52px; padding: 0 24px;
+    border-bottom: 1px solid #ececec;
+    display:flex; justify-content:space-between; align-items:center;
+    background:#fff;
+  }
+  .crumb { font-size: 14px; color: #0f172a; }
+  .crumb span { color:#9ca3af; margin: 0 6px; }
+  .header-actions { display:flex; gap:8px; }
+  .btn-sec {
+    padding: 5px 12px; border:1px solid #e5e7eb; border-radius:6px;
+    background:#fff; font-size:13px; cursor:pointer; color:#0f172a;
+  }
+  .btn-sec:hover { background:#f9fafb; }
+  .btn-pri {
+    padding: 5px 12px; border:none; border-radius:6px;
+    background:#0f172a; color:#fff; font-size:13px; cursor:pointer;
+  }
+
+  .content { padding: 24px; }
+
+  /* Pipeline strip */
+  .strip {
+    background:#fff; border:1px solid #ececec; border-radius:10px;
+    padding: 16px 20px; margin-bottom: 20px;
+    display:grid; grid-template-columns: repeat(8, 1fr);
+  }
+  .stage { position: relative; padding-right: 12px; }
+  .stage:not(:last-child)::after {
+    content:''; position:absolute; right:0; top:8px; bottom:8px; width:1px; background:#ececec;
+  }
+  .stage-label { font-size:11px; color:#9ca3af; }
+  .stage-num { font-size: 22px; font-weight: 600; margin-top:2px; }
+  .stage-num.alert { color:#dc2626; }
+  .stage-num.gate { color:#d97706; }
+
+  /* Agent table — Linear-style list, not cards */
+  .table {
+    background:#fff; border:1px solid #ececec; border-radius:10px;
+    overflow: hidden; margin-bottom: 20px;
+  }
+  .tablehead {
+    padding: 10px 16px; font-size: 12px; font-weight:500; color:#525866;
+    background:#fafafa; border-bottom: 1px solid #ececec;
+    display:grid; grid-template-columns: 24px 1.5fr 1fr 1fr 1fr 80px 60px;
+    gap: 12px; align-items:center;
+  }
+  .tablerow {
+    padding: 12px 16px; font-size: 13px;
+    border-bottom: 1px solid #f4f4f5;
+    display:grid; grid-template-columns: 24px 1.5fr 1fr 1fr 1fr 80px 60px;
+    gap: 12px; align-items:center;
+  }
+  .tablerow:last-child { border-bottom: none; }
+  .tablerow:hover { background:#fafafa; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-dot.ok { background:#10b981; }
+  .status-dot.idle { background:#cbd5e1; }
+  .status-dot.gate { background:#f59e0b; }
+  .agent-name { font-weight:500; font-size:13px; }
+  .agent-mode { font-size: 11px; color:#9ca3af; margin-top:2px; }
+  .metric-num { font-variant-numeric: tabular-nums; font-size:13px; }
+  .metric-label { font-size:11px; color:#9ca3af; }
+
+  /* Pill toggle */
+  .pill-toggle {
+    display:inline-flex; padding:2px; background:#f4f4f5; border-radius:6px;
+    font-size:11px;
+  }
+  .pill-toggle span {
+    padding: 2px 8px; cursor:pointer; border-radius:4px; color:#9ca3af;
+  }
+  .pill-toggle span.active { background:#fff; color:#0f172a; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
+
+  .more {
+    background: transparent; border:none; color:#9ca3af; cursor:pointer;
+    font-size:18px; padding: 0; line-height:1;
+  }
+
+  /* Bottom panels */
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .panel { background:#fff; border:1px solid #ececec; border-radius:10px; }
+  .panel-head {
+    padding: 12px 16px; border-bottom:1px solid #ececec;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .panel-title { font-size:13px; font-weight:600; }
+  .panel-count {
+    font-size:11px; padding: 2px 8px; border-radius:999px;
+    background:#fef3c7; color:#92400e;
+  }
+  .panel-body { padding: 4px 0; }
+  .gate-item {
+    padding: 10px 16px; font-size: 13px;
+    display:flex; gap:12px; align-items:center;
+    border-bottom: 1px solid #f4f4f5;
+  }
+  .gate-item:last-child { border-bottom: none; }
+  .gate-item .img {
+    width: 36px; height: 36px; border-radius: 4px; flex-shrink:0;
+    background: linear-gradient(135deg,#e5e7eb,#cbd5e1);
+  }
+  .gate-info { flex:1; min-width:0; }
+  .gate-title { font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gate-meta { font-size:11px; color:#9ca3af; margin-top:2px; }
+  .gate-act { display:flex; gap:6px; }
+  .icon-btn {
+    width: 26px; height: 26px; border:1px solid #e5e7eb; background:#fff;
+    border-radius:6px; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; font-size:12px;
+  }
+  .icon-btn:hover { background:#f9fafb; }
+  .icon-btn.pass:hover { color:#10b981; border-color:#10b981; }
+  .icon-btn.fail:hover { color:#dc2626; border-color:#dc2626; }
+
+  .qrow {
+    padding: 8px 16px; font-size: 13px;
+    display:grid; grid-template-columns: 1fr 60px 60px 60px;
+    gap: 8px; border-bottom: 1px solid #f4f4f5;
+    font-variant-numeric: tabular-nums;
+  }
+  .qrow:last-child { border-bottom:none; }
+  .qrow .qname { color: #525866; }
+  .num-ok { color:#10b981; }
+  .num-warn { color:#d97706; }
+  .num-bad { color:#dc2626; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">CH Workbench</div>
+    <div class="nav-item active"><span class="ic">▣</span>Pipeline</div>
+    <div class="nav-item"><span class="ic">⊞</span>Sources</div>
+    <div class="nav-item"><span class="ic">◷</span>Crawl Preview</div>
+    <div class="nav-item"><span class="ic">≡</span>Queues</div>
+    <div class="nav-section">人工闸门</div>
+    <div class="nav-item"><span class="ic">⚑</span>合规复审 <span style="margin-left:auto;color:#dc2626;">7</span></div>
+    <div class="nav-item"><span class="ic">⊕</span>发布批准 <span style="margin-left:auto;color:#d97706;">42</span></div>
+    <div class="nav-item"><span class="ic">↗</span>分发确认 <span style="margin-left:auto;color:#d97706;">18</span></div>
+    <div class="nav-section">监控</div>
+    <div class="nav-item"><span class="ic">↻</span>Agent Runs</div>
+    <div class="nav-item"><span class="ic">!</span>告警</div>
+  </aside>
+
+  <main class="main">
+    <header class="header">
+      <div class="crumb">Workbench<span>/</span>Pipeline</div>
+      <div class="header-actions">
+        <button class="btn-sec">采集 fanout</button>
+        <button class="btn-sec">查看 agent_runs</button>
+        <button class="btn-pri">急停</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="strip">
+        <div class="stage"><div class="stage-label">Ingested</div><div class="stage-num">128</div></div>
+        <div class="stage"><div class="stage-label">Classified</div><div class="stage-num">54</div></div>
+        <div class="stage"><div class="stage-label">Titled</div><div class="stage-num">31</div></div>
+        <div class="stage"><div class="stage-label">Covered</div><div class="stage-num">19</div></div>
+        <div class="stage"><div class="stage-label">合规中</div><div class="stage-num alert">7</div></div>
+        <div class="stage"><div class="stage-label">待发布</div><div class="stage-num gate">42</div></div>
+        <div class="stage"><div class="stage-label">Published</div><div class="stage-num">683</div></div>
+        <div class="stage"><div class="stage-label">Distributed</div><div class="stage-num">412</div></div>
+      </div>
+
+      <div class="table">
+        <div class="tablehead">
+          <div></div><div>Agent</div><div>状态 · 在处理</div><div>24h 吞吐</div><div>平均延迟</div>
+          <div style="text-align:right;">模式</div><div></div>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot idle"></span>
+          <div><div class="agent-name">Source Scoring</div><div class="agent-mode">cron 03:15 daily</div></div>
+          <div><span class="metric-label">空闲</span></div>
+          <div><span class="metric-num">12</span> <span class="metric-label">runs</span></div>
+          <div><span class="metric-num">1.4s</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span>off</span><span class="active">手动</span><span>auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot ok"></span>
+          <div><div class="agent-name">Ingestion</div><div class="agent-mode">RSS · HTML · X · Reddit · ...</div></div>
+          <div><span class="metric-num">3</span> 在处理 · NatGeo</div>
+          <div><span class="metric-num">8.2k</span> <span class="metric-label">候选</span> · <span class="metric-num">187</span> 入库</div>
+          <div><span class="metric-num">14s</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span>off</span><span>手动</span><span class="active">auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot ok"></span>
+          <div><div class="agent-name">Classification</div><div class="agent-mode">规则模式 · 16 类</div></div>
+          <div><span class="metric-num">1</span> 在处理</div>
+          <div><span class="metric-num">187</span></div>
+          <div><span class="metric-num">12ms</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span>off</span><span>手动</span><span class="active">auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot ok"></span>
+          <div><div class="agent-name">Title</div><div class="agent-mode">规则模式 · slug 唯一</div></div>
+          <div><span class="metric-num">2</span> 在处理</div>
+          <div><span class="metric-num">187</span></div>
+          <div><span class="metric-num">8ms</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span>off</span><span>手动</span><span class="active">auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot ok"></span>
+          <div><div class="agent-name">Cover</div><div class="agent-mode">Sharp 4 尺寸 · MinIO</div></div>
+          <div><span class="metric-label">空闲</span></div>
+          <div><span class="metric-num">156</span></div>
+          <div><span class="metric-num">340ms</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span>off</span><span>手动</span><span class="active">auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot ok"></span>
+          <div><div class="agent-name">Compliance</div><div class="agent-mode">L1 黑名单 · 命中 2.1%</div></div>
+          <div><span class="metric-num">1</span> 在处理</div>
+          <div><span class="metric-num">142</span> · <span style="color:#dc2626;">7 review</span></div>
+          <div><span class="metric-num">5ms</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span>off</span><span>手动</span><span class="active">auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot gate"></span>
+          <div><div class="agent-name">Publishing <span style="color:#d97706;font-size:11px;font-weight:400;">⚑ 人工</span></div><div class="agent-mode">需手动批准 → ISR 重生成</div></div>
+          <div><span class="metric-num" style="color:#d97706;">42</span> 待批准</div>
+          <div><span class="metric-num">98</span></div>
+          <div><span class="metric-num">120ms</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span class="active">off</span><span>手动</span><span>auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot gate"></span>
+          <div><div class="agent-name">Distribution <span style="color:#d97706;font-size:11px;font-weight:400;">⚑ 人工</span></div><div class="agent-mode">Twitter · 文案待人工发</div></div>
+          <div><span class="metric-num" style="color:#d97706;">18</span> pending</div>
+          <div><span class="metric-num">412</span></div>
+          <div><span class="metric-num">2.1s</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span class="active">off</span><span>手动</span><span>auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+        <div class="tablerow">
+          <span class="status-dot idle"></span>
+          <div><div class="agent-name">Analytics</div><div class="agent-mode">GA4 T+1 · cron 02:00</div></div>
+          <div><span class="metric-label">下次 02:00</span></div>
+          <div><span class="metric-num">12.4k</span> PV</div>
+          <div><span class="metric-num">3.2s</span></div>
+          <div style="text-align:right;"><div class="pill-toggle"><span>off</span><span class="active">手动</span><span>auto</span></div></div>
+          <button class="more">⋯</button>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">合规复审</div>
+            <span class="panel-count">7 待处理</span>
+          </div>
+          <div class="panel-body">
+            <div class="gate-item">
+              <div class="img"></div>
+              <div class="gate-info">
+                <div class="gate-title">这家深圳工厂凭什么把成本压到 1/3</div>
+                <div class="gate-meta">互联网产品 · 风险 商业广告争议</div>
+              </div>
+              <div class="gate-act">
+                <button class="icon-btn pass">✓</button>
+                <button class="icon-btn fail">✕</button>
+              </div>
+            </div>
+            <div class="gate-item">
+              <div class="img"></div>
+              <div class="gate-info">
+                <div class="gate-title">医疗保健新发现:这种食物比药还管用?</div>
+                <div class="gate-meta">健康 · 风险 医疗夸大 0.62</div>
+              </div>
+              <div class="gate-act">
+                <button class="icon-btn pass">✓</button>
+                <button class="icon-btn fail">✕</button>
+              </div>
+            </div>
+            <div class="gate-item">
+              <div class="img"></div>
+              <div class="gate-info">
+                <div class="gate-title">Behind the Scenes of NatGeo's Bee Episode</div>
+                <div class="gate-meta">自然 · 风险 版权争议 0.41</div>
+              </div>
+              <div class="gate-act">
+                <button class="icon-btn pass">✓</button>
+                <button class="icon-btn fail">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">队列健康</div>
+            <span style="font-size:11px;color:#9ca3af;">active / waiting / failed</span>
+          </div>
+          <div class="panel-body">
+            <div class="qrow"><span class="qname">ingestion</span><span class="num-ok">3</span><span class="num-ok">12</span><span class="num-ok">0</span></div>
+            <div class="qrow"><span class="qname">classification</span><span class="num-ok">1</span><span class="num-ok">24</span><span class="num-ok">0</span></div>
+            <div class="qrow"><span class="qname">title</span><span class="num-ok">2</span><span class="num-ok">8</span><span class="num-ok">0</span></div>
+            <div class="qrow"><span class="qname">cover</span><span class="num-ok">0</span><span class="num-ok">5</span><span class="num-warn">1</span></div>
+            <div class="qrow"><span class="qname">compliance</span><span class="num-ok">1</span><span class="num-ok">3</span><span class="num-bad">7</span></div>
+            <div class="qrow"><span class="qname">publishing</span><span class="num-ok">0</span><span class="num-ok">0</span><span class="num-ok">0</span></div>
+            <div class="qrow"><span class="qname">distribution</span><span class="num-ok">1</span><span class="num-ok">2</span><span class="num-ok">0</span></div>
+            <div class="qrow"><span class="qname">analytics</span><span class="num-ok">0</span><span class="num-ok">1</span><span class="num-ok">0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  document.querySelectorAll('.pill-toggle').forEach(g => {
+    g.querySelectorAll('span').forEach(s => s.addEventListener('click', e => {
+      g.querySelectorAll('span').forEach(x => x.classList.remove('active'));
+      s.classList.add('active');
+    }));
+  });
+</script>
+</body>
+</html>

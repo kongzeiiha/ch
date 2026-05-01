@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>风格 A · 现代深色 / Glass</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background:
+      radial-gradient(900px 500px at 10% -10%, rgba(99,102,241,0.18), transparent),
+      radial-gradient(800px 500px at 100% 30%, rgba(236,72,153,0.12), transparent),
+      #0b1020;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .topbar {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom: 24px;
+  }
+  .brand { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+  .brand span { color:#a5b4fc; }
+  .controls { display:flex; gap:10px; align-items:center; font-size:13px; color:#94a3b8; }
+  .pill {
+    padding: 6px 14px; border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(10px);
+  }
+  .danger { background: linear-gradient(135deg,#dc2626,#7f1d1d); color:#fff; border:none; cursor:pointer; }
+
+  /* Pipeline strip */
+  .strip {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 0;
+    background: rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 18px; margin-bottom: 22px;
+    backdrop-filter: blur(20px);
+  }
+  .stage { text-align:center; position:relative; }
+  .stage:not(:last-child)::after {
+    content:'→'; position:absolute; right:-8px; top:24px;
+    color:#475569; font-size:14px;
+  }
+  .stage-name { font-size: 11px; color:#94a3b8; letter-spacing:0.4px; text-transform:uppercase; }
+  .stage-count { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .stage-count.hot { color:#f472b6; }
+  .stage-count.cool { color:#60a5fa; }
+  .stage-count.warn { color:#fbbf24; }
+
+  /* Agent grid */
+  .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+  .card {
+    background: rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 16px;
+    backdrop-filter: blur(20px);
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: rgba(165,180,252,0.4); }
+  .card-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
+  .card-title { font-size: 14px; font-weight: 600; display:flex; align-items:center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.run { background:#22c55e; box-shadow:0 0 10px #22c55e; animation: pulse 1.5s infinite; }
+  .dot.idle { background:#475569; }
+  .dot.gate { background:#f59e0b; box-shadow:0 0 10px #f59e0b; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .toggle {
+    position:relative; width: 36px; height: 20px;
+    background:#1e293b; border-radius: 999px; cursor:pointer;
+    border:1px solid rgba(255,255,255,0.1);
+  }
+  .toggle.on { background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+  .toggle::after {
+    content:''; position:absolute; top:2px; left:2px; width:14px; height:14px;
+    background:#fff; border-radius:50%; transition: left 0.2s;
+  }
+  .toggle.on::after { left: 18px; }
+
+  .meta { font-size: 12px; color:#94a3b8; line-height: 1.7; }
+  .meta strong { color:#e2e8f0; }
+
+  .active-job {
+    margin-top: 10px; padding: 8px 10px;
+    background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 8px; font-size: 12px;
+  }
+  .active-job-title { color:#a5b4fc; }
+
+  /* Bottom panels */
+  .panels { display:grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+  .panel {
+    background: rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 18px;
+    backdrop-filter: blur(20px);
+  }
+  .panel-title { font-size: 14px; font-weight: 600; margin-bottom: 14px; display:flex; justify-content:space-between; }
+  .panel-title .badge { background: linear-gradient(135deg,#f59e0b,#dc2626); color:#fff; padding: 2px 10px; border-radius: 999px; font-size: 11px; }
+
+  .gate-row {
+    display:flex; gap:10px; padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 13px; align-items:center;
+  }
+  .gate-row:last-child { border-bottom:none; }
+  .gate-cover { width: 48px; height: 32px; border-radius: 4px; background: linear-gradient(135deg,#334155,#1e293b); flex-shrink:0; }
+  .gate-meta { flex:1; min-width:0; }
+  .gate-meta .gtitle { font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gate-meta .gtag { font-size:11px; color:#94a3b8; margin-top:2px; }
+  .gate-actions { display:flex; gap:6px; }
+  .btn { padding: 5px 12px; border-radius:6px; border:none; font-size:12px; cursor:pointer; }
+  .btn-pass { background: rgba(34,197,94,0.15); color:#86efac; border:1px solid rgba(34,197,94,0.3); }
+  .btn-fail { background: rgba(239,68,68,0.12); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">CH <span>Workbench</span></div>
+    <div class="controls">
+      <span class="pill">● Auto-pipeline 4s</span>
+      <span class="pill">Redis 1.2ms</span>
+      <span class="pill">PG 0.8ms</span>
+      <button class="pill danger">急停</button>
+    </div>
+  </div>
+
+  <!-- Pipeline strip -->
+  <div class="strip">
+    <div class="stage"><div class="stage-name">Ingested</div><div class="stage-count cool">128</div></div>
+    <div class="stage"><div class="stage-name">Classified</div><div class="stage-count cool">54</div></div>
+    <div class="stage"><div class="stage-name">Titled</div><div class="stage-count cool">31</div></div>
+    <div class="stage"><div class="stage-name">Covered</div><div class="stage-count cool">19</div></div>
+    <div class="stage"><div class="stage-name">Compliance</div><div class="stage-count warn">7</div></div>
+    <div class="stage"><div class="stage-name">Pass · 待发</div><div class="stage-count hot">42</div></div>
+    <div class="stage"><div class="stage-name">Published</div><div class="stage-count">683</div></div>
+    <div class="stage"><div class="stage-name">Distributed</div><div class="stage-count">412</div></div>
+  </div>
+
+  <!-- Agent grid (9 cards) -->
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="dot idle"></span>Source Scoring</div>
+        <div class="toggle"></div>
+      </div>
+      <div class="meta">最近: <strong>2h 前</strong> · 12 sources · 平均分 <strong>74</strong></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="dot run"></span>Ingestion</div>
+        <div class="toggle on"></div>
+      </div>
+      <div class="meta">候选 <strong>156</strong> · 入库 <strong>42</strong> · 重复 <strong>108</strong></div>
+      <div class="active-job"><span class="active-job-title">源:NatGeo (rss)</span> · 38s</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="dot run"></span>Classification</div>
+        <div class="toggle on"></div>
+      </div>
+      <div class="meta">规则模式 · 24h <strong>187</strong> 条 · 平均 <strong>12ms</strong></div>
+      <div class="active-job"><span class="active-job-title">@bertiegregory is buzzing...</span> · 0.4s</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="dot run"></span>Title</div>
+        <div class="toggle on"></div>
+      </div>
+      <div class="meta">规则模式 · slug 唯一性已保证</div>
+      <div class="active-job"><span class="active-job-title">Behind the scenes...</span> · 0.2s</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="dot run"></span>Cover</div>
+        <div class="toggle on"></div>
+      </div>
+      <div class="meta">Sharp 4 尺寸 · MinIO · alt=title</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="dot run"></span>Compliance</div>
+        <div class="toggle on"></div>
+      </div>
+      <div class="meta">L1 黑名单 · 命中率 <strong>2.1%</strong></div>
+    </div>
+    <div class="card" style="border-color: rgba(245,158,11,0.4);">
+      <div class="card-head">
+        <div class="card-title"><span class="dot gate"></span>Publishing <span style="color:#fbbf24;font-size:11px;">人工</span></div>
+        <div class="toggle"></div>
+      </div>
+      <div class="meta">待批准 <strong style="color:#fbbf24;">42 条</strong> · 上次 5min 前</div>
+    </div>
+    <div class="card" style="border-color: rgba(245,158,11,0.4);">
+      <div class="card-head">
+        <div class="card-title"><span class="dot gate"></span>Distribution <span style="color:#fbbf24;font-size:11px;">人工</span></div>
+        <div class="toggle"></div>
+      </div>
+      <div class="meta">Twitter pending <strong style="color:#fbbf24;">18 条</strong></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="dot idle"></span>Analytics</div>
+        <div class="toggle"></div>
+      </div>
+      <div class="meta">GA4 T+1 · 下次 02:00 · PV 12.4k</div>
+    </div>
+  </div>
+
+  <!-- Bottom: human gates + queues -->
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-title">人工闸门 · 合规复审 <span class="badge">7 待处理</span></div>
+      <div class="gate-row">
+        <div class="gate-cover"></div>
+        <div class="gate-meta">
+          <div class="gtitle">这家深圳工厂凭什么把成本压到 1/3</div>
+          <div class="gtag">分类: 互联网产品 · 风险: 商业广告争议</div>
+        </div>
+        <div class="gate-actions">
+          <button class="btn btn-pass">通过</button>
+          <button class="btn btn-fail">拒绝</button>
+        </div>
+      </div>
+      <div class="gate-row">
+        <div class="gate-cover"></div>
+        <div class="gate-meta">
+          <div class="gtitle">医疗保健新发现:这种食物比药还管用?</div>
+          <div class="gtag">分类: 健康 · 风险: 医疗夸大 (0.62)</div>
+        </div>
+        <div class="gate-actions">
+          <button class="btn btn-pass">通过</button>
+          <button class="btn btn-fail">拒绝</button>
+        </div>
+      </div>
+      <div class="gate-row">
+        <div class="gate-cover"></div>
+        <div class="gate-meta">
+          <div class="gtitle">Behind the Scenes of National Geographic's Bee Episode</div>
+          <div class="gtag">分类: 自然 · 风险: 版权争议 (0.41)</div>
+        </div>
+        <div class="gate-actions">
+          <button class="btn btn-pass">通过</button>
+          <button class="btn btn-fail">拒绝</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">队列健康</div>
+      <div style="font-size:12px; line-height:2;">
+        <div style="display:flex;justify-content:space-between;"><span>ingestion</span><span style="color:#86efac;">3 / 12 / 0</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>classification</span><span style="color:#86efac;">1 / 24 / 0</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>title</span><span style="color:#86efac;">0 / 8 / 0</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>cover</span><span style="color:#86efac;">2 / 5 / 1</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>compliance</span><span style="color:#fbbf24;">0 / 3 / 7</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>publishing</span><span style="color:#fca5a5;">0 / 0 / 0</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>distribution</span><span style="color:#86efac;">1 / 2 / 0</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>analytics</span><span style="color:#86efac;">0 / 1 / 0</span></div>
+      </div>
+      <div style="margin-top:10px; font-size:11px; color:#64748b;">active / waiting / failed</div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
+  </script>
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内容中台 · 系统功能文档（运维版）</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel-2: #1c232c;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --accent: #58a6ff; --green: #7ee787; --warn: #d29922; --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.7;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 40px 32px 80px; }
+
+  header { border-bottom: 1px solid var(--border); padding-bottom: 22px; margin-bottom: 28px; }
+  header h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 14.5px; }
+  header .tags { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  header .tags span {
+    display: inline-block; padding: 3px 10px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 999px; font-size: 12px; color: var(--muted);
+  }
+
+  h2 {
+    margin: 36px 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    font-size: 19px;
+  }
+  h3 { margin: 22px 0 8px; font-size: 16px; color: var(--accent); }
+  h4 { margin: 16px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  p { margin: 0 0 10px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  code {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: #0d1117; border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px;
+    font-size: 12.5px; color: var(--green);
+  }
+  pre {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: #0d1117; border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 14px;
+    overflow-x: auto; font-size: 12.5px; line-height: 1.55;
+    margin: 10px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: var(--text); }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px;
+  }
+  th, td {
+    text-align: left; padding: 9px 12px;
+    border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  th {
+    background: var(--panel); color: var(--muted);
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  td code { font-size: 12px; padding: 1px 5px; }
+
+  .pipeline {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 18px; margin: 12px 0;
+    font-family: "SF Mono", Menlo, monospace; font-size: 12.5px;
+    line-height: 2.2;
+  }
+  .pipeline span {
+    display: inline-block; padding: 2px 9px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; margin-right: 2px;
+  }
+  .pipeline .gate { color: var(--warn); border-color: rgba(210,153,34,0.3); }
+  .pipeline .end { color: var(--accent); border-color: rgba(88,166,255,0.3); }
+
+  .agent {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 20px; margin: 12px 0;
+  }
+  .agent .head {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 8px;
+  }
+  .agent .num {
+    color: var(--muted); font-family: "SF Mono", Menlo, monospace; font-size: 12px;
+  }
+  .agent h3 { margin: 0; font-size: 16px; }
+  .agent .gate-tag {
+    background: rgba(210,153,34,0.15); color: var(--warn);
+    border: 1px solid rgba(210,153,34,0.4);
+    padding: 1px 8px; border-radius: 999px;
+    font-size: 11.5px;
+  }
+  .agent dl {
+    display: grid; grid-template-columns: 100px 1fr;
+    gap: 4px 12px; margin: 8px 0; font-size: 13.5px;
+  }
+  .agent dt { color: var(--muted); }
+  .agent dd { margin: 0; }
+
+  .callout {
+    background: rgba(88,166,255,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px; margin: 12px 0;
+    border-radius: 0 4px 4px 0; font-size: 13.5px;
+  }
+  .callout.warn {
+    background: rgba(210,153,34,0.08);
+    border-left-color: var(--warn);
+  }
+  .callout strong { color: var(--accent); }
+  .callout.warn strong { color: var(--warn); }
+
+  .badge {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 11.5px; border: 1px solid var(--border); background: var(--panel);
+    color: var(--muted); margin: 0 1px;
+  }
+  .badge.green { color: var(--green); border-color: rgba(126,231,135,0.3); }
+  .badge.yellow { color: var(--warn); border-color: rgba(210,153,34,0.3); }
+  .badge.red { color: var(--err); border-color: rgba(248,81,73,0.3); }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>内容中台 · 功能文档（运维版）</h1>
+  <div class="sub">面向系统使用 / 运维操作的同事 — 假设你能看懂 JSON、用 curl，但不需要看源码</div>
+  <div class="tags">
+    <span>面向：运营 / 内容审核 / 平台运维</span>
+    <span>不涉及：源码内部结构、agent 实现细节</span>
+  </div>
+</header>
+
+<h2>1. 系统是什么</h2>
+
+<p>一条 8 步内容流水线：从外部信源采集内容 → 自动整理 → 合规审核 → 人工放行 → 发布到自有站点 → 改写后分发到社媒 → 数据回流。</p>
+
+<div class="pipeline">
+  <span>① 信源打分</span>
+  <span>② 采集</span>
+  <span>③ 分类+起标题</span>
+  <span>④ 配封面</span>
+  <span class="gate">⑤ 合规审核</span>
+  <span class="gate">⑥ 发布*</span>
+  <span class="gate">⑦ 分发*</span>
+  <span class="end">⑧ 数据回流</span>
+</div>
+
+<p style="font-size:13px;color:var(--muted);">* 是<strong>硬人工闸口</strong>，自动模式永远不会触发，必须通过后台手动放行。</p>
+
+<h3>谁在生效</h3>
+<ul>
+  <li><strong>调度器</strong> 定时拉任务（采集每小时、数据回流每天 2 点）</li>
+  <li><strong>auto-pipeline</strong> 每 15 秒扫一次队列，给"自动模式开启"的 agent 自动补单</li>
+  <li><strong>告警 poller</strong> 监控队列堆积和失败率，超阈值发 Sentry / 通知</li>
+</ul>
+
+<h2>2. 8 个 Agent 速览</h2>
+
+<div class="agent">
+  <div class="head"><span class="num">[1]</span><h3>source-scoring · 信源打分</h3></div>
+  <dl>
+    <dt>做什么</dt><dd>根据产出量、合规通过率、PV、收入打分（0-100），决定信源在采集阶段被选中的概率</dd>
+    <dt>触发</dt><dd>auto-pipeline 自动；手动 <code>POST /admin/day5/score-now</code></dd>
+    <dt>影响</dt><dd>更新 <code>sources.score / risk_level / status</code></dd>
+    <dt>注意</dt><dd>分数 &lt; 20 自动暂停；连续合规失败 ≥ 20 自动拉黑</dd>
+  </dl>
+</div>
+
+<div class="agent">
+  <div class="head"><span class="num">[2]</span><h3>ingestion · 采集</h3></div>
+  <dl>
+    <dt>做什么</dt><dd>从激活信源拉新内容，去重清洗后入库</dd>
+    <dt>支持平台</dt><dd>RSS · HTML · Reddit · Bluesky · X · Knit · 2ksg · Sitemap</dd>
+    <dt>触发</dt><dd>cron <code>0 * * * *</code> 自动；手动 <code>POST /admin/ingest/fanout</code></dd>
+    <dt>三层去重</dt><dd>① URL dedupe_key　② 源内 content_hash 完全相同　③ 源内 simhash 模糊匹配（汉明距离 ≤ 3）</dd>
+    <dt>失败模式</dt><dd>认证失败抛 <code>AdapterAuthError</code>，<code>/admin/sources/auth-status</code> 可查</dd>
+  </dl>
+</div>
+
+<div class="agent">
+  <div class="head"><span class="num">[3]</span><h3>classify-title · 分类 + 起标题</h3></div>
+  <dl>
+    <dt>做什么</dt><dd>用 LLM 给文章打 category + tags + keywords，再生成多个标题候选挑最优 + 摘要 + slug</dd>
+    <dt>降级</dt><dd>关键词分类 + 保留原标题（环境变量 <code>CLASSIFICATION_SKIP_LLM=1</code> · <code>TITLE_SKIP_LLM=1</code>）</dd>
+    <dt>幂等</dt><dd>重跑只会升 <code>title_version</code>，不会重复触发下游</dd>
+  </dl>
+</div>
+
+<div class="agent">
+  <div class="head"><span class="num">[4]</span><h3>cover · 封面</h3></div>
+  <dl>
+    <dt>做什么</dt><dd>从原文图片中按分辨率 + 长宽比挑最优，压缩多尺寸传 S3，生成封面文案</dd>
+    <dt>反盗链</dt><dd>对 2ksg/knit/x 等源自动加 Referer / Cookie</dd>
+    <dt>HTML 源</dt><dd>额外取 Top-6 图作为图集（gallery）</dd>
+    <dt>降级</dt><dd>cover_copy 用文章标题（<code>COVER_SKIP_LLM=1</code>）</dd>
+  </dl>
+</div>
+
+<div class="agent">
+  <div class="head"><span class="num">[5]</span><h3>compliance · 合规审核</h3></div>
+  <dl>
+    <dt>做什么</dt><dd>L1 正则黑名单 + L2 LLM 6 维度打分（0-3）</dd>
+    <dt>6 个维度</dt><dd>政治敏感 · 色情低俗 · 暴力恐怖 · 版权争议 · 医疗夸大 · 金融诱导</dd>
+    <dt>判决</dt><dd>黑名单命中 → <span class="badge red">FAIL</span> · 最高分 ≥ 3 → <span class="badge red">FAIL</span> · ≥ 2 → <span class="badge yellow">REVIEW</span> · 其他 → <span class="badge green">PASS</span></dd>
+    <dt>降级</dt><dd><code>COMPLIANCE_SKIP_LLM=1</code>：黑名单干净就自动 PASS</dd>
+  </dl>
+</div>
+
+<div class="agent">
+  <div class="head"><span class="num">[6]</span><h3>publishing · 发布</h3><span class="gate-tag">人工闸口</span></div>
+  <dl>
+    <dt>做什么</dt><dd>写 published_url + published_at，触发 Next.js ISR 刷新四个路径</dd>
+    <dt>触发</dt><dd>仅人工：<code>POST /admin/pipeline/approve-publish</code> 或 admin UI</dd>
+    <dt>strict 模式</dt><dd><code>PUBLISH_STRICT=1</code> 时仅 COMPLIANCE_PASS 可发布；默认宽松（兼容历史数据）</dd>
+    <dt>失败容忍</dt><dd>revalidate 失败不阻塞发布（fire-and-forget）</dd>
+  </dl>
+</div>
+
+<div class="agent">
+  <div class="head"><span class="num">[7]</span><h3>distribution · 社媒分发</h3><span class="gate-tag">人工闸口</span></div>
+  <dl>
+    <dt>做什么</dt><dd>为已发布文章生成社媒文案，写入 distribution_tasks 等执行</dd>
+    <dt>当前渠道</dt><dd>twitter（X）。280 字符预算，结尾 2-3 hashtag</dd>
+    <dt>降级</dt><dd>规则版改写：标题截断 + tag → hashtag + 链接（<code>DISTRIBUTION_SKIP_LLM=1</code>）</dd>
+    <dt>实际投递</dt><dd>当前只入库；外部 worker 消费 <code>distribution_tasks WHERE status='pending'</code></dd>
+  </dl>
+</div>
+
+<div class="agent">
+  <div class="head"><span class="num">[8]</span><h3>analytics · 数据回流</h3></div>
+  <dl>
+    <dt>做什么</dt><dd>每天拉 GA4 昨日数据；每周生成 markdown 报表</dd>
+    <dt>需要</dt><dd><code>GA4_PROPERTY_ID</code> + <code>GOOGLE_APPLICATION_CREDENTIALS</code></dd>
+    <dt>缺凭证</dt><dd>静默降级，回流 0 条，但不影响其他流程</dd>
+    <dt>反哺</dt><dd>结果作为 source-scoring 的 PV / 收入加分项</dd>
+  </dl>
+</div>
+
+<h2>3. 状态机</h2>
+
+<table>
+  <thead><tr><th>状态</th><th>含义</th><th>谁会处理</th></tr></thead>
+  <tbody>
+    <tr><td><code>INGESTED</code></td><td>刚采集回来</td><td>classify-title 接手</td></tr>
+    <tr><td><code>CLASSIFIED</code></td><td>已分类，等起标题</td><td>classify-title 续跑</td></tr>
+    <tr><td><code>TITLED</code></td><td>已起标题、有 slug</td><td>cover 接手</td></tr>
+    <tr><td><code>COVERED</code></td><td>已配封面</td><td>compliance 接手</td></tr>
+    <tr><td><span class="badge green">COMPLIANCE_PASS</span></td><td>合规通过</td><td>等人工放行发布</td></tr>
+    <tr><td><span class="badge yellow">COMPLIANCE_REVIEW</span></td><td>合规拿不准</td><td><strong>需人工审核</strong></td></tr>
+    <tr><td><span class="badge red">COMPLIANCE_FAIL</span></td><td>合规拒绝</td><td>不会自动往后走</td></tr>
+    <tr><td><span class="badge green">PUBLISHED</span></td><td>已上线网站</td><td>等人工分发</td></tr>
+    <tr><td><span class="badge green">DISTRIBUTED</span></td><td>已分发到至少一个社媒</td><td>终态</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>状态守门</strong>：每个 agent 都检查 <code>items.status</code> 是否在允许列表内，串错状态会自动跳过（返回 <code>{skipped:true}</code>），不会导致重试浪费。
+</div>
+
+<h2>4. 数据模型（运维需要知道的几张表）</h2>
+
+<table>
+  <thead><tr><th>表</th><th>用途</th><th>关键字段</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>sources</code></td>
+      <td>信源配置</td>
+      <td><code>platform · external_id · status · score · grayscale_pct · config</code></td>
+    </tr>
+    <tr>
+      <td><code>items</code></td>
+      <td>流水线主表（每篇文章一行）</td>
+      <td><code>status · category · title · slug · cover_url · published_url · compliance_*</code></td>
+    </tr>
+    <tr>
+      <td><code>distribution_tasks</code></td>
+      <td>分发待办</td>
+      <td><code>item_id · channel · copy · status · executed_at</code></td>
+    </tr>
+    <tr>
+      <td><code>analytics_daily</code></td>
+      <td>每日流量</td>
+      <td><code>item_id · date · pv · uv · revenue</code></td>
+    </tr>
+    <tr>
+      <td><code>agent_runs</code></td>
+      <td>每次 agent 调用的审计</td>
+      <td><code>agent · item_id · status · model · cost_usd · latency_ms · error</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>5. 配置面板（环境变量）</h2>
+
+<h3>降级开关（最常用）</h3>
+<table>
+  <thead><tr><th>变量</th><th>启用后</th></tr></thead>
+  <tbody>
+    <tr><td><code>CLASSIFICATION_SKIP_LLM=1</code></td><td>关键词规则分类，不调 LLM</td></tr>
+    <tr><td><code>TITLE_SKIP_LLM=1</code></td><td>用原标题，不调 LLM</td></tr>
+    <tr><td><code>COVER_SKIP_LLM=1</code></td><td>cover_copy 用文章标题</td></tr>
+    <tr><td><code>COMPLIANCE_SKIP_LLM=1</code></td><td>仅黑名单审核，干净就 PASS</td></tr>
+    <tr><td><code>DISTRIBUTION_SKIP_LLM=1</code></td><td>规则版推文（标题 + hashtag + 链接）</td></tr>
+  </tbody>
+</table>
+
+<h3>调度</h3>
+<table>
+  <tbody>
+    <tr><td><code>AUTO_PIPELINE_INTERVAL_MS</code></td><td>auto-pipeline 扫描间隔，默认 15000</td></tr>
+    <tr><td><code>INGESTION_CRON</code></td><td>采集 cron，默认 <code>0 * * * *</code></td></tr>
+    <tr><td><code>ANALYTICS_CRON</code></td><td>数据回流 cron，默认 <code>0 2 * * *</code></td></tr>
+    <tr><td><code>DISABLE_AUTO_PIPELINE=1</code></td><td>关闭 auto-pipeline（仅手动触发）</td></tr>
+    <tr><td><code>DISABLE_SCHEDULER=1</code></td><td>关闭 cron</td></tr>
+  </tbody>
+</table>
+
+<h3>告警阈值</h3>
+<table>
+  <tbody>
+    <tr><td><code>ALERT_QUEUE_THRESHOLD</code></td><td>队列堆积告警阈值，默认 100</td></tr>
+    <tr><td><code>ALERT_LLM_FAIL_RATE</code></td><td>LLM 失败率告警阈值，默认 0.15</td></tr>
+    <tr><td><code>ALERT_INTERVAL_MINUTES</code></td><td>告警检查频率（分钟），默认 5</td></tr>
+  </tbody>
+</table>
+
+<h3>发布</h3>
+<table>
+  <tbody>
+    <tr><td><code>PUBLISH_STRICT=1</code></td><td>仅 COMPLIANCE_PASS 可发布</td></tr>
+    <tr><td><code>WEB_URL</code></td><td>publishing 调 ISR 刷新的内部地址</td></tr>
+    <tr><td><code>REVALIDATE_SECRET</code></td><td>ISR 鉴权 secret</td></tr>
+    <tr><td><code>SITE_URL</code></td><td>对外公开站点 URL（写入 published_url）</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <strong>改完环境变量必须重启 API 服务才生效</strong>。线上改 env 走运维流程；测试环境直接重启 dev 进程即可。
+</div>
+
+<h2>6. 控制层（Pipeline 控制）</h2>
+
+<p>三套独立的开关：</p>
+
+<table>
+  <thead><tr><th>层级</th><th>开关</th><th>影响</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>全局</td>
+      <td><strong>急停 / 恢复</strong></td>
+      <td>暂停所有 agent 调度，运行中的 job 不打断</td>
+    </tr>
+    <tr>
+      <td>单 agent · 自动模式</td>
+      <td><strong>auto on/off</strong></td>
+      <td>auto-pipeline 是否自动给该 agent 补单</td>
+    </tr>
+    <tr>
+      <td>单 agent · 暂停</td>
+      <td><strong>paused on/off</strong></td>
+      <td>该 agent 不消费新任务（已在 active 的不影响）</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>publishing 和 distribution 永远不会被 auto-pipeline 触发</strong>，无论 auto on/off 状态如何 — 这是写在代码里的硬约束，避免误发。
+</div>
+
+<h2>7. 可观测点</h2>
+
+<table>
+  <thead><tr><th>看什么</th><th>去哪里</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>系统是否健康</td>
+      <td><code>GET /health</code></td>
+    </tr>
+    <tr>
+      <td>各队列堆积情况</td>
+      <td><code>GET /admin/day7/queues</code> · <code>GET /admin/pipeline/live-jobs</code></td>
+    </tr>
+    <tr>
+      <td>各 agent 自动 / 暂停状态</td>
+      <td><code>GET /admin/pipeline/state</code></td>
+    </tr>
+    <tr>
+      <td>所有 agent 调用历史</td>
+      <td><code>GET /admin/day7/agent-runs</code> · 或直接查 <code>agent_runs</code> 表</td>
+    </tr>
+    <tr>
+      <td>某篇文章全链路</td>
+      <td><code>GET /admin/pipeline/item-history/:itemId</code></td>
+    </tr>
+    <tr>
+      <td>信源认证状态</td>
+      <td><code>GET /admin/sources/auth-status</code></td>
+    </tr>
+    <tr>
+      <td>当前告警</td>
+      <td><code>GET /admin/day7/alerts</code></td>
+    </tr>
+    <tr>
+      <td>整体流量数据</td>
+      <td><code>GET /admin/day6/analytics</code></td>
+    </tr>
+    <tr>
+      <td>本周报表</td>
+      <td><code>GET /admin/day6/report</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>8. 安全 / 风险点</h2>
+
+<ul>
+  <li><strong>合规人工放行的责任</strong>：REVIEW 列表里你点放行就等于背书。系统不可能 100% 准确，最终判断在人。</li>
+  <li><strong>分发不要过快</strong>：短时间内推太多到同一社媒账号容易触发对方风控。建议带间隔。</li>
+  <li><strong>LLM 调用是花钱的</strong>：每次调用进 <code>agent_runs.cost_usd</code>。<code>SELECT SUM(cost_usd) FROM agent_runs WHERE started_at &gt; now() - interval '1 day'</code> 看日均开销。</li>
+  <li><strong>HARD_HUMAN_GATES 不要绕过</strong>：publishing 和 distribution 的人工闸口是写死的，任何"自动发布"诉求都应该重新设计审核流程，而非直接绕过。</li>
+  <li><strong>急停影响范围</strong>：急停只停"调度"，已被 worker 拿出来处理的 job 会跑完。如果要打断正在跑的任务，需要重启 API 服务。</li>
+</ul>
+
+</main>
+</body>
+</html>

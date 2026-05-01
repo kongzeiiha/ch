@@ -15,7 +15,10 @@ import { AdapterAuthError, type SourceAdapter, type SourceRow, type RawCandidate
  */
 
 interface Config {
-  subreddits?: string[];                                 // ['EarthPorn', 'r/photographs']
+  /** Preferred — one source per subreddit (batch-import model). */
+  subreddit?: string;
+  /** Legacy — multiple subs per source. Still works, kept for backward compat. */
+  subreddits?: string[];
   sort?: 'hot' | 'new' | 'top' | 'rising' | 'controversial';
   time?: 'hour' | 'day' | 'week' | 'month' | 'year' | 'all'; // only used when sort=top|controversial
   limit?: number;                                        // per subreddit, 1..100
@@ -31,7 +34,9 @@ export const redditAdapter: SourceAdapter = {
 
   async fetch(source: SourceRow): Promise<RawCandidate[]> {
     const cfg = source.config as Config;
-    const subs = (cfg.subreddits ?? [])
+    // Prefer the new singular `subreddit` field; fall back to legacy array.
+    const rawSubs = cfg.subreddit ? [cfg.subreddit] : (cfg.subreddits ?? []);
+    const subs = rawSubs
       .map((s) => String(s || '').replace(/^\/?r\//i, '').replace(/^\/+|\/+$/g, '').trim())
       .filter(Boolean);
     if (!subs.length) return [];

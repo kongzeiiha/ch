@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内容中台 · 系统使用说明（运维版）</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel-2: #1c232c;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --accent: #58a6ff; --green: #7ee787; --warn: #d29922; --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.7;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 40px 32px 80px; }
+
+  header { border-bottom: 1px solid var(--border); padding-bottom: 22px; margin-bottom: 28px; }
+  header h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 14.5px; }
+
+  h2 {
+    margin: 36px 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    font-size: 19px;
+  }
+  h3 { margin: 22px 0 8px; font-size: 16px; color: var(--accent); }
+  h4 { margin: 16px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  p { margin: 0 0 10px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  code {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: #0d1117; border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px;
+    font-size: 12.5px; color: var(--green);
+  }
+  pre {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    background: #0d1117; border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 14px;
+    overflow-x: auto; font-size: 12.5px; line-height: 1.55;
+    margin: 10px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: var(--text); }
+  .cmt { color: var(--muted); font-style: italic; }
+  .cmd { color: var(--accent); }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px;
+  }
+  th, td {
+    text-align: left; padding: 9px 12px;
+    border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  th {
+    background: var(--panel); color: var(--muted);
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  td code { font-size: 12px; padding: 1px 5px; }
+
+  .scenario {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 18px; margin: 12px 0;
+  }
+  .scenario h4 {
+    margin: 0 0 8px; font-size: 14.5px; color: var(--accent);
+    text-transform: none; letter-spacing: 0;
+  }
+  .scenario p:last-child { margin-bottom: 0; }
+
+  .callout {
+    background: rgba(88,166,255,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px; margin: 12px 0;
+    border-radius: 0 4px 4px 0; font-size: 13.5px;
+  }
+  .callout.warn { background: rgba(210,153,34,0.08); border-left-color: var(--warn); }
+  .callout.danger { background: rgba(248,81,73,0.08); border-left-color: var(--err); }
+  .callout strong { color: var(--accent); }
+  .callout.warn strong { color: var(--warn); }
+  .callout.danger strong { color: var(--err); }
+
+  .step {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 18px 14px 56px;
+    margin: 10px 0; position: relative;
+  }
+  .step::before {
+    content: attr(data-num);
+    position: absolute; left: 14px; top: 14px;
+    width: 28px; height: 28px;
+    background: var(--accent); color: #0d1117;
+    border-radius: 50%; text-align: center; line-height: 28px;
+    font-weight: 700; font-size: 13px;
+  }
+  .step strong { color: var(--text); }
+  .step p:last-child { margin-bottom: 0; }
+  .step pre { margin: 8px 0 0; }
+
+  .checklist {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 24px; margin: 12px 0;
+  }
+  .checklist li::marker { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>内容中台 · 使用说明（运维版）</h1>
+  <div class="sub">假设你能用 curl、看 JSON、知道环境变量怎么配 — 但不需要改源码</div>
+</header>
+
+<p>所有日常操作都通过 <strong>Web 后台 UI</strong> 或 <strong>HTTP API</strong> 完成。这份文档以 API 为主线（写脚本和排查更直接），UI 会在每个场景里指出对应入口。</p>
+
+<div class="callout">
+  <strong>API 基础地址</strong>：<code>http://&lt;your-api-host&gt;:4000</code> · <strong>Web 后台</strong>：<code>http://&lt;your-web-host&gt;:3000/admin</code>
+</div>
+
+<h2>1. 每天上班先做的 3 件事</h2>
+
+<div class="step" data-num="1">
+  <strong>看健康状态</strong>
+  <pre><code><span class="cmd">curl</span> http://localhost:4000/health
+<span class="cmt"># → {"ok":true,"ts":...}  正常</span></code></pre>
+</div>
+
+<div class="step" data-num="2">
+  <strong>看队列堆积</strong>
+  <pre><code><span class="cmd">curl</span> http://localhost:4000/admin/day7/queues
+<span class="cmt"># 看每个队列的 waiting / active / failed
+# 任何一个 failed 涨得快、或 waiting 突然破百，就要排查</span></code></pre>
+</div>
+
+<div class="step" data-num="3">
+  <strong>看告警</strong>
+  <pre><code><span class="cmd">curl</span> http://localhost:4000/admin/day7/alerts
+<span class="cmt"># 看最近的告警记录（队列堆积、LLM 失败率超阈值等）</span></code></pre>
+</div>
+
+<h2>2. 信源管理</h2>
+
+<h3>添加一个信源</h3>
+<pre><code><span class="cmd">curl</span> -X POST http://localhost:4000/admin/sources \
+  -H 'content-type: application/json' \
+  -d '{
+    "platform": "rss",
+    "external_id": "techcrunch",
+    "name": "TechCrunch",
+    "url": "https://techcrunch.com/feed/",
+    "config": {}
+  }'
+<span class="cmt"># 返回 {id: "..."}  信源默认 status=active, grayscale_pct=100</span></code></pre>
+
+<h4>支持的 platform</h4>
+<table>
+  <tbody>
+    <tr><td><code>rss</code></td><td>标准 RSS / Atom feed</td></tr>
+    <tr><td><code>html</code></td><td>HTML 列表页（Readability 解析）</td></tr>
+    <tr><td><code>reddit</code></td><td>Reddit subreddit JSON</td></tr>
+    <tr><td><code>bluesky</code></td><td>Bluesky AT Protocol</td></tr>
+    <tr><td><code>x</code></td><td>X / Twitter（需 cookie）</td></tr>
+    <tr><td><code>knit</code> · <code>2ksg</code></td><td>专项站（图集类）</td></tr>
+    <tr><td><code>sitemap-images</code></td><td>站点地图图片源</td></tr>
+  </tbody>
+</table>
+
+<h3>带反盗链 / 鉴权 cookie 的源</h3>
+<pre><code><span class="cmd">curl</span> -X POST http://localhost:4000/admin/sources \
+  -H 'content-type: application/json' \
+  -d '{
+    "platform": "knit",
+    "external_id": "knit-feed-1",
+    "name": "Knit Feed 1",
+    "url": "https://xx.knit.bid/...",
+    "config": {
+      "cookie": "cf_clearance=xxx; ...",
+      "userAgent": "Mozilla/5.0 ..."
+    }
+  }'</code></pre>
+
+<h3>修改 / 暂停 / 删除</h3>
+<pre><code><span class="cmt"># 改名字或 config</span>
+<span class="cmd">curl</span> -X PATCH http://localhost:4000/admin/sources/&lt;id&gt; \
+  -H 'content-type: application/json' \
+  -d '{"name":"new name"}'
+
+<span class="cmt"># 暂停（不再采集，但已有数据保留）</span>
+<span class="cmd">curl</span> -X PATCH http://localhost:4000/admin/sources/&lt;id&gt; \
+  -H 'content-type: application/json' \
+  -d '{"status":"inactive"}'
+
+<span class="cmt"># 删除（默认保留已采集 items；?cascade=1 级联删）</span>
+<span class="cmd">curl</span> -X DELETE 'http://localhost:4000/admin/sources/&lt;id&gt;?cascade=1'</code></pre>
+
+<h3>立即采集一次（不等 cron）</h3>
+<pre><code><span class="cmt"># 全部信源 fanout</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/ingest/fanout
+
+<span class="cmt"># 单个信源（async=1 异步入队，否则同步等结果）</span>
+<span class="cmd">curl</span> -X POST 'http://localhost:4000/admin/ingest/source/&lt;id&gt;?async=1'</code></pre>
+
+<h3>调整灰度（控制采集频率）</h3>
+<pre><code><span class="cmt"># 把某源的灰度调到 30%（每轮有 30% 概率被采）</span>
+<span class="cmd">curl</span> -X PATCH http://localhost:4000/admin/day7/sources/&lt;id&gt;/grayscale \
+  -H 'content-type: application/json' \
+  -d '{"pct":30}'
+
+<span class="cmt"># 一键把所有源调到 50%</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/day7/grayscale-all \
+  -H 'content-type: application/json' \
+  -d '{"pct":50}'</code></pre>
+
+<h3>看哪些源认证失败</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/admin/sources/auth-status
+<span class="cmt"># 列出最近抛 AdapterAuthError 的源 + 错误原因
+# 多半是 cookie 过期或被风控，需要更新 config.cookie</span></code></pre>
+
+<h2>3. 流水线人工放行</h2>
+
+<h3>合规复核（REVIEW 队列）</h3>
+
+<pre><code><span class="cmt"># 看待复核列表</span>
+<span class="cmd">curl</span> http://localhost:4000/admin/pipeline/review-queue
+
+<span class="cmt"># 看某条文章的合规理由（compliance_reasons 字段）</span>
+<span class="cmd">curl</span> 'http://localhost:4000/admin/items?id=&lt;itemId&gt;'
+
+<span class="cmt"># 放行</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/approve-review/&lt;itemId&gt;
+
+<span class="cmt"># 拒绝</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/reject-review/&lt;itemId&gt;</code></pre>
+
+<div class="callout warn">
+  <strong>放行就是背书</strong>。系统标 REVIEW 是因为某个维度评分 ≥ 2，看 <code>compliance_reasons.reasons</code> 里的具体维度和理由再决定。
+</div>
+
+<h3>批量发布</h3>
+
+<pre><code><span class="cmt"># 看待发布列表</span>
+<span class="cmd">curl</span> http://localhost:4000/admin/pipeline/publish-queue
+
+<span class="cmt"># 批量放行（itemIds 数组）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/approve-publish \
+  -H 'content-type: application/json' \
+  -d '{"itemIds":["id1","id2","id3"]}'
+
+<span class="cmt"># 单个强制发布（绕过 strict 检查）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/day5/force-publish/&lt;itemId&gt;</code></pre>
+
+<h3>分发到社媒</h3>
+
+<pre><code><span class="cmt"># 看单条 / 全部分发任务</span>
+<span class="cmd">curl</span> http://localhost:4000/admin/day6/distribution
+
+<span class="cmt"># 给单篇生成分发任务（默认 channel=twitter）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/day6/distribute/&lt;itemId&gt;
+
+<span class="cmt"># 批量给所有 PUBLISHED 但还没分发的文章生成分发任务</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/day6/distribute-all
+
+<span class="cmt"># 确认分发任务已实际发出（人工或外部 worker 操作完后回调）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/confirm-distribution/&lt;taskId&gt;</code></pre>
+
+<h2>4. 全局控制</h2>
+
+<h3>急停</h3>
+<pre><code><span class="cmt"># 全部 agent 停调度（已在跑的 job 不打断）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/emergency-stop
+
+<span class="cmt"># 恢复</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/resume</code></pre>
+
+<h3>暂停 / 启用单个 agent</h3>
+<pre><code><span class="cmt"># 暂停 compliance（不再消费新 job）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/set-paused \
+  -H 'content-type: application/json' \
+  -d '{"agent":"compliance","paused":true}'
+
+<span class="cmt"># 关闭某 agent 的自动模式（不再被 auto-pipeline 自动补单）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/set-auto \
+  -H 'content-type: application/json' \
+  -d '{"agent":"ingestion","auto":false}'</code></pre>
+
+<h3>看当前各 agent 状态</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/admin/pipeline/state
+<span class="cmt"># 返回每个 agent 的 auto/paused 开关 + 全局 emergency 状态</span></code></pre>
+
+<h2>5. 单条文章的处理</h2>
+
+<h3>看全链路历史</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/admin/pipeline/item-history/&lt;itemId&gt;
+<span class="cmt"># 列出该 item 在 agent_runs 里的每一次调用：哪个 agent、什么状态、耗时、成本、错误</span></code></pre>
+
+<h3>从某一步重跑</h3>
+<pre><code><span class="cmt"># 重跑 classify-title</span>
+<span class="cmd">curl</span> -X POST 'http://localhost:4000/admin/day3/reclassify/&lt;itemId&gt;'
+
+<span class="cmt"># 重跑 cover</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/day4/recover/&lt;itemId&gt;
+
+<span class="cmt"># 重跑 compliance</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/day4/recheck/&lt;itemId&gt;
+
+<span class="cmt"># 通用：从某状态开始重跑（rerun 自动判断从哪步起跑）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/rerun/&lt;itemId&gt;</code></pre>
+
+<h3>回滚到上一状态</h3>
+<pre><code><span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/rollback/&lt;itemId&gt;
+<span class="cmt"># 例如把 PUBLISHED 退回 COMPLIANCE_PASS（文章会从网站消失）</span></code></pre>
+
+<h2>6. 数据查询</h2>
+
+<h3>整体统计</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/admin/stats
+<span class="cmt"># 返回每个状态的 items 计数、各 agent 最近 24h 成功/失败数</span></code></pre>
+
+<h3>看每天的 GA4 数据</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/admin/day6/analytics
+
+<span class="cmt"># 立即拉一次（不等每天 2 点的 cron）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/day6/analytics-pull</code></pre>
+
+<h3>本周报表（markdown）</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/admin/day6/report</code></pre>
+
+<h3>直接查库（更灵活）</h3>
+<pre><code><span class="cmt"># 各 agent 最近 24h 成本</span>
+<span class="cmd">SELECT</span> agent, COUNT(*) runs, SUM(cost_usd) cost
+<span class="cmd">FROM</span> agent_runs
+<span class="cmd">WHERE</span> started_at &gt; NOW() - INTERVAL '1 day'
+<span class="cmd">GROUP BY</span> agent
+<span class="cmd">ORDER BY</span> cost DESC NULLS LAST;
+
+<span class="cmt"># 卡在某状态的 items</span>
+<span class="cmd">SELECT</span> id, status, title, updated_at
+<span class="cmd">FROM</span> items
+<span class="cmd">WHERE</span> status = 'COMPLIANCE_REVIEW'
+<span class="cmd">ORDER BY</span> updated_at DESC LIMIT 50;
+
+<span class="cmt"># 最近失败的 agent_runs</span>
+<span class="cmd">SELECT</span> agent, item_id, error, started_at
+<span class="cmd">FROM</span> agent_runs
+<span class="cmd">WHERE</span> status = 'failed'
+<span class="cmd">ORDER BY</span> started_at DESC LIMIT 50;</code></pre>
+
+<h2>7. 常见运维场景</h2>
+
+<div class="scenario">
+  <h4>场景：队列突然堆积</h4>
+  <ol>
+    <li><code>curl /admin/day7/queues</code> 看具体哪个队列堆</li>
+    <li>看是不是被人暂停了：<code>curl /admin/pipeline/state</code></li>
+    <li>看 failed 是否在涨：<code>curl /admin/day7/agent-runs?status=failed</code></li>
+    <li>有失败堆积，跑批量重试脚本：<code>scripts/retry-failed.ts</code>（找技术同事跑）</li>
+    <li>排查不出来就联系开发</li>
+  </ol>
+</div>
+
+<div class="scenario">
+  <h4>场景：LLM 调用大面积失败</h4>
+  <ol>
+    <li>看 <code>agent_runs.error</code> 字段确认错误码（429 / 5xx 多半是 LLM 服务故障）</li>
+    <li>临时降级：在 <code>.env</code> 设全部 <code>*_SKIP_LLM=1</code> 重启 API</li>
+    <li>等 LLM 服务恢复后取消降级，跑 <code>retry-failed.ts</code> 重试失败的 job</li>
+  </ol>
+</div>
+
+<div class="scenario">
+  <h4>场景：合规 REVIEW 队列堆得很多</h4>
+  <p>多半是 LLM 调不通，所有不确定的全进了 REVIEW（保守 fallback）。</p>
+  <ol>
+    <li>确认 LLM 是否恢复：<code>curl -X POST /admin/day1/test-llm</code></li>
+    <li>恢复后批量重检：<code>POST /admin/day4/recheck/&lt;itemId&gt;</code> 一条条重跑（或写循环脚本）</li>
+  </ol>
+</div>
+
+<div class="scenario">
+  <h4>场景：某个信源连续抓不到东西</h4>
+  <ol>
+    <li><code>curl /admin/sources/auth-status</code> 看是否认证失败</li>
+    <li>认证失败 → 更新 <code>config.cookie</code> / <code>config.userAgent</code></li>
+    <li>非认证问题 → 找技术同事看 adapter 日志（通常是源站改版）</li>
+    <li>临时方案：把灰度调到 0 或 status=inactive，避免反复失败污染指标</li>
+  </ol>
+</div>
+
+<div class="scenario">
+  <h4>场景：发布后网站没刷新</h4>
+  <ol>
+    <li>看 API 日志有没有 <code>[publishing] revalidate failed</code></li>
+    <li>检查环境变量 <code>WEB_URL</code> 和 <code>REVALIDATE_SECRET</code> 是否正确</li>
+    <li>手动触发 revalidate：
+      <pre style="margin-top:6px;"><code><span class="cmd">curl</span> -X POST http://&lt;web&gt;/api/revalidate \
+  -H "x-revalidate-secret: &lt;your-secret&gt;" \
+  -H 'content-type: application/json' \
+  -d '{"paths":["/","/a/&lt;slug&gt;"]}'</code></pre>
+    </li>
+  </ol>
+</div>
+
+<div class="scenario">
+  <h4>场景：分发推文文案不合适</h4>
+  <ol>
+    <li>"待分发"页面直接编辑文案重新保存</li>
+    <li>不想 LLM 重写整个文案，可以改 <code>distribution_tasks.copy</code> 字段后发出</li>
+  </ol>
+</div>
+
+<div class="scenario">
+  <h4>场景：误发了一篇文章想下架</h4>
+  <pre style="margin:0;"><code><span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/rollback/&lt;itemId&gt;
+<span class="cmt"># 状态退回 COMPLIANCE_PASS，published_url 清空，下次 ISR 刷新后从站点消失</span></code></pre>
+  <p style="font-size:13px;color:var(--muted);margin-top:6px;">CDN 缓存可能让网站继续显示一段时间，必要时联系运维清缓存。</p>
+</div>
+
+<div class="scenario">
+  <h4>场景：想看上周的 LLM 总开销</h4>
+  <pre style="margin:0;"><code><span class="cmd">SELECT</span> agent, model,
+       COUNT(*) calls,
+       SUM(cost_usd) cost
+<span class="cmd">FROM</span> agent_runs
+<span class="cmd">WHERE</span> started_at &gt; NOW() - INTERVAL '7 days'
+  <span class="cmd">AND</span> cost_usd &gt; 0
+<span class="cmd">GROUP BY</span> agent, model
+<span class="cmd">ORDER BY</span> cost DESC;</code></pre>
+</div>
+
+<h2>8. 每日 / 每周 checklist</h2>
+
+<h3>每日（10 分钟）</h3>
+<div class="checklist">
+  <ol>
+    <li>health 200，队列没异常堆积</li>
+    <li>处理 REVIEW 队列里的待复核（≤ 1 小时回应）</li>
+    <li>看一眼 alerts，没新告警</li>
+    <li>选稿发布 + 分发到社媒</li>
+  </ol>
+</div>
+
+<h3>每周（30 分钟）</h3>
+<div class="checklist">
+  <ol>
+    <li>看本周报表（<code>/admin/day6/report</code>），整理 Top 10 反馈给内容团队</li>
+    <li>看信源得分排行，把分数 &lt; 30 的源考虑暂停</li>
+    <li>看 LLM 总开销，对比预算</li>
+    <li>清理 failed 队列里的陈年错误（<code>scripts/clear-failed.ts</code>）</li>
+    <li>看哪些信源认证失败 → 更新 cookie</li>
+  </ol>
+</div>
+
+<h2>9. 紧急联系</h2>
+
+<div class="callout danger">
+  <strong>需要立即找技术同事的情况</strong>
+  <ul style="margin: 6px 0 0;">
+    <li>health 接口 500，且重启 API 后还是 500</li>
+    <li>所有队列都没人消费（worker 全挂）</li>
+    <li>数据库连不上 / Redis 连不上</li>
+    <li>线上文章页面大面积 500</li>
+    <li>合规出现明显误判（涉政、涉黄漏过去）</li>
+  </ul>
+</div>
+
+<div class="callout warn">
+  <strong>可以等下一个工作日再说</strong>
+  <ul style="margin: 6px 0 0;">
+    <li>某个信源不工作了（先 inactive 它）</li>
+    <li>LLM 偶发失败（fallback 会兜住）</li>
+    <li>分发推文偶尔抽风（人工编辑后发出即可）</li>
+    <li>数据回流缺一两天（GA4 有时候会延迟）</li>
+  </ul>
+</div>
+
+</main>
+</body>
+</html>

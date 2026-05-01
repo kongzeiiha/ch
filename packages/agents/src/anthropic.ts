@@ -223,7 +223,26 @@ export async function callClaude(opts: CallOptions): Promise<CallResult> {
         status === 529 ||
         (typeof status === 'number' && status >= 500 && status < 600);
       if (!retryable || attempt === maxRetries) throw e;
-      const backoff = Math.min(30_000, 500 * 2 ** attempt) + Math.random() * 250;
+
+      // Honor Retry-After (seconds) from the provider when present — Groq's
+      // 429 includes both an HTTP header and "try again in X.XXs" in the body.
+      // Without this our 500ms→1s→2s schedule retries before the rate-limit
+      // window expires, burning the 3-attempt budget on the same hot minute.
+      const headers = e?.headers ?? e?.response?.headers;
+      const retryAfterSec = Number(
+        headers?.['retry-after'] ?? headers?.['Retry-After'] ?? NaN,
+      );
+      const bodyMatch = String(e?.message ?? '').match(/try again in ([\d.]+)s/i);
+      const hinted = Number.isFinite(retryAfterSec)
+        ? retryAfterSec * 1000
+        : bodyMatch
+        ? Number(bodyMatch[1]) * 1000
+        : 0;
+
+      // For 429 use a longer base so concurrent workers don't all retry in lockstep.
+      const base = status === 429 ? 2_000 : 500;
+      const expo = Math.min(30_000, base * 2 ** attempt);
+      const backoff = Math.max(hinted, expo) + Math.random() * 500;
       await new Promise((r) => setTimeout(r, backoff));
       attempt++;
     }

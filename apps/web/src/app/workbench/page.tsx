@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getSprintStart, computeDayLabel, todayISO } from '../../lib/sprint';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 const POLL = 6000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,6 +68,28 @@ interface Source {
   score: number | null;
   last_fetch_at: string | null;
   config: Record<string, unknown>;
+  credential_id: string | null;
+  credential_name: string | null;
+  credential_status: string | null;
+}
+
+interface CredentialRow {
+  id: string;
+  platform: string;
+  name: string;
+  status: string;
+  cookie_len: number;
+  user_agent: string | null;
+  source_count: number;
+  last_used_at: string | null;
+  last_auth_check_at: string | null;
+  last_auth_ok: boolean | null;
+  has_secret: boolean;
+  secret_username: string | null;
+  secret_last_refresh_at: string | null;
+  secret_last_refresh_ok: boolean | null;
+  secret_consecutive_failures: number | null;
+  secret_last_refresh_error: string | null;
 }
 
 interface RawItem {
@@ -111,43 +133,37 @@ const AGENTS = [
     riskLevel: 'low' as const,
   },
   {
-    key: 'classification', num: 3, name: '分类打标', dayNum: 3,
-    desc: 'Haiku tool-use → {category, tags, keywords}',
+    key: 'classify-title', num: 3, name: '分类标题', dayNum: 3,
+    desc: 'Haiku 打分类/标签 → Sonnet 生成 3 候选标题 + 摘要 + slug',
     color: '#10b981', pendingStatus: 'INGESTED', isHumanGate: false,
     riskLevel: 'low' as const,
   },
   {
-    key: 'title', num: 4, name: '标题生成', dayNum: 3,
-    desc: 'Sonnet 生成 3 候选 + Haiku 打分选优 + slug',
-    color: '#f59e0b', pendingStatus: 'CLASSIFIED', isHumanGate: false,
-    riskLevel: 'low' as const,
-  },
-  {
-    key: 'cover', num: 5, name: '封面选图', dayNum: 4,
+    key: 'cover', num: 4, name: '封面选图', dayNum: 4,
     desc: '最高分辨率图 + sharp 多尺寸 + Haiku 封面文案',
     color: '#ec4899', pendingStatus: 'TITLED', isHumanGate: false,
     riskLevel: 'low' as const,
   },
   {
-    key: 'compliance', num: 6, name: '合规审查', dayNum: 4,
+    key: 'compliance', num: 5, name: '合规审查', dayNum: 4,
     desc: '黑名单正则 + Sonnet 多维打分  ⚠ REVIEW 项需人工确认',
     color: '#ef4444', pendingStatus: 'COVERED', isHumanGate: false,
     riskLevel: 'high' as const,
   },
   {
-    key: 'publishing', num: 7, name: '发布上站', dayNum: 5,
+    key: 'publishing', num: 6, name: '发布上站', dayNum: 5,
     desc: 'ISR revalidate + slug 唯一校验  🔐 人工审批后发布',
     color: '#8b5cf6', pendingStatus: 'COMPLIANCE_PASS', isHumanGate: true,
     riskLevel: 'high' as const,
   },
   {
-    key: 'distribution', num: 8, name: '社媒分发', dayNum: 6,
+    key: 'distribution', num: 7, name: '社媒分发', dayNum: 6,
     desc: 'X/Twitter 文案改写  🔐 人工确认文案后执行',
     color: '#1d9bf0', pendingStatus: 'PUBLISHED', isHumanGate: true,
     riskLevel: 'high' as const,
   },
   {
-    key: 'analytics', num: 9, name: '数据分析', dayNum: 6,
+    key: 'analytics', num: 8, name: '数据分析', dayNum: 6,
     desc: 'GA4 T+1 拉取 → analytics_daily → 周报',
     color: '#14b8a6', pendingStatus: 'DISTRIBUTED', isHumanGate: false,
     riskLevel: 'low' as const,
@@ -234,9 +250,62 @@ export default function WorkbenchPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAgent, setBusyAgent] = useState<string | null>(null);
-  const [tab, setTab] = useState<'pipeline' | 'sources' | 'crawl' | 'queues'>('pipeline');
+  const [tab, setTab] = useState<'pipeline' | 'sources' | 'crawl' | 'credentials' | 'queues' | 'oplogs'>('pipeline');
+  // Currently focused stage in the redesigned pipeline view. Defaults to the
+  // most-actionable stage on first load (pending items or pending human-gate
+  // work). Once the user clicks a card, we keep their choice — never auto-jump.
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [editingSource, setEditingSource] = useState<Source | null>(null);
   const [showAddSource, setShowAddSource] = useState(false);
+
+  // Shared credential pool state — lifted here so both the sources tab
+  // (batch-import dropdown) and the credentials tab share one cache.
+  const [credentials, setCredentials] = useState<CredentialRow[]>([]);
+  const [refreshingCredId, setRefreshingCredId] = useState<string | null>(null);
+  // When the stealth login fails, the API returns a base64 PNG of whatever X
+  // actually showed — modal lightbox so you can spot challenge / 2FA / consent.
+  const [refreshFailModal, setRefreshFailModal] = useState<{
+    name: string; reason: string; detail: string; screenshotDataUrl: string;
+  } | null>(null);
+
+  const reloadCredentials = useCallback(async () => {
+    try {
+      const r = await fetch(`${API}/admin/credentials`, { cache: 'no-store' });
+      const d = await r.json();
+      setCredentials(d.credentials ?? []);
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { reloadCredentials(); }, [reloadCredentials]);
+
+  // Sync stealth-login refresh — hits the API and re-loads on completion.
+  const refreshCredential = useCallback(async (credId: string) => {
+    setRefreshingCredId(credId);
+    try {
+      const r = await fetch(`${API}/admin/credentials/${credId}/refresh?sync=1`, { method: 'POST' });
+      if (!r.ok) { const t = await r.text(); setToast({ msg: `刷新失败：${t.slice(0,160)}`, ok: false }); setTimeout(() => setToast(null), 3500); return; }
+      const d = await r.json();
+      if (d.ok) {
+        setToast({ msg: `✓ 凭证已刷新（${d.durationMs ?? '?'}ms）`, ok: true });
+        setTimeout(() => setToast(null), 3500);
+      } else if (d.screenshotBase64) {
+        // Open modal with screenshot so you can SEE what X showed.
+        const cred = credentials.find(c => c.id === credId);
+        setRefreshFailModal({
+          name: cred?.name ?? credId.slice(0, 8),
+          reason: d.reason ?? 'unknown',
+          detail: d.detail ?? '',
+          screenshotDataUrl: `data:image/png;base64,${d.screenshotBase64}`,
+        });
+      } else {
+        setToast({ msg: `刷新失败：${d.reason}${d.detail ? ` — ${d.detail}` : ''}`, ok: false });
+        setTimeout(() => setToast(null), 5000);
+      }
+      await reloadCredentials();
+    } finally {
+      setRefreshingCredId(null);
+    }
+  }, [reloadCredentials, credentials]);
+
   const [rawItems, setRawItems] = useState<RawItem[]>([]);
   const [rawTotal, setRawTotal] = useState(0);
   const [rawSourceId, setRawSourceId] = useState<string>('');
@@ -257,8 +326,8 @@ export default function WorkbenchPage() {
         fetch(`${API}/admin/pipeline/review-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/publish-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/distribution-queue`, { cache: 'no-store' }).then(r => r.json()),
-        fetch(`${API}/admin/day7/agent-runs`, { cache: 'no-store' }).then(r => r.json()),
-        fetch(`${API}/admin/day7/queues`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/ops/agent-runs`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/ops/queues`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/sources`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/live-jobs`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/sources/auth-status`, { cache: 'no-store' }).then(r => r.json()),
@@ -499,6 +568,32 @@ export default function WorkbenchPage() {
   const totalItems = Object.values(pending).reduce((a, b) => a + b, 0);
   const queueBusy = queues.reduce((s, q) => s + q.counts.waiting + q.counts.active, 0);
 
+  // Pick a sensible default stage on first load. Priority: human gates with
+  // pending work → first stage with a backlog → first agent in the list.
+  useEffect(() => {
+    if (selectedAgent || !state) return;
+    if (reviewItems.length > 0)        { setSelectedAgent('compliance');     return; }
+    if (publishItems.length > 0)       { setSelectedAgent('publishing');     return; }
+    if (distTasks.length > 0)          { setSelectedAgent('distribution');   return; }
+    const firstWithBacklog = AGENTS.find(a => a.pendingStatus && (pending[a.pendingStatus] ?? 0) > 0);
+    setSelectedAgent(firstWithBacklog?.key ?? AGENTS[0].key);
+  }, [state, reviewItems.length, publishItems.length, distTasks.length, selectedAgent, pending]);
+
+  // Per-stage computed status, shared between the flow strip and the detail panel.
+  const stageMeta = (key: string) => {
+    const a = AGENTS.find(x => x.key === key)!;
+    const meta = agents[a.key] ?? { auto: false, paused: false };
+    const pendingCnt = a.pendingStatus ? (pending[a.pendingStatus] ?? 0) : 0;
+    const queue = queues.find(q => q.name === a.key);
+    const isProcessing = (queue?.counts.active ?? 0) > 0;
+    const stopped = state?.globalStop || meta.paused;
+    let humanGateCnt = 0;
+    if (a.key === 'compliance')   humanGateCnt = reviewItems.length;
+    if (a.key === 'publishing')   humanGateCnt = publishItems.length;
+    if (a.key === 'distribution') humanGateCnt = distTasks.length;
+    return { agent: a, meta, pendingCnt, isProcessing, stopped, humanGateCnt };
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -508,6 +603,35 @@ export default function WorkbenchPage() {
       {toast && (
         <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, padding: '10px 16px', borderRadius: 8, background: toast.ok ? '#052e16' : '#450a0a', border: `1px solid ${toast.ok ? '#16a34a' : '#dc2626'}`, color: toast.ok ? '#86efac' : '#fca5a5', fontSize: 13, maxWidth: 360, boxShadow: '0 4px 20px #0008' }}>
           {toast.msg}
+        </div>
+      )}
+
+      {/* Refresh-failure screenshot modal — shows what X actually presented */}
+      {refreshFailModal && (
+        <div onClick={() => setRefreshFailModal(null)}
+          style={{ position: 'fixed', inset: 0, background: '#000c', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#1e293b', border: '1px solid #dc2626', borderRadius: 12, padding: 18, maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', gap: 10, cursor: 'default' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#fca5a5' }}>⚠ 刷新失败 · {refreshFailModal.name}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                  reason: <code style={{ color: '#fbbf24' }}>{refreshFailModal.reason}</code>
+                  {refreshFailModal.detail && <> · {refreshFailModal.detail}</>}
+                </div>
+              </div>
+              <button onClick={() => setRefreshFailModal(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 22, cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6, padding: '6px 10px', background: '#0f172a', borderRadius: 6 }}>
+              这是 Playwright 失败那一刻的页面截图。X 多半在登录流程里加了挑战页(2FA / 异常登录确认 / 邮件验证码 / Arkose captcha 等),自动登录无法继续。
+              <br />
+              <strong style={{ color: '#cbd5e1' }}>处理建议</strong>:无痕窗口手工登录一次解决挑战 → 复制新 cookie → 凭证池 → 编辑 → 粘贴 cookie + 状态改 active(会自动重置 3 连败计数)。
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={refreshFailModal.screenshotDataUrl} alt="X login screenshot at failure"
+              style={{ maxWidth: '85vw', maxHeight: '70vh', borderRadius: 6, border: '1px solid #334155', objectFit: 'contain', background: '#000' }} />
+          </div>
         </div>
       )}
 
@@ -647,6 +771,7 @@ export default function WorkbenchPage() {
           <span style={{ fontSize: 12, color: '#475569' }}>总计 <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong> 条</span>
           <span style={{ fontSize: 12, color: '#475569' }}>队列 <strong style={{ color: queueBusy > 0 ? '#fbbf24' : '#64748b' }}>{queueBusy}</strong></span>
           <span style={{ fontSize: 12, color: '#475569' }}>成本 <strong style={{ color: '#a78bfa' }}>${totalCost.toFixed(4)}</strong></span>
+          <Link href="/admin" style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none', padding: '4px 10px', border: '1px solid #334155', borderRadius: 6 }} title="按 Day 分页的验收后台">Admin →</Link>
           <Link href="/" style={{ fontSize: 12, color: '#475569', textDecoration: 'none' }}>站点 →</Link>
 
           {state?.globalStop
@@ -700,8 +825,8 @@ export default function WorkbenchPage() {
 
       {/* ── Tab bar ── */}
       <div style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', display: 'flex', gap: 4 }}>
-        {(['pipeline', 'sources', 'crawl', 'queues'] as const).map(t => {
-          const labels: Record<string, string> = { pipeline: '流水线', sources: '采集源', crawl: '采集预览', queues: '队列 & 成本' };
+        {(['pipeline', 'sources', 'crawl', 'credentials', 'queues', 'oplogs'] as const).map(t => {
+          const labels: Record<string, string> = { pipeline: '流水线', sources: '采集源', crawl: '采集预览', credentials: '凭证池', queues: '队列 & 成本', oplogs: '操作日志' };
           return (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer',
@@ -713,7 +838,7 @@ export default function WorkbenchPage() {
         })}
       </div>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 20px 60px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 20px 60px' }}>
 
         {loading && !state && (
           <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>连接中…</div>
@@ -721,7 +846,131 @@ export default function WorkbenchPage() {
 
         {/* ── Pipeline tab ── */}
         {tab === 'pipeline' && <>
-        {AGENTS.map((agent) => {
+
+        {/* Vertical stepper on the left + selected stage detail on the right.
+            On narrow viewports the stepper wraps below the detail via flex-wrap. */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+
+          {/* Left column: vertical stepper, all 8 stages stacked top → down.
+              Cards are sized to fill the vertical real-estate naturally — flex
+              with each card claiming an equal share, plus generous padding. */}
+          <div style={{
+            background: '#1e293b', border: '1px solid #334155', borderRadius: 12,
+            padding: '18px 14px',
+            flex: '0 0 260px', minWidth: 240,
+            display: 'flex', flexDirection: 'column',
+            // Match the right-side detail panel's natural height by stretching;
+            // alignSelf: stretch is the default in flex, so the column grows to
+            // the tallest sibling. We also enforce a min so it looks substantial
+            // even when the right panel is short.
+            minHeight: 720,
+            alignSelf: 'stretch',
+          }}>
+            {AGENTS.map((a, idx) => {
+              const m = stageMeta(a.key);
+              const isSel = selectedAgent === a.key;
+              // Corner dot: red=积压/⚠ · blue=processing · green=auto · orange=paused · grey=idle
+              const dotColor =
+                m.humanGateCnt > 0 ? '#ef4444' :
+                m.isProcessing ? '#60a5fa' :
+                m.meta.paused ? '#fb923c' :
+                m.meta.auto ? '#22c55e' : '#475569';
+              const accent = m.stopped ? '#475569' : a.color;
+              return (
+                <div key={a.key} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+                  // each stage row claims an equal share of the column
+                  flex: '1 1 0', minHeight: 0,
+                }}>
+                  <button
+                    onClick={() => setSelectedAgent(a.key)}
+                    title={a.desc}
+                    style={{
+                      flex: 1, minHeight: 64,
+                      textAlign: 'left',
+                      background: isSel ? `${accent}1c` : '#0f172a',
+                      borderTop: `1px solid ${isSel ? accent : '#1e293b'}`,
+                      borderRight: `1px solid ${isSel ? accent : '#1e293b'}`,
+                      borderBottom: `1px solid ${isSel ? accent : '#1e293b'}`,
+                      borderLeft: `4px solid ${accent}`,
+                      borderRadius: 10, padding: '14px 14px',
+                      cursor: 'pointer', position: 'relative',
+                      opacity: m.stopped && !a.isHumanGate ? 0.65 : 1,
+                      transition: 'background 120ms, border-color 120ms',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8,
+                    }}>
+                    {/* Header row: # number + name + status dot */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, color: accent,
+                        background: `${accent}22`, padding: '2px 8px', borderRadius: 5,
+                        flexShrink: 0,
+                      }}>#{a.num}</span>
+                      <span style={{
+                        flex: 1, fontSize: 14, fontWeight: 700,
+                        color: isSel ? '#f1f5f9' : '#cbd5e1',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {a.name}
+                      </span>
+                      <span style={{
+                        width: 9, height: 9, borderRadius: '50%', background: dotColor,
+                        boxShadow: m.isProcessing ? `0 0 8px ${dotColor}` : 'none',
+                        animation: m.isProcessing || m.humanGateCnt > 0 ? 'pulse 1s infinite' : 'none',
+                        flexShrink: 0,
+                      }} />
+                    </div>
+                    {/* Bottom row: pending count + status chips */}
+                    {(m.pendingCnt > 0 || m.humanGateCnt > 0 || a.isHumanGate || m.meta.auto || m.meta.paused) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        {(m.pendingCnt > 0 || m.humanGateCnt > 0) && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 700,
+                            color: m.humanGateCnt > 0 ? '#fca5a5' : accent,
+                            background: m.humanGateCnt > 0 ? '#7f1d1d44' : `${accent}22`,
+                            padding: '2px 8px', borderRadius: 9,
+                          }}>
+                            {m.humanGateCnt > 0 ? `⚠ ${m.humanGateCnt}` : m.pendingCnt}
+                          </span>
+                        )}
+                        {a.isHumanGate && (<span style={{ fontSize: 11, color: '#a78bfa' }}>🔐</span>)}
+                        {m.meta.auto && !a.isHumanGate && (<span style={{ fontSize: 10, color: '#22c55e', fontWeight: 700 }}>⚡</span>)}
+                        {m.meta.paused && (<span style={{ fontSize: 10, color: '#fb923c' }}>⏸</span>)}
+                      </div>
+                    )}
+                  </button>
+                  {/* Stage connector — fading stem + chevron arrowhead, matches
+                      flowchart conventions and reads cleaner than a unicode ↓. */}
+                  {idx < AGENTS.length - 1 && (
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      padding: '6px 0', userSelect: 'none', flexShrink: 0,
+                    }}>
+                      <div style={{
+                        width: 2, height: 14,
+                        background: 'linear-gradient(to bottom, transparent, #6366f1)',
+                        borderRadius: 1,
+                      }} />
+                      <div style={{
+                        width: 0, height: 0,
+                        borderLeft: '5px solid transparent',
+                        borderRight: '5px solid transparent',
+                        borderTop: '7px solid #6366f1',
+                        marginTop: -1,
+                        opacity: 0.85,
+                      }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Right column: selected stage detail */}
+          <div style={{ flex: '1 1 600px', minWidth: 320, display: 'flex', flexDirection: 'column' }}>
+
+        {/* Detail panel — only the selected stage */}
+        {AGENTS.filter(a => a.key === (selectedAgent ?? AGENTS[0].key)).map((agent) => {
           const meta = agents[agent.key] ?? { auto: false, paused: false };
           const pendingCnt = agent.pendingStatus ? (pending[agent.pendingStatus] ?? 0) : null;
           const summary = summaryMap.get(agent.key);
@@ -737,15 +986,16 @@ export default function WorkbenchPage() {
               {/* Stage row */}
               <div style={{
                 background: '#1e293b',
-                border: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#334155'}`,
-                borderLeft: `3px solid ${stopped ? '#475569' : agent.color}`,
+                borderTop: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#334155'}`,
+                borderRight: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#334155'}`,
+                borderBottom: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#334155'}`,
+                borderLeft: `4px solid ${stopped ? '#475569' : agent.color}`,
                 borderRadius: 10,
-                padding: '14px 18px',
-                opacity: stopped && !agent.isHumanGate ? 0.6 : 1,
+                padding: '16px 18px',
+                opacity: stopped && !agent.isHumanGate ? 0.7 : 1,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-
-                  {/* Left: agent info */}
+                {/* Header: title + chips on left, controls on right */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
                   <div style={{ flex: 1, minWidth: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: agent.color, background: `${agent.color}22`, padding: '1px 7px', borderRadius: 6 }}>
@@ -761,29 +1011,18 @@ export default function WorkbenchPage() {
                           ⟳ 处理中
                         </span>
                       )}
+                      {meta.auto && !agent.isHumanGate && (
+                        <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 6, background: '#14532d', color: '#86efac' }}>⚡ 自动模式</span>
+                      )}
+                      {meta.paused && (
+                        <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 6, background: '#451a03', color: '#fb923c' }}>⏸ 已暂停</span>
+                      )}
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>{agent.name}</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{agent.desc}</div>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: '#f1f5f9' }}>{agent.name}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{agent.desc}</div>
                   </div>
 
-                  {/* Center: stats */}
-                  <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexShrink: 0 }}>
-                    {pendingCnt !== null && (
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 28, fontWeight: 800, color: pendingCnt > 0 ? agent.color : '#334155', lineHeight: 1 }}>{pendingCnt}</div>
-                        <div style={{ fontSize: 10, color: '#475569' }}>待处理</div>
-                      </div>
-                    )}
-                    {summary && (
-                      <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.8 }}>
-                        <div>✓ {summary.success} / ✗ <span style={{ color: summary.failed > 0 ? '#f87171' : '#64748b' }}>{summary.failed}</span></div>
-                        {summary.avg_latency_ms > 0 && <div>{summary.avg_latency_ms}ms avg</div>}
-                        <div style={{ color: '#7c3aed' }}>${Number(summary.total_cost_usd).toFixed(4)}</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right: controls */}
+                  {/* Controls */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
 
                     {/* Auto toggle (hidden for hard human gates) */}
@@ -821,6 +1060,71 @@ export default function WorkbenchPage() {
                       }}>
                       {busy ? '执行中…' : agent.isHumanGate ? '人工门控' : '▶ 执行'}
                     </button>
+                  </div>
+                </div>
+
+                {/* Stats grid: 4 cards laid out evenly. For agents that don't
+                    process items by status (source-scoring / ingestion), the
+                    "待处理" tile turns into a 24h call-count instead of a stale
+                    em-dash. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 4 }}>
+                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, padding: '10px 12px' }}>
+                    {agent.pendingStatus ? (
+                      <>
+                        <div style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>待处理</div>
+                        <div style={{
+                          fontSize: 24, fontWeight: 800,
+                          color: pendingCnt && pendingCnt > 0 ? agent.color : '#334155',
+                          lineHeight: 1.2, marginTop: 2,
+                        }}>
+                          {pendingCnt ?? 0}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>状态 {agent.pendingStatus}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>近 24h 调用</div>
+                        <div style={{
+                          fontSize: 24, fontWeight: 800,
+                          color: (summary?.total ?? 0) > 0 ? agent.color : '#334155',
+                          lineHeight: 1.2, marginTop: 2,
+                        }}>
+                          {summary?.total ?? 0}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>无队列阻塞</div>
+                      </>
+                    )}
+                  </div>
+
+                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>近 24h 成败</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.3, marginTop: 2 }}>
+                      <span style={{ color: '#22c55e' }}>✓ {summary?.success ?? 0}</span>
+                      <span style={{ color: '#475569', margin: '0 6px' }}>/</span>
+                      <span style={{ color: (summary?.failed ?? 0) > 0 ? '#f87171' : '#475569' }}>✗ {summary?.failed ?? 0}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>
+                      {summary && (summary.success + summary.failed) > 0
+                        ? `${((summary.success / (summary.success + summary.failed)) * 100).toFixed(0)}% 成功`
+                        : '暂无数据'}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>平均延迟</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#60a5fa', lineHeight: 1.2, marginTop: 2 }}>
+                      {summary?.avg_latency_ms ? `${summary.avg_latency_ms}` : '—'}
+                      <span style={{ fontSize: 12, color: '#475569', marginLeft: 4, fontWeight: 600 }}>ms</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>每次调用</div>
+                  </div>
+
+                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>近 24h 成本</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#a78bfa', lineHeight: 1.2, marginTop: 2 }}>
+                      ${Number(summary?.total_cost_usd ?? 0).toFixed(4)}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>USD</div>
                   </div>
                 </div>
 
@@ -941,16 +1245,17 @@ export default function WorkbenchPage() {
                 )}
               </div>
 
-              {/* Arrow between stages */}
-              {agent.num < 9 && (
-                <div style={{ textAlign: 'center', color: '#334155', fontSize: 16, lineHeight: '20px', margin: '2px 0' }}>↓</div>
-              )}
             </div>
           );
         })}
 
-        {/* Queue strip also shown in pipeline tab */}
-        <QueueRunsPanel queues={queues} agentSummary={agentSummary} />
+          </div>
+          {/* end right-column wrapper */}
+        </div>
+        {/* end vertical-stepper + detail flex container */}
+
+        {/* Queue snapshot + recent runs panel hidden in pipeline tab —
+            still available on the dedicated 队列 & 成本 tab. */}
         </>}
 
         {/* ── Sources tab ── */}
@@ -965,6 +1270,12 @@ export default function WorkbenchPage() {
             onDelete={deleteSource}
             onToggleStatus={toggleSourceStatus}
             onIngest={ingestOne}
+            onAfterBatch={load}
+            flash={flash}
+            credentials={credentials}
+            refreshingCredId={refreshingCredId}
+            reloadCredentials={reloadCredentials}
+            refreshCredential={refreshCredential}
           />
         )}
 
@@ -986,9 +1297,25 @@ export default function WorkbenchPage() {
           />
         )}
 
+        {/* ── Credentials pool tab ── */}
+        {tab === 'credentials' && (
+          <CredentialsPanel
+            credentials={credentials}
+            refreshingCredId={refreshingCredId}
+            reload={reloadCredentials}
+            onRefreshOne={refreshCredential}
+            flash={flash}
+          />
+        )}
+
         {/* ── Queues tab ── */}
         {tab === 'queues' && (
           <QueueRunsPanel queues={queues} agentSummary={agentSummary} />
+        )}
+
+        {/* ── Operation logs tab ── */}
+        {tab === 'oplogs' && (
+          <OpLogsPanel />
         )}
 
       </div>
@@ -1080,6 +1407,8 @@ function SourcesPanel({
   sources, editingSource, showAddSource,
   setEditingSource, setShowAddSource,
   onSave, onDelete, onToggleStatus, onIngest,
+  onAfterBatch, flash,
+  credentials, refreshingCredId, reloadCredentials, refreshCredential,
 }: {
   sources: Source[];
   editingSource: Source | null;
@@ -1090,8 +1419,110 @@ function SourcesPanel({
   onDelete: (s: Source) => void;
   onToggleStatus: (s: Source) => void;
   onIngest: (s: Source) => void;
+  onAfterBatch: () => void;
+  flash: (msg: string, ok?: boolean) => void;
+  credentials: CredentialRow[];
+  refreshingCredId: string | null;
+  reloadCredentials: () => Promise<void>;
+  refreshCredential: (id: string) => Promise<void>;
 }) {
-  const [form, setForm] = useState({ name: '', url: '', platform: 'rss', external_id: '', htmlUrls: '', perImage: false, useBrowser: false, extractAll: false, htmlMode: 'article' as 'article'|'per-image'|'crawl', crawlEntry: '', crawlMaxDepth: 2, crawlMaxPages: 30, crawlPattern: '', ksgIds: '', ksgBucket: '5', ksgHost: 'uib.2ksg.com', ksgToken: '', ksgReferer: 'https://uib.2ksg.com/app/', ksgCrawlList: false, ksgMaxIds: 30, knitUrls: '', knitCookie: '', knitUserAgent: '', redditSubs: '', redditSort: 'top' as 'hot'|'new'|'top'|'rising', redditTime: 'day' as 'hour'|'day'|'week'|'month'|'year'|'all', redditLimit: 25, redditUA: '', bskyMode: 'author' as 'author'|'search', bskyActor: '', bskyQuery: '', bskyLimit: 25, sitemapUrl: '', sitemapLimit: 200, sitemapPattern: '', xMode: 'user' as 'user'|'search', xScreenName: '', xQuery: '', xCookie: '', xUserAgent: '', xLimit: 20, htmlWaitFor: '', htmlExtraHeaders: '', htmlCookies: '', htmlLocale: '', htmlTimezone: '' });
+  // Batch-import modal state. Lives inside SourcesPanel because it's coupled
+  // to this surface; surfacing it through the global state machine isn't worth
+  // the indirection.
+  const [showBatch, setShowBatch] = useState(false);
+  const [batchPlatform, setBatchPlatform] = useState<'x' | 'bluesky' | 'reddit'>('x');
+  const [batchHandles, setBatchHandles] = useState('');
+  const [batchCookie, setBatchCookie] = useState('');
+  const [batchUserAgent, setBatchUserAgent] = useState('');
+  const [batchLimit, setBatchLimit] = useState(20);
+  const [batchSkipRetweets, setBatchSkipRetweets] = useState(true);
+  const [batchTriggerFetch, setBatchTriggerFetch] = useState(true);
+  // Reddit-specific knobs (sort/time controlling /r/<sub>/<sort>.json?t=<time>)
+  const [batchRedditSort, setBatchRedditSort] = useState<'hot'|'new'|'top'|'rising'>('top');
+  const [batchRedditTime, setBatchRedditTime] = useState<'hour'|'day'|'week'|'month'|'year'|'all'>('day');
+  // credentials / refreshingCredId / reloadCredentials / refreshCredential
+  // are now lifted to WorkbenchPage and passed as props above.
+  const [batchCredentialId, setBatchCredentialId] = useState<string>('');
+  // Inline-create-credential affordance (no need to leave the modal)
+  const [showCreateCred, setShowCreateCred] = useState(false);
+  const [newCredName, setNewCredName] = useState('');
+  const [newCredCookie, setNewCredCookie] = useState('');
+  const [newCredUA, setNewCredUA] = useState('');
+  // Optional auto-refresh secret (X username + password). When filled, the
+  // refresh worker can re-login when this credential's cookie expires.
+  const [newCredXUser, setNewCredXUser] = useState('');
+  const [newCredXPass, setNewCredXPass] = useState('');
+  const [credBusy, setCredBusy] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchResult, setBatchResult] = useState<null | {
+    created: { handle: string; sourceId: string }[];
+    updated: { handle: string; sourceId: string }[];
+    failed: { handle: string; reason: string }[];
+  }>(null);
+
+  // Default-fill cookie+UA from the most recent X source so the user doesn't
+  // re-paste a 4KB cookie for every batch.
+  const openBatchModal = () => {
+    const lastX = sources.find(s => s.platform === 'x' && (s.config?.cookie as string));
+    setBatchCookie((lastX?.config?.cookie as string) ?? '');
+    setBatchUserAgent((lastX?.config?.userAgent as string) ?? '');
+    setBatchHandles('');
+    setBatchResult(null);
+    setShowBatch(true);
+  };
+
+  const submitBatch = async () => {
+    const handles = batchHandles
+      .split(/[\n,，;\s]+/)
+      .map(h => h.trim())
+      .filter(Boolean);
+    if (handles.length === 0) {
+      flash('请粘贴至少一个 handle', false);
+      return;
+    }
+    const sharedConfig: Record<string, unknown> = { limit: Number(batchLimit) || 20 };
+    const usingCred = !!batchCredentialId;
+    if (batchPlatform === 'x') {
+      if (!usingCred && !batchCookie.trim()) { flash('X 需要 cookie 或选择一个凭证', false); return; }
+      if (!usingCred) sharedConfig.cookie = batchCookie.trim();
+      if (!usingCred && batchUserAgent.trim()) sharedConfig.userAgent = batchUserAgent.trim();
+      sharedConfig.skipRetweets = batchSkipRetweets;
+    }
+    if (batchPlatform === 'reddit') {
+      sharedConfig.sort = batchRedditSort;
+      sharedConfig.time = batchRedditTime;
+      if (batchUserAgent.trim()) sharedConfig.userAgent = batchUserAgent.trim();
+    }
+    setBatchBusy(true);
+    try {
+      const r = await fetch(`${API}/admin/sources/batch-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: batchPlatform,
+          handles,
+          sharedConfig,
+          credentialId: batchCredentialId || undefined,
+          triggerFetch: batchTriggerFetch,
+        }),
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        flash(`导入失败：${txt.slice(0, 160)}`, false);
+        return;
+      }
+      const d = await r.json();
+      setBatchResult({ created: d.created ?? [], updated: d.updated ?? [], failed: d.failed ?? [] });
+      flash(`导入完成：新建 ${d.created?.length ?? 0} · 更新 ${d.updated?.length ?? 0} · 失败 ${d.failed?.length ?? 0}`);
+      onAfterBatch();
+    } catch (e: any) {
+      flash(`导入异常：${e?.message ?? e}`, false);
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  const [form, setForm] = useState({ name: '', url: '', platform: 'x', external_id: '', htmlUrls: '', perImage: false, useBrowser: false, extractAll: false, htmlMode: 'article' as 'article'|'per-image'|'crawl', crawlEntry: '', crawlMaxDepth: 2, crawlMaxPages: 30, crawlPattern: '', ksgIds: '', ksgBucket: '5', ksgHost: 'uib.2ksg.com', ksgToken: '', ksgReferer: 'https://uib.2ksg.com/app/', ksgCrawlList: false, ksgMaxIds: 30, knitUrls: '', knitCookie: '', knitUserAgent: '', redditSubs: '', redditSort: 'top' as 'hot'|'new'|'top'|'rising', redditTime: 'day' as 'hour'|'day'|'week'|'month'|'year'|'all', redditLimit: 25, redditUA: '', bskyMode: 'author' as 'author'|'search', bskyActor: '', bskyQuery: '', bskyLimit: 25, sitemapUrl: '', sitemapLimit: 200, sitemapPattern: '', xMode: 'user' as 'user'|'search', xScreenName: '', xQuery: '', xCookie: '', xUserAgent: '', xLimit: 20, htmlWaitFor: '', htmlExtraHeaders: '', htmlCookies: '', htmlLocale: '', htmlTimezone: '' });
 
   // Reliable sync: whenever editingSource changes (or list refresh swaps the
   // object identity), repopulate the form from the source's current values.
@@ -1175,7 +1606,7 @@ function SourcesPanel({
     const lastKsg = sources.find(s => s.platform === '2ksg' && (s.config?.token as string));
     const lastKnit = sources.find(s => s.platform === 'knit' && (s.config?.cookie as string));
     setForm({
-      name: '', url: '', platform: 'rss', external_id: '', htmlUrls: '',
+      name: '', url: '', platform: 'x', external_id: '', htmlUrls: '',
       perImage: false, useBrowser: false, extractAll: false,
       htmlMode: 'article' as 'article'|'per-image'|'crawl',
       crawlEntry: '', crawlMaxDepth: 2, crawlMaxPages: 30, crawlPattern: '',
@@ -1223,18 +1654,399 @@ function SourcesPanel({
           <span style={{ color: '#22c55e' }}>活跃 {sources.filter(s => s.status === 'active').length}</span>
           &nbsp;/ <span style={{ color: '#475569' }}>停用 {sources.filter(s => s.status !== 'active').length}</span>
         </span>
-        <button
-          onClick={() => { resetForm(); setShowAddSource(true); setEditingSource(null); }}
-          style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          + 添加来源
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={openBatchModal}
+            title="批量粘贴博主 handle（X / Bluesky），系统自动建源 + 抓取 + 分类"
+            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #6366f1', background: 'transparent', color: '#a5b4fc', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            ⚡ 批量导入博主
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowAddSource(true); setEditingSource(null); }}
+            style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            + 添加来源
+          </button>
+        </div>
       </div>
 
-      {/* Add / Edit form */}
+      {/* Batch-import modal */}
+      {showBatch && (
+        <div
+          onClick={() => !batchBusy && setShowBatch(false)}
+          style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 12, padding: 22, maxWidth: 640, width: '100%', maxHeight: '88vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#a5b4fc' }}>⚡ 批量导入博主</div>
+              <button onClick={() => !batchBusy && setShowBatch(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14, lineHeight: 1.6 }}>
+              粘贴一批 handle，系统会为每个建一条独立的采集源（共享下面的 cookie / 限制），
+              并按 fanout 节奏自动抓取 + 走完分类→标题→封面→合规→发布全流程。
+            </div>
+
+            {/* Platform */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {(['x', 'bluesky', 'reddit'] as const).map(p => (
+                <button key={p} onClick={() => setBatchPlatform(p)}
+                  disabled={batchBusy}
+                  style={{
+                    flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    border: '1px solid', borderColor: batchPlatform === p ? '#6366f1' : '#334155',
+                    background: batchPlatform === p ? '#312e81' : 'transparent',
+                    color: batchPlatform === p ? '#c7d2fe' : '#64748b', cursor: 'pointer',
+                  }}>
+                  {p === 'x' ? 'X (Twitter)' : p === 'bluesky' ? 'Bluesky' : 'Reddit'}
+                </button>
+              ))}
+            </div>
+
+            {/* Credential picker — for X only (knit/bluesky can use it too in future). */}
+            {(batchPlatform === 'x') && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>凭证池（推荐）</span>
+                  {!showCreateCred && (
+                    <button onClick={() => { setShowCreateCred(true); setNewCredName(''); setNewCredCookie(''); setNewCredUA(''); }}
+                      disabled={batchBusy}
+                      style={{ background: 'none', border: 'none', color: '#a5b4fc', fontSize: 11, cursor: 'pointer', padding: 0 }}>
+                      + 新建凭证
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={batchCredentialId}
+                  onChange={e => setBatchCredentialId(e.target.value)}
+                  disabled={batchBusy || showCreateCred}
+                  style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                  <option value="">— 不用凭证池（粘贴 cookie 到下方）—</option>
+                  {credentials
+                    .filter(c => c.platform === batchPlatform)
+                    .map(c => {
+                      const statusIcon = c.status === 'active' ? '✓' : c.status === 'expired' ? '⚠ expired' : '✗ revoked';
+                      const refreshIcon = c.has_secret ? ' · 🔁 自动刷新' : '';
+                      const sourceUse = c.source_count > 0 ? ` · ${c.source_count} 源` : '';
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.name} · {statusIcon}{refreshIcon}{sourceUse}
+                        </option>
+                      );
+                    })}
+                </select>
+                {/* Selected-credential action row: show refresh button + status detail */}
+                {batchCredentialId && (() => {
+                  const c = credentials.find(x => x.id === batchCredentialId);
+                  if (!c) return null;
+                  const lastRefresh = c.secret_last_refresh_at ? new Date(c.secret_last_refresh_at).toLocaleString('zh-CN') : '—';
+                  const failedSinceLast = (c.secret_consecutive_failures ?? 0) > 0;
+                  return (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#64748b' }}>
+                      {c.has_secret ? (
+                        <>
+                          <span>账号 <strong style={{ color: '#cbd5e1' }}>{c.secret_username}</strong></span>
+                          <span>· 上次刷新 {lastRefresh}</span>
+                          {failedSinceLast && (
+                            <span style={{ color: '#f87171' }} title={c.secret_last_refresh_error ?? undefined}>
+                              · 连续失败 {c.secret_consecutive_failures} 次
+                            </span>
+                          )}
+                          <button
+                            onClick={() => refreshCredential(batchCredentialId)}
+                            disabled={refreshingCredId === batchCredentialId || batchBusy}
+                            title="用账号密码 stealth 登录刷一次 cookie（约 15-30 秒）"
+                            style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 5, border: '1px solid #334155', background: refreshingCredId === batchCredentialId ? '#1e293b' : 'transparent', color: refreshingCredId === batchCredentialId ? '#475569' : '#a5b4fc', fontSize: 11, cursor: refreshingCredId === batchCredentialId ? 'not-allowed' : 'pointer' }}>
+                            {refreshingCredId === batchCredentialId ? '刷新中…' : '🔁 立即刷新'}
+                          </button>
+                        </>
+                      ) : (
+                        <span style={{ color: '#64748b' }}>
+                          未配置自动刷新 · 当 cookie 过期时需要手动重新粘贴
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+                {showCreateCred && (
+                  <div style={{ marginTop: 8, padding: 10, background: '#0f172a', border: '1px dashed #334155', borderRadius: 6 }}>
+                    <div style={{ fontSize: 11, color: '#a5b4fc', fontWeight: 600, marginBottom: 6 }}>新建凭证</div>
+                    <input
+                      value={newCredName}
+                      onChange={e => setNewCredName(e.target.value)}
+                      placeholder="凭证名（如 main-x-account-2026-04）"
+                      disabled={credBusy}
+                      style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                    <textarea
+                      value={newCredCookie}
+                      onChange={e => setNewCredCookie(e.target.value)}
+                      rows={3}
+                      placeholder="auth_token=…; ct0=…; …"
+                      disabled={credBusy}
+                      style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical', marginBottom: 6 }} />
+                    <input
+                      value={newCredUA}
+                      onChange={e => setNewCredUA(e.target.value)}
+                      placeholder="User-Agent（可选）"
+                      disabled={credBusy}
+                      style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', marginBottom: 8 }} />
+
+                    {/* Optional auto-refresh secret */}
+                    {batchPlatform === 'x' && (
+                      <details style={{ marginBottom: 8 }}>
+                        <summary style={{ fontSize: 11, color: '#a5b4fc', cursor: 'pointer', marginBottom: 6 }}>
+                          🔁 配置自动刷新（X 用户名 + 密码，加密存储）
+                        </summary>
+                        <div style={{ marginTop: 6, padding: '8px 10px', background: '#1e293b', borderRadius: 5, border: '1px solid #312e81' }}>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, lineHeight: 1.5 }}>
+                            填了之后，cookie 过期时系统会自动用账号密码重新登录刷新。
+                            遇到 Arkose / 2FA / 邮件验证码时刷新失败，仍需人工处理。
+                            密码用 AES-256-GCM 加密后入库，不会以明文返回。
+                          </div>
+                          <input
+                            value={newCredXUser}
+                            onChange={e => setNewCredXUser(e.target.value)}
+                            placeholder="X 用户名 / 邮箱 / 手机号"
+                            disabled={credBusy}
+                            autoComplete="off"
+                            style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                          <input
+                            type="password"
+                            value={newCredXPass}
+                            onChange={e => setNewCredXPass(e.target.value)}
+                            placeholder="X 密码"
+                            disabled={credBusy}
+                            autoComplete="new-password"
+                            style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                        </div>
+                      </details>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button onClick={() => setShowCreateCred(false)} disabled={credBusy}
+                        style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                        取消
+                      </button>
+                      <button
+                        disabled={credBusy || !newCredName.trim() || !newCredCookie.trim()}
+                        onClick={async () => {
+                          setCredBusy(true);
+                          try {
+                            const r = await fetch(`${API}/admin/credentials`, {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                platform: batchPlatform,
+                                name: newCredName.trim(),
+                                cookie: newCredCookie.trim(),
+                                user_agent: newCredUA.trim() || null,
+                              }),
+                            });
+                            if (!r.ok) {
+                              const txt = await r.text();
+                              flash(`创建失败：${txt.slice(0, 160)}`, false);
+                              return;
+                            }
+                            const d = await r.json();
+                            // If user filled the auto-refresh secret, attach it
+                            if (newCredXUser.trim() && newCredXPass.trim()) {
+                              const sr = await fetch(`${API}/admin/credentials/${d.credential.id}/secret`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ username: newCredXUser.trim(), password: newCredXPass }),
+                              });
+                              if (!sr.ok) {
+                                const txt = await sr.text();
+                                flash(`凭证已建，但保存账密失败：${txt.slice(0, 120)}`, false);
+                              }
+                            }
+                            await reloadCredentials();
+                            setBatchCredentialId(d.credential.id);
+                            setShowCreateCred(false);
+                            // Clear the password from memory ASAP
+                            setNewCredXPass('');
+                            flash(`已新建凭证 "${d.credential.name}"`);
+                          } finally { setCredBusy(false); }
+                        }}
+                        style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: credBusy ? '#1e293b' : '#6366f1', color: credBusy ? '#475569' : '#fff', fontSize: 11, fontWeight: 600, cursor: credBusy ? 'not-allowed' : 'pointer' }}>
+                        {credBusy ? '保存中…' : '保存凭证'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cookie & UA — only for X, and only when no credential picked */}
+            {batchPlatform === 'x' && !batchCredentialId && (
+              <>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>共享 Cookie（须含 auth_token + ct0）</span>
+                  <textarea
+                    value={batchCookie}
+                    onChange={e => setBatchCookie(e.target.value)}
+                    rows={3}
+                    placeholder="auth_token=…; ct0=…; …"
+                    disabled={batchBusy}
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent（可选，与 cookie 抓取的浏览器一致）</span>
+                  <input
+                    value={batchUserAgent}
+                    onChange={e => setBatchUserAgent(e.target.value)}
+                    placeholder="Mozilla/5.0 (Macintosh; …) Chrome/147.0.0.0"
+                    disabled={batchBusy}
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+                </label>
+              </>
+            )}
+
+            {/* Reddit-specific knobs */}
+            {batchPlatform === 'reddit' && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>排序</span>
+                  <select
+                    value={batchRedditSort}
+                    onChange={e => setBatchRedditSort(e.target.value as any)}
+                    disabled={batchBusy}
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                    <option value="top">top</option>
+                    <option value="hot">hot</option>
+                    <option value="new">new</option>
+                    <option value="rising">rising</option>
+                  </select>
+                </label>
+                <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>时间窗（仅 sort=top）</span>
+                  <select
+                    value={batchRedditTime}
+                    onChange={e => setBatchRedditTime(e.target.value as any)}
+                    disabled={batchBusy || batchRedditSort !== 'top'}
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                    <option value="hour">hour</option>
+                    <option value="day">day</option>
+                    <option value="week">week</option>
+                    <option value="month">month</option>
+                    <option value="year">year</option>
+                    <option value="all">all</option>
+                  </select>
+                </label>
+                <label style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent（可选）</span>
+                  <input
+                    value={batchUserAgent}
+                    onChange={e => setBatchUserAgent(e.target.value)}
+                    placeholder="ch-agents/0.1 (+content-pipeline)"
+                    disabled={batchBusy}
+                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+                </label>
+              </div>
+            )}
+
+            {/* Handles */}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              <span style={{ fontSize: 11, color: '#64748b' }}>
+                {batchPlatform === 'x'
+                  ? '博主 handle 列表（每行一个，自动去 @ / 去重）'
+                  : batchPlatform === 'reddit'
+                    ? 'subreddit 列表（每行一个，自动去 r/ 前缀 / 去重）'
+                    : 'actor handle 列表（每行一个）'}
+              </span>
+              <textarea
+                value={batchHandles}
+                onChange={e => setBatchHandles(e.target.value)}
+                rows={8}
+                placeholder={
+                  batchPlatform === 'x'
+                    ? 'natgeo\n@elonmusk\nphotoblog123\n…\n（最多 500 个）'
+                    : batchPlatform === 'reddit'
+                      ? 'EarthPorn\nr/photographs\n/r/itookapicture\n…'
+                      : 'pfrazee.com\nbsky.app\n…'
+                }
+                disabled={batchBusy}
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical', lineHeight: 1.5 }} />
+            </label>
+
+            {/* Knobs */}
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8' }}>
+                <span>每次抓取</span>
+                <input
+                  type="number" min={1} max={100}
+                  value={batchLimit}
+                  onChange={e => setBatchLimit(Math.max(1, Math.min(100, Number(e.target.value) || 20)))}
+                  disabled={batchBusy}
+                  style={{ width: 70, background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '4px 8px', color: '#e2e8f0', fontSize: 12 }} />
+                <span style={{ color: '#475569' }}>条/源</span>
+              </label>
+              {batchPlatform === 'x' && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={batchSkipRetweets} onChange={e => setBatchSkipRetweets(e.target.checked)} disabled={batchBusy} />
+                  跳过转推（避免重复入库）
+                </label>
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', cursor: 'pointer' }}>
+                <input type="checkbox" checked={batchTriggerFetch} onChange={e => setBatchTriggerFetch(e.target.checked)} disabled={batchBusy} />
+                立即触发首次采集
+              </label>
+            </div>
+
+            {/* Result */}
+            {batchResult && (
+              <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+                <div style={{ marginBottom: 6 }}>
+                  <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ 新建 {batchResult.created.length}</span>
+                  <span style={{ color: '#475569', margin: '0 8px' }}>·</span>
+                  <span style={{ color: '#60a5fa', fontWeight: 700 }}>↻ 更新 {batchResult.updated.length}</span>
+                  <span style={{ color: '#475569', margin: '0 8px' }}>·</span>
+                  <span style={{ color: batchResult.failed.length > 0 ? '#f87171' : '#475569', fontWeight: 700 }}>✗ 失败 {batchResult.failed.length}</span>
+                </div>
+                {batchResult.failed.length > 0 && (
+                  <details style={{ marginTop: 6 }}>
+                    <summary style={{ cursor: 'pointer', color: '#f87171', fontSize: 11 }}>展开失败详情 ({batchResult.failed.length})</summary>
+                    <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'ui-monospace, monospace', fontSize: 11, color: '#fca5a5' }}>
+                      {batchResult.failed.map((f, i) => (
+                        <div key={i} style={{ padding: '2px 0' }}>
+                          <strong>{f.handle}</strong>: {f.reason}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => !batchBusy && setShowBatch(false)} disabled={batchBusy}
+                style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: batchBusy ? 'not-allowed' : 'pointer' }}>
+                {batchResult ? '关闭' : '取消'}
+              </button>
+              <button onClick={submitBatch} disabled={batchBusy}
+                style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: batchBusy ? '#1e293b' : '#6366f1', color: batchBusy ? '#475569' : '#fff', fontSize: 12, fontWeight: 700, cursor: batchBusy ? 'not-allowed' : 'pointer' }}>
+                {batchBusy ? '导入中…' : (batchResult ? '再导一批' : '⚡ 开始导入')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit form — modal overlay */}
       {(showAddSource || editingSource) && (
-        <div style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 10, padding: 16, marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#a5b4fc', marginBottom: 12 }}>
-            {editingSource ? `编辑：${editingSource.name}` : '新增采集源'}
+        <div
+          onClick={() => { setEditingSource(null); setShowAddSource(false); }}
+          style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 9000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 10, padding: 16, width: '100%', maxWidth: 880, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#a5b4fc' }}>
+              {editingSource ? `编辑：${editingSource.name}` : '新增采集源'}
+            </div>
+            <button
+              onClick={() => { setEditingSource(null); setShowAddSource(false); }}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+              aria-label="关闭">✕</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1252,14 +2064,12 @@ function SourcesPanel({
                 value={form.platform}
                 onChange={e => setForm(prev => ({ ...prev, platform: e.target.value }))}
                 style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}>
-                <option value="rss">rss — RSS/Atom feed</option>
-                <option value="html">html — 固定 URL 列表</option>
-                <option value="2ksg">2ksg — JSON API 图册</option>
-                <option value="knit">knit — Cloudflare 编号图册</option>
-                <option value="reddit">reddit — subreddit 公开 API</option>
-                <option value="bluesky">bluesky — AT Protocol 公开 API</option>
-                <option value="sitemap-images">sitemap-images — 解析 image sitemap</option>
+                {/* Only X is exposed for new sources right now. Other platforms
+                    stay editable for existing rows so we can see/edit them. */}
                 <option value="x">x — Twitter cookie 注入</option>
+                {editingSource && editingSource.platform !== 'x' && (
+                  <option value={editingSource.platform}>{editingSource.platform}（已有源，只读）</option>
+                )}
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1586,11 +2396,35 @@ function SourcesPanel({
           )}
 
           {/* X (Twitter) 配置 */}
-          {form.platform === 'x' && (
+          {form.platform === 'x' && (() => {
+            // If this source is bound to the credential pool, cookie/UA live on
+            // the credential — not on the source row. Without this banner the
+            // empty cookie textarea + red "必填" warning makes users think the
+            // batch import "didn't add cookie", when in fact it's working as
+            // designed (resolveAuth reads cookie from credentials table at
+            // runtime).
+            const boundCred = editingSource?.credential_id
+              ? credentials.find(c => c.id === editingSource.credential_id)
+              : null;
+            return (
             <div style={{ marginTop: 10, padding: '10px 12px', background: '#0f172a', border: '1px solid #71717a', borderRadius: 6 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#e4e4e7', marginBottom: 8 }}>
                 𝕏 X (Twitter) · Cookie 注入(GraphQL 回放)
               </div>
+              {boundCred && (
+                <div style={{ marginBottom: 10, padding: '8px 12px', background: '#312e81', border: '1px solid #6366f1', borderRadius: 5, fontSize: 11, color: '#c7d2fe', lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 3 }}>
+                    🔑 已绑定凭证池中的 <span style={{ color: '#fff' }}>{boundCred.name}</span>
+                    <span style={{ marginLeft: 6, opacity: 0.7 }}>
+                      (状态:{boundCred.status} · cookie {boundCred.cookie_len} 字符
+                      {boundCred.user_agent ? ` · UA ${String(boundCred.user_agent).slice(0, 40)}…` : ' · 无 UA'})
+                    </span>
+                  </div>
+                  <div style={{ opacity: 0.85 }}>
+                    cookie / User-Agent 由凭证池统一管理,不需要在这里再贴一遍。运行时 X 适配器会从 credentials 表里读。要换 cookie 请去 工作台 → 凭证池 → {boundCred.name} → 编辑。
+                  </div>
+                </div>
+              )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
                 <span style={{ fontSize: 11, color: '#64748b' }}>采集模式</span>
                 <select
@@ -1627,26 +2461,35 @@ function SourcesPanel({
               )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
                 <span style={{ fontSize: 11, color: '#64748b' }}>
-                  Cookie(必须含 <code>auth_token</code> 和 <code>ct0</code>)
-                  {!form.xCookie && <span style={{ color: '#f87171', marginLeft: 6 }}>· 必填</span>}
+                  Cookie{boundCred ? '(凭证池模式留空即可)' : '(必须含 auth_token 和 ct0)'}
+                  {!boundCred && <span style={{ color: '#f87171', marginLeft: 6, fontWeight: 600 }}>· 必填</span>}
                 </span>
                 <textarea value={form.xCookie}
                   onChange={e => setForm(prev => ({ ...prev, xCookie: e.target.value }))}
-                  placeholder="auth_token=...; ct0=...; guest_id=..."
+                  placeholder={boundCred ? '— 由凭证池接管,留空 —' : 'auth_token=...; ct0=...; guest_id=...'}
                   rows={3}
                   style={{
                     background: '#020617',
-                    border: `1px solid ${form.xCookie ? '#334155' : '#7f1d1d'}`,
+                    border: `1px solid ${(form.xCookie || boundCred) ? '#334155' : '#7f1d1d'}`,
                     borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace', wordBreak: 'break-all', resize: 'vertical',
+                    opacity: boundCred ? 0.55 : 1,
                   }}
                 />
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent (建议跟你浏览器一致)</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                    User-Agent {boundCred ? '(凭证池接管)' : '(建议跟你浏览器一致)'}
+                    {!boundCred && <span style={{ color: '#f87171', marginLeft: 6, fontWeight: 600 }}>· 必填</span>}
+                  </span>
                   <input value={form.xUserAgent} onChange={e => setForm(prev => ({ ...prev, xUserAgent: e.target.value }))}
-                    placeholder="Mozilla/5.0 ... Chrome/147.0 ..."
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace' }} />
+                    placeholder={boundCred ? '— 由凭证池接管,留空 —' : 'Mozilla/5.0 ... Chrome/147.0 ...'}
+                    style={{
+                      background: '#020617',
+                      border: `1px solid ${(form.xUserAgent || boundCred) ? '#334155' : '#7f1d1d'}`,
+                      borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace',
+                      opacity: boundCred ? 0.55 : 1,
+                    }} />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: 11, color: '#64748b' }}>拉取最近多少条 (1-100)</span>
@@ -1681,7 +2524,8 @@ function SourcesPanel({
                 Cookie 用 <code>document.cookie</code> 在 <code>x.com</code> 控制台复制。auth_token 通常 30+ 天有效;X 改 GraphQL 时需要更新 opIds。
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* HTML 模式三选一 */}
           {form.platform === 'html' && (
@@ -1950,12 +2794,13 @@ function SourcesPanel({
               取消
             </button>
           </div>
+          </div>
         </div>
       )}
 
-      {/* Sources list — hide the one being edited to avoid two copies */}
+      {/* Sources list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {sources.filter(s => s.id !== editingSource?.id).map(src => (
+        {sources.map(src => (
           <div key={src.id} style={{
             background: '#1e293b',
             border: `1px solid ${src.status === 'active' ? '#334155' : '#1e293b'}`,
@@ -1965,7 +2810,25 @@ function SourcesPanel({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{src.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {src.name}
+                  {src.credential_id && (
+                    <span title={`使用凭证池中的 ${src.credential_name}（${src.credential_status ?? '未知状态'}）。cookie 不在源里,运行时从 credentials 表读取。`}
+                      style={{
+                        fontSize: 10, fontWeight: 600,
+                        padding: '1px 7px', borderRadius: 10,
+                        background: src.credential_status === 'active' ? '#312e81' : '#7f1d1d',
+                        color: src.credential_status === 'active' ? '#c7d2fe' : '#fca5a5',
+                      }}>
+                      🔑 {src.credential_name ?? src.credential_id.slice(0, 6)}
+                    </span>
+                  )}
+                  {!src.credential_id && (src.config?.cookie as string) && (
+                    <span title="该源在 config 里内联存了 cookie(legacy 模式)" style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, background: '#374151', color: '#9ca3af' }}>
+                      🍪 inline
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
                   {src.platform} · {src.external_id}
                   {src.last_fetch_at && ` · 最近采集: ${src.last_fetch_at.slice(0, 16)}`}
@@ -2236,18 +3099,27 @@ function CrawlPreviewPanel({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 20 }}>
-          <button
-            onClick={() => onPageChange(Math.max(0, page - 1))}
-            disabled={page === 0}
-            style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: page === 0 ? '#334155' : '#94a3b8', fontSize: 12, cursor: page === 0 ? 'not-allowed' : 'pointer' }}
-          >← 上一页</button>
-          <span style={{ fontSize: 12, color: '#64748b' }}>{page + 1} / {totalPages}</span>
-          <button
-            onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
-            disabled={page >= totalPages - 1}
-            style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: page >= totalPages - 1 ? '#334155' : '#94a3b8', fontSize: 12, cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer' }}
-          >下一页 →</button>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 20, flexWrap: 'wrap' }}>
+          <PageBtn label="« 首页" disabled={page === 0} onClick={() => onPageChange(0)} />
+          <PageBtn label="‹ 上一页" disabled={page === 0} onClick={() => onPageChange(Math.max(0, page - 1))} />
+
+          {pageNumbers(page, totalPages).map((p, idx) =>
+            p === '…' ? (
+              <span key={`gap-${idx}`} style={{ padding: '5px 6px', fontSize: 12, color: '#475569' }}>…</span>
+            ) : (
+              <PageBtn
+                key={p}
+                label={String(p + 1)}
+                active={p === page}
+                onClick={() => onPageChange(p)}
+              />
+            ),
+          )}
+
+          <PageBtn label="下一页 ›" disabled={page >= totalPages - 1} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))} />
+          <PageBtn label="末页 »" disabled={page >= totalPages - 1} onClick={() => onPageChange(totalPages - 1)} />
+
+          <span style={{ marginLeft: 12, fontSize: 12, color: '#64748b' }}>第 {page + 1} / {totalPages} 页</span>
         </div>
       )}
 
@@ -2273,6 +3145,824 @@ function CrawlPreviewPanel({
                 ? <>视频:<a href={preview.videoUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd' }}>{preview.videoUrl}</a></>
                 : <>原始 URL:<a href={preview.url} target="_blank" rel="noreferrer" style={{ color: '#93c5fd' }}>{preview.url}</a></>}
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PageBtn({
+  label, active, disabled, onClick,
+}: { label: string; active?: boolean; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: '5px 10px',
+        minWidth: 32,
+        borderRadius: 6,
+        border: '1px solid ' + (active ? '#6366f1' : '#334155'),
+        background: active ? '#6366f1' : 'transparent',
+        color: disabled ? '#334155' : active ? '#fff' : '#94a3b8',
+        fontSize: 12,
+        fontWeight: active ? 600 : 400,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+    >{label}</button>
+  );
+}
+
+// Build a 0-based page list with ellipses, e.g. [0, '…', 4, 5, 6, '…', 19].
+// Always shows: first, last, current ±1.
+function pageNumbers(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+  const set = new Set<number>([0, total - 1, current, current - 1, current + 1]);
+  const sorted = [...set].filter((p) => p >= 0 && p < total).sort((a, b) => a - b);
+  const out: (number | '…')[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push('…');
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
+// ─── OpLogsPanel ─────────────────────────────────────────────────────────────
+// Audit trail of every human-initiated admin write. Filters by operator /
+// operation type / target. Click a row to inspect the full payload.
+
+interface OpLogRow {
+  id: string;
+  operator: string;
+  operator_id: string | null;
+  occurred_at: string;
+  operation: string;
+  target_type: string;
+  target_id: string | null;
+  payload: Record<string, unknown>;
+  request_id: string | null;
+  http_method: string | null;
+  http_path: string | null;
+  status_code: number | null;
+  ip: string | null;
+  user_agent: string | null;
+}
+
+// Friendly Chinese label for the most common operation strings. Anything not
+// in the map falls back to the raw string — covers extension by the catch-all
+// hook without requiring code changes here.
+const OP_LABEL: Record<string, string> = {
+  'source.create':              '新增信源',
+  'source.upsert':              '新增信源（重复键覆盖）',
+  'source.update':              '编辑信源',
+  'source.delete':              '删除信源',
+  'source.batch-import':        '批量导入信源',
+  'compliance.approve':         '合规放行',
+  'compliance.reject':          '合规拒绝',
+  'distribution.edit-copy':     '编辑推文文案',
+  'distribution.queue':         '加入分发队列',
+  'distribution.batch-queue':   '批量分发',
+  'distribution.confirm':       '确认分发完成',
+  'publish.approve':            '放行发布',
+  'publish.force':              '强制发布',
+  'publish.batch':              '批量发布',
+  'item.unpublish':             '紧急下线',
+  'item.rollback':              '状态回滚',
+  'item.rerun':                 '重跑某 Agent',
+  'system.emergency-stop':      '全局急停',
+  'system.resume':              '恢复运行',
+  'pipeline.set-auto':          '切换自动模式',
+  'pipeline.set-paused':        '暂停/恢复 Agent',
+  'source-scoring.run':         '触发信源打分',
+  'analytics.pull':             '触发数据回流',
+};
+
+const TARGET_LABEL: Record<string, string> = {
+  source:             '信源',
+  item:               '文章',
+  distribution_task:  '分发任务',
+  credential:         '凭证',
+  agent:              'Agent',
+  system:             '系统',
+};
+
+const TARGET_OPTIONS = ['', 'source', 'item', 'distribution_task', 'credential', 'agent', 'system'];
+
+function fmtTs(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  // Local-time YYYY-MM-DD HH:mm:ss for at-a-glance reading.
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function payloadPreview(p: Record<string, unknown>): string {
+  if (!p || typeof p !== 'object') return '—';
+  const keys = Object.keys(p);
+  if (keys.length === 0) return '—';
+  // Skip purely-internal markers like {auto:true} from the catch-all hook.
+  const meaningful = keys.filter(k => k !== 'auto');
+  if (meaningful.length === 0) return p.auto ? '(自动捕获)' : '—';
+  // Show first 2 fields with values truncated. Full JSON is on row click.
+  return meaningful.slice(0, 2).map(k => {
+    const v = p[k];
+    let s: string;
+    if (v === null) s = 'null';
+    else if (typeof v === 'string') s = v.length > 40 ? v.slice(0, 38) + '…' : v;
+    else if (Array.isArray(v)) s = `[${v.length}]`;
+    else if (typeof v === 'object') s = '{…}';
+    else s = String(v);
+    return `${k}=${s}`;
+  }).join(' · ');
+}
+
+// ─── CredentialsPanel ───────────────────────────────────────────────────────
+// Manage the shared credential pool. Each row shows status / source count /
+// last auth check / refresh-secret state. Clicking a row opens an edit drawer
+// where the cookie / UA / status can be updated and the auto-refresh password
+// (X only) attached or rotated.
+
+function CredentialsPanel({
+  credentials, refreshingCredId, reload, onRefreshOne, flash,
+}: {
+  credentials: CredentialRow[];
+  refreshingCredId: string | null;
+  reload: () => Promise<void>;
+  onRefreshOne: (id: string) => Promise<void>;
+  flash: (msg: string, ok?: boolean) => void;
+}) {
+  const [editing, setEditing] = useState<CredentialRow | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  // Edit-drawer state
+  const [name, setName] = useState('');
+  const [cookie, setCookie] = useState('');
+  const [ua, setUa] = useState('');
+  const [status, setStatus] = useState<'active'|'expired'|'revoked'>('active');
+  const [secretUser, setSecretUser] = useState('');
+  const [secretPass, setSecretPass] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Inline-create state
+  const [cName, setCName] = useState('');
+  const [cPlatform, setCPlatform] = useState<'x'|'knit'|'2ksg'|'bluesky'>('x');
+  const [cCookie, setCCookie] = useState('');
+  const [cUa, setCUa] = useState('');
+  const [cSecretUser, setCSecretUser] = useState('');
+  const [cSecretPass, setCSecretPass] = useState('');
+
+  const startEdit = (c: CredentialRow) => {
+    setEditing(c);
+    setName(c.name);
+    setCookie('');           // never pre-fill cookie — too long, and we don't return it from /admin/credentials
+    setUa(c.user_agent ?? '');
+    setStatus((['active','expired','revoked'].includes(c.status) ? c.status : 'active') as any);
+    setSecretUser(c.secret_username ?? '');
+    setSecretPass('');
+  };
+  const closeEdit = () => { setEditing(null); setBusy(false); };
+
+  const save = async () => {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const body: Record<string, unknown> = {};
+      if (name.trim() && name.trim() !== editing.name) body.name = name.trim();
+      if (cookie.trim()) body.cookie = cookie.trim();
+      if (ua.trim() !== (editing.user_agent ?? '')) body.user_agent = ua.trim() || null;
+      if (status !== editing.status) body.status = status;
+
+      if (Object.keys(body).length === 0 && !secretUser.trim() && !secretPass.trim()) {
+        flash('没有变更', false);
+        return;
+      }
+
+      if (Object.keys(body).length > 0) {
+        const r = await fetch(`${API}/admin/credentials/${editing.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) { const t = await r.text(); flash(`保存失败：${t.slice(0,160)}`, false); return; }
+      }
+
+      // Optionally update auto-refresh secret. We require BOTH user+pass to
+      // touch it — if either is blank the user is just editing other fields.
+      if (secretUser.trim() && secretPass.trim()) {
+        const sr = await fetch(`${API}/admin/credentials/${editing.id}/secret`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: secretUser.trim(), password: secretPass }),
+        });
+        if (!sr.ok) {
+          const t = await sr.text();
+          flash(`其他字段已保存,但 secret 失败：${t.slice(0,140)}`, false);
+        }
+      }
+
+      flash(`已保存凭证 ${editing.name}`);
+      setSecretPass('');  // clear from memory
+      closeEdit();
+      await reload();
+    } catch (e) {
+      flash(`保存失败：${e}`, false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!editing) return;
+    if (!confirm(`确认删除凭证 "${editing.name}"？挂在它上面的 ${editing.source_count} 个源会回到无凭证状态(运行时会报缺 cookie)。`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`${API}/admin/credentials/${editing.id}`, { method: 'DELETE' });
+      if (!r.ok) { const t = await r.text(); flash(`删除失败：${t.slice(0,160)}`, false); return; }
+      flash(`已删除 ${editing.name}`);
+      closeEdit();
+      await reload();
+    } finally { setBusy(false); }
+  };
+
+  const removeSecret = async () => {
+    if (!editing) return;
+    if (!confirm('确认移除自动刷新账密？此后 cookie 过期需要手动粘贴。')) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`${API}/admin/credentials/${editing.id}/secret`, { method: 'DELETE' });
+      if (!r.ok) { const t = await r.text(); flash(`移除失败：${t.slice(0,160)}`, false); return; }
+      flash('已移除 secret');
+      closeEdit();
+      await reload();
+    } finally { setBusy(false); }
+  };
+
+  const create = async () => {
+    if (!cName.trim() || !cCookie.trim()) { flash('名字 + cookie 必填', false); return; }
+    setBusy(true);
+    try {
+      const r = await fetch(`${API}/admin/credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: cPlatform,
+          name: cName.trim(),
+          cookie: cCookie.trim(),
+          user_agent: cUa.trim() || null,
+        }),
+      });
+      if (!r.ok) { const t = await r.text(); flash(`创建失败：${t.slice(0,160)}`, false); return; }
+      const d = await r.json();
+      if (cSecretUser.trim() && cSecretPass.trim()) {
+        await fetch(`${API}/admin/credentials/${d.credential.id}/secret`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: cSecretUser.trim(), password: cSecretPass }),
+        });
+      }
+      flash(`已新建凭证 ${cName}`);
+      setCName(''); setCCookie(''); setCUa(''); setCSecretUser(''); setCSecretPass('');
+      setShowCreate(false);
+      await reload();
+    } finally { setBusy(false); }
+  };
+
+  const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleString('zh-CN') : '—';
+
+  const statusBadge = (s: string) => {
+    const colors: Record<string, [string, string]> = {
+      active:  ['#14532d', '#86efac'],
+      expired: ['#78350f', '#fbbf24'],
+      revoked: ['#7f1d1d', '#fca5a5'],
+    };
+    const [bg, fg] = colors[s] ?? ['#1e293b', '#94a3b8'];
+    const label = s === 'active' ? '活跃' : s === 'expired' ? '已过期' : s === 'revoked' ? '已吊销' : s;
+    return <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: bg, color: fg, fontWeight: 600 }}>{label}</span>;
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <span style={{ fontSize: 13, color: '#94a3b8' }}>
+          共 <strong style={{ color: '#e2e8f0' }}>{credentials.length}</strong> 个凭证 ·&nbsp;
+          <span style={{ color: '#22c55e' }}>活跃 {credentials.filter(c => c.status === 'active').length}</span>&nbsp;/
+          <span style={{ color: '#fbbf24' }}> 过期 {credentials.filter(c => c.status === 'expired').length}</span>&nbsp;/
+          <span style={{ color: '#f87171' }}> 吊销 {credentials.filter(c => c.status === 'revoked').length}</span>
+        </span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={reload}
+            title="重新拉取一次列表(只刷新页面数据,不影响任何凭证的 cookie)"
+            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>
+            ↻ 重新加载列表
+          </button>
+          <button onClick={() => setShowCreate(true)}
+            style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            + 新建凭证
+          </button>
+        </div>
+      </div>
+
+      {/* Rows */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {credentials.map(c => {
+          const failed = (c.secret_consecutive_failures ?? 0) > 0;
+          return (
+            <div key={c.id} style={{
+              background: '#1e293b',
+              border: `1px solid ${c.status === 'active' ? '#334155' : '#1e293b'}`,
+              borderLeft: `3px solid ${c.status === 'active' ? '#22c55e' : c.status === 'expired' ? '#d97706' : '#dc2626'}`,
+              borderRadius: 8, padding: '12px 16px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{c.name}</span>
+                    <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 8, background: '#0ea5e933', color: '#7dd3fc' }}>{c.platform}</span>
+                    {statusBadge(c.status)}
+                    {c.has_secret && (
+                      <span title={`auto-refresh 账号: ${c.secret_username}`} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 8, background: '#312e81', color: '#c7d2fe' }}>
+                        🔁 自动刷新
+                      </span>
+                    )}
+                    {failed && (
+                      <span title={c.secret_last_refresh_error ?? undefined} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 8, background: '#7f1d1d', color: '#fca5a5' }}>
+                        连续失败 {c.secret_consecutive_failures} 次
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    <span>cookie {c.cookie_len > 0 ? `${c.cookie_len} 字符` : '空'}</span>
+                    <span>{c.source_count} 个源在用</span>
+                    <span>上次使用: {fmt(c.last_used_at)}</span>
+                    <span>上次校验: {fmt(c.last_auth_check_at)}{c.last_auth_ok === false ? ' ❌' : c.last_auth_ok === true ? ' ✓' : ''}</span>
+                    {c.has_secret && <span>上次刷新: {fmt(c.secret_last_refresh_at)}{c.secret_last_refresh_ok === false ? ' ❌' : c.secret_last_refresh_ok ? ' ✓' : ''}</span>}
+                  </div>
+                  {failed && c.secret_last_refresh_error && (
+                    <div style={{ fontSize: 11, color: '#fca5a5', marginTop: 4, fontFamily: 'ui-monospace, monospace', wordBreak: 'break-word' }}>
+                      ⚠ {c.secret_last_refresh_error.slice(0, 220)}{c.secret_last_refresh_error.length > 220 ? '…' : ''}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {c.has_secret && (
+                    <button onClick={() => onRefreshOne(c.id)} disabled={refreshingCredId === c.id}
+                      title="用账号密码 stealth 登录刷一次 cookie"
+                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: refreshingCredId === c.id ? '#1e293b' : 'transparent', color: refreshingCredId === c.id ? '#475569' : '#a5b4fc', fontSize: 11, cursor: refreshingCredId === c.id ? 'not-allowed' : 'pointer' }}>
+                      {refreshingCredId === c.id ? '刷新中…' : '🔁 立即刷新'}
+                    </button>
+                  )}
+                  <button onClick={() => startEdit(c)}
+                    style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                    编辑
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {credentials.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, color: '#334155', background: '#0f172a', borderRadius: 10, border: '1px dashed #334155' }}>
+            暂无凭证 · 点击「+ 新建凭证」
+          </div>
+        )}
+      </div>
+
+      {/* Create modal */}
+      {showCreate && (
+        <div onClick={() => !busy && setShowCreate(false)}
+          style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 12, padding: 22, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#a5b4fc' }}>新建凭证</div>
+              <button onClick={() => !busy && setShowCreate(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, color: '#64748b' }}>平台</span>
+                <select value={cPlatform} onChange={e => setCPlatform(e.target.value as any)}
+                  style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                  <option value="x">X (Twitter)</option>
+                  {/* Other platforms hidden until their credential workflows are wired up. */}
+                  {/* <option value="knit">knit</option> */}
+                  {/* <option value="2ksg">2ksg</option> */}
+                  {/* <option value="bluesky">bluesky</option> */}
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, color: '#64748b' }}>名字</span>
+                <input value={cName} onChange={e => setCName(e.target.value)}
+                  placeholder="如 main-x-2026-04"
+                  style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+              </label>
+            </div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b' }}>Cookie(完整 Cookie 头)</span>
+              <textarea value={cCookie} onChange={e => setCCookie(e.target.value)} rows={4}
+                placeholder="auth_token=…; ct0=…; …"
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent(可选)</span>
+              <input value={cUa} onChange={e => setCUa(e.target.value)}
+                placeholder="Mozilla/5.0 …"
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+            </label>
+
+            {cPlatform === 'x' && (
+              <details style={{ marginBottom: 12 }}>
+                <summary style={{ fontSize: 11, color: '#a5b4fc', cursor: 'pointer', marginBottom: 6 }}>
+                  🔁 配置自动刷新(X 用户名 + 密码,加密存储)
+                </summary>
+                <div style={{ marginTop: 6, padding: '8px 10px', background: '#0f172a', borderRadius: 5, border: '1px solid #312e81' }}>
+                  <input value={cSecretUser} onChange={e => setCSecretUser(e.target.value)} autoComplete="off"
+                    placeholder="X 用户名 / 邮箱 / 手机号"
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                  <input type="password" value={cSecretPass} onChange={e => setCSecretPass(e.target.value)} autoComplete="new-password"
+                    placeholder="X 密码"
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                </div>
+              </details>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+              <button onClick={() => setShowCreate(false)} disabled={busy}
+                style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>取消</button>
+              <button onClick={create} disabled={busy || !cName.trim() || !cCookie.trim()}
+                style={{ padding: '6px 14px', borderRadius: 5, border: 'none', background: busy || !cName.trim() || !cCookie.trim() ? '#1e293b' : '#6366f1', color: busy || !cName.trim() || !cCookie.trim() ? '#475569' : '#fff', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                {busy ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit drawer */}
+      {editing && (
+        <div onClick={() => !busy && closeEdit()}
+          style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 12, padding: 22, maxWidth: 580, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#a5b4fc' }}>编辑凭证</div>
+              <button onClick={() => !busy && closeEdit()} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>
+              {editing.platform} · 当前 {editing.cookie_len} 字符 cookie · {editing.source_count} 个源在用
+            </div>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b' }}>名字</span>
+              <input value={name} onChange={e => setName(e.target.value)}
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b' }}>Cookie(留空则不动,贴新值会替换并重置 last_auth_check)</span>
+              <textarea value={cookie} onChange={e => setCookie(e.target.value)} rows={4}
+                placeholder="auth_token=…; ct0=…; …"
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent</span>
+              <input value={ua} onChange={e => setUa(e.target.value)}
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b' }}>状态(改成 active 会同时重置自动刷新失败计数)</span>
+              <select value={status} onChange={e => setStatus(e.target.value as any)}
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                <option value="active">active(活跃)</option>
+                <option value="expired">expired(过期,scheduler 会尝试自动刷)</option>
+                <option value="revoked">revoked(吊销,scheduler 跳过)</option>
+              </select>
+            </label>
+
+            {editing.platform === 'x' && (
+              <details style={{ marginBottom: 12 }} open={!editing.has_secret ? false : undefined}>
+                <summary style={{ fontSize: 11, color: '#a5b4fc', cursor: 'pointer', marginBottom: 6 }}>
+                  🔁 自动刷新账密 {editing.has_secret ? `(已绑定 ${editing.secret_username})` : '(未配置)'}
+                </summary>
+                <div style={{ marginTop: 6, padding: '8px 10px', background: '#0f172a', borderRadius: 5, border: '1px solid #312e81' }}>
+                  <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, lineHeight: 1.5 }}>
+                    填了之后,cookie 过期时系统会自动重新登录刷新。两个字段都填才会更新;留空不动。
+                    密码用 AES-256-GCM 加密入库。
+                  </div>
+                  <input value={secretUser} onChange={e => setSecretUser(e.target.value)} autoComplete="off"
+                    placeholder="X 用户名 / 邮箱 / 手机号"
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                  <input type="password" value={secretPass} onChange={e => setSecretPass(e.target.value)} autoComplete="new-password"
+                    placeholder={editing.has_secret ? '留空保留旧密码' : 'X 密码'}
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                  {editing.has_secret && (
+                    <button onClick={removeSecret} disabled={busy}
+                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #7f1d1d', background: 'transparent', color: '#fca5a5', fontSize: 11, cursor: 'pointer' }}>
+                      移除自动刷新
+                    </button>
+                  )}
+                </div>
+              </details>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <button onClick={remove} disabled={busy}
+                style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid #7f1d1d', background: 'transparent', color: '#fca5a5', fontSize: 12, cursor: 'pointer' }}>
+                删除凭证
+              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={closeEdit} disabled={busy}
+                  style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>取消</button>
+                <button onClick={save} disabled={busy}
+                  style={{ padding: '6px 14px', borderRadius: 5, border: 'none', background: busy ? '#1e293b' : '#6366f1', color: busy ? '#475569' : '#fff', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                  {busy ? '保存中…' : '保存'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OpLogsPanel() {
+  const [logs, setLogs] = useState<OpLogRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [modalLog, setModalLog] = useState<OpLogRow | null>(null);
+  const PAGE_SIZE = 50;
+
+  const [fOperator, setFOperator]     = useState('');
+  const [fOperation, setFOperation]   = useState('');
+  const [fTargetType, setFTargetType] = useState('');
+  const [fTargetId, setFTargetId]     = useState('');
+  // The values *applied* to the current fetch. We only push form state into
+  // these on Search / Enter so typing doesn't fire a request per keystroke.
+  const [applied, setApplied] = useState({ operator: '', operation: '', targetType: '', targetId: '' });
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(page * PAGE_SIZE));
+      if (applied.operator)   params.set('operator',    applied.operator);
+      if (applied.operation)  params.set('operation',   applied.operation);
+      if (applied.targetType) params.set('target_type', applied.targetType);
+      if (applied.targetId)   params.set('target_id',   applied.targetId);
+      const r = await fetch(`${API}/admin/op-logs?${params.toString()}`, { cache: 'no-store' });
+      const j = await r.json();
+      setLogs(j.logs ?? []);
+      setTotal(j.total ?? 0);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, applied]);
+
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+  function applyFilters() {
+    setApplied({
+      operator: fOperator.trim(),
+      operation: fOperation.trim(),
+      targetType: fTargetType,
+      targetId: fTargetId.trim(),
+    });
+    setPage(0);
+  }
+
+  function clearFilters() {
+    setFOperator(''); setFOperation(''); setFTargetType(''); setFTargetId('');
+    setApplied({ operator: '', operation: '', targetType: '', targetId: '' });
+    setPage(0);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasFilters = !!(applied.operator || applied.operation || applied.targetType || applied.targetId);
+
+  return (
+    <div style={{ marginTop: 16 }}>
+
+      {/* Filter bar */}
+      <div style={{
+        background: '#1e293b', border: '1px solid #334155', borderRadius: 10,
+        padding: '12px 14px', marginBottom: 12,
+        display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+      }}>
+        <input
+          placeholder="操作人"
+          value={fOperator}
+          onChange={(e) => setFOperator(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+          style={{
+            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            borderRadius: 6, padding: '6px 10px', fontSize: 12.5, width: 130,
+          }}
+        />
+        <input
+          placeholder="操作类型，如 source.create"
+          value={fOperation}
+          onChange={(e) => setFOperation(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+          style={{
+            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            borderRadius: 6, padding: '6px 10px', fontSize: 12.5, width: 200,
+          }}
+        />
+        <select
+          value={fTargetType}
+          onChange={(e) => setFTargetType(e.target.value)}
+          style={{
+            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            borderRadius: 6, padding: '6px 10px', fontSize: 12.5, minWidth: 120,
+          }}
+        >
+          {TARGET_OPTIONS.map(t => (
+            <option key={t} value={t}>{t === '' ? '全部目标类型' : (TARGET_LABEL[t] ?? t)}</option>
+          ))}
+        </select>
+        <input
+          placeholder="目标 ID（精确匹配）"
+          value={fTargetId}
+          onChange={(e) => setFTargetId(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+          style={{
+            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            borderRadius: 6, padding: '6px 10px', fontSize: 12.5, width: 280, fontFamily: 'monospace',
+          }}
+        />
+        <button onClick={applyFilters}
+          style={{ background: '#6366f1', border: 'none', color: '#fff', borderRadius: 6, padding: '7px 16px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+          查询
+        </button>
+        {hasFilters && (
+          <button onClick={clearFilters}
+            style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}>
+            清空
+          </button>
+        )}
+        <button onClick={fetchLogs} disabled={loading}
+          style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: loading ? '#475569' : '#94a3b8', borderRadius: 6, padding: '6px 12px', fontSize: 12.5, cursor: loading ? 'wait' : 'pointer' }}>
+          {loading ? '加载中…' : '刷新'}
+        </button>
+        <span style={{ fontSize: 12, color: '#64748b' }}>
+          共 {total.toLocaleString()} 条
+        </span>
+      </div>
+
+      {/* Table */}
+      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 10, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#0f172a', color: '#64748b', textAlign: 'left' }}>
+              <th style={{ padding: '8px 12px', fontWeight: 600, width: 160 }}>时间</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, width: 120 }}>操作人</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, width: 200 }}>操作</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, width: 90 }}>目标</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600 }}>对象 / 摘要</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, width: 60, textAlign: 'right' }}>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map(l => {
+              const label = OP_LABEL[l.operation] ?? l.operation;
+              const tgtLabel = TARGET_LABEL[l.target_type] ?? l.target_type;
+              const isAuto = (l.payload as { auto?: boolean })?.auto === true;
+              return (
+                <tr key={l.id}
+                  onClick={() => setModalLog(l)}
+                  style={{ borderTop: '1px solid #0f172a', cursor: 'pointer' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#0f172a')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <td style={{ padding: '8px 12px', color: '#94a3b8', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                    {fmtTs(l.occurred_at)}
+                  </td>
+                  <td style={{ padding: '8px 12px', color: '#e2e8f0', fontWeight: 500 }}>
+                    {l.operator}
+                    {l.operator === 'anonymous' && (
+                      <span style={{ marginLeft: 4, color: '#64748b', fontSize: 10 }}>(匿名)</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <span style={{ color: '#a78bfa', fontWeight: 500 }}>{label}</span>
+                    {label !== l.operation && (
+                      <div style={{ color: '#475569', fontSize: 10.5, fontFamily: 'monospace', marginTop: 2 }}>
+                        {l.operation}{isAuto && ' · auto'}
+                      </div>
+                    )}
+                    {label === l.operation && isAuto && (
+                      <span style={{ marginLeft: 4, color: '#475569', fontSize: 10 }}>auto</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{tgtLabel}</td>
+                  <td style={{ padding: '8px 12px', color: '#cbd5e1', maxWidth: 0, overflow: 'hidden' }}>
+                    {l.target_id && (
+                      <div style={{ color: '#64748b', fontFamily: 'monospace', fontSize: 11, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {l.target_id}
+                      </div>
+                    )}
+                    <div style={{ color: '#94a3b8', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {payloadPreview(l.payload)}
+                    </div>
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
+                    <span style={{
+                      color: l.status_code === null ? '#475569' :
+                             l.status_code < 400 ? '#34d399' : '#f87171',
+                    }}>
+                      {l.status_code ?? '—'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+            {logs.length === 0 && !loading && (
+              <tr><td colSpan={6} style={{ padding: '40px 12px', textAlign: 'center', color: '#475569' }}>
+                {hasFilters ? '没有符合条件的记录' : '暂无操作日志'}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination — same numbered-jump pattern as 采集预览. */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 16, flexWrap: 'wrap' }}>
+          <PageBtn label="« 首页" disabled={page === 0} onClick={() => setPage(0)} />
+          <PageBtn label="‹ 上一页" disabled={page === 0} onClick={() => setPage(Math.max(0, page - 1))} />
+
+          {pageNumbers(page, totalPages).map((p, idx) =>
+            p === '…' ? (
+              <span key={`gap-${idx}`} style={{ padding: '5px 6px', fontSize: 12, color: '#475569' }}>…</span>
+            ) : (
+              <PageBtn key={p} label={String(p + 1)} active={p === page} onClick={() => setPage(p)} />
+            ),
+          )}
+
+          <PageBtn label="下一页 ›" disabled={page >= totalPages - 1} onClick={() => setPage(Math.min(totalPages - 1, page + 1))} />
+          <PageBtn label="末页 »" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} />
+
+          <span style={{ marginLeft: 12, fontSize: 12, color: '#64748b' }}>第 {page + 1} / {totalPages} 页</span>
+        </div>
+      )}
+
+      {/* Detail modal */}
+      {modalLog && (
+        <div onClick={() => setModalLog(null)}
+          style={{ position: 'fixed', inset: 0, background: '#000c', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '760px', width: '100%', maxHeight: '85vh', overflow: 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', cursor: 'default' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
+              <h3 style={{ margin: 0, color: '#e2e8f0', fontSize: 16 }}>
+                {OP_LABEL[modalLog.operation] ?? modalLog.operation}
+              </h3>
+              <button onClick={() => setModalLog(null)}
+                style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>
+                ×
+              </button>
+            </div>
+
+            <table style={{ width: '100%', fontSize: 12.5, marginBottom: 14 }}>
+              <tbody>
+                {[
+                  ['操作类型', modalLog.operation],
+                  ['操作人', `${modalLog.operator}${modalLog.operator_id ? ` (${modalLog.operator_id})` : ''}`],
+                  ['操作时间', fmtTs(modalLog.occurred_at)],
+                  ['目标类型', TARGET_LABEL[modalLog.target_type] ?? modalLog.target_type],
+                  ['目标 ID', modalLog.target_id ?? '—'],
+                  ['HTTP', `${modalLog.http_method ?? '?'} ${modalLog.http_path ?? '?'}`],
+                  ['响应码', modalLog.status_code ?? '—'],
+                  ['IP', modalLog.ip ?? '—'],
+                  ['请求 ID', modalLog.request_id ?? '—'],
+                ].map(([k, v]) => (
+                  <tr key={k as string}>
+                    <td style={{ padding: '4px 12px 4px 0', color: '#64748b', whiteSpace: 'nowrap', verticalAlign: 'top', width: 90 }}>{k}</td>
+                    <td style={{ padding: '4px 0', color: '#e2e8f0', fontFamily: typeof v === 'string' && /^[a-f0-9-]{8,}/i.test(v) ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{String(v)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ color: '#64748b', fontSize: 12, marginBottom: 6 }}>Payload</div>
+            <pre style={{
+              background: '#0f172a', border: '1px solid #334155', borderRadius: 6,
+              padding: '12px 14px', margin: 0,
+              fontSize: 11.5, color: '#cbd5e1',
+              overflow: 'auto', maxHeight: 360,
+              fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
+            }}>{JSON.stringify(modalLog.payload, null, 2)}</pre>
+
+            {modalLog.user_agent && (
+              <div style={{ marginTop: 10, fontSize: 11, color: '#475569', wordBreak: 'break-all' }}>
+                UA: {modalLog.user_agent}
+              </div>
+            )}
           </div>
         </div>
       )}

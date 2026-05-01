@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CH 内容中台 · 功能文档与使用说明</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1c232c;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --warn: #d29922;
+    --err: #f85149;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  body { display: flex; min-height: 100vh; }
+  nav.toc {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  nav.toc h2 {
+    margin: 0 20px 16px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  nav.toc ol {
+    margin: 0; padding: 0;
+    list-style: none;
+    counter-reset: section;
+  }
+  nav.toc li {
+    counter-increment: section;
+    border-left: 2px solid transparent;
+  }
+  nav.toc li:hover { border-left-color: var(--accent); }
+  nav.toc a {
+    display: block;
+    padding: 7px 18px 7px 18px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  nav.toc a::before {
+    content: counter(section, decimal) ". ";
+    color: var(--muted);
+    margin-right: 6px;
+  }
+  nav.toc a:hover { background: var(--panel-2); color: var(--accent); }
+  main {
+    flex: 1;
+    max-width: 920px;
+    padding: 40px 56px 80px;
+    margin: 0 auto;
+  }
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  header.hero h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+  }
+  header.hero .sub {
+    color: var(--muted);
+    font-size: 15px;
+  }
+  header.hero .badges {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .badge.ok { color: var(--accent-2); border-color: rgba(126,231,135,0.3); }
+
+  h2 {
+    margin: 48px 0 18px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 22px;
+    letter-spacing: -0.005em;
+  }
+  h3 {
+    margin: 28px 0 12px;
+    font-size: 17px;
+    color: var(--text);
+  }
+  h4 {
+    margin: 20px 0 6px;
+    font-size: 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  p { margin: 0 0 12px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  code, pre {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--accent-2);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 14px 0;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text);
+  }
+  .cmd { color: var(--accent); }
+  .comment { color: var(--muted); font-style: italic; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 18px;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    background: var(--panel);
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  td code { font-size: 12px; padding: 1px 5px; }
+
+  .agent-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 16px 0;
+  }
+  .agent-card .agent-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .agent-card h3 { margin: 0; font-size: 17px; color: var(--accent); }
+  .agent-card .order { color: var(--muted); font-size: 12px; font-family: "SF Mono", monospace; }
+  .agent-card .role { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+  .agent-card dl { margin: 8px 0; display: grid; grid-template-columns: 90px 1fr; gap: 4px 14px; font-size: 13.5px; }
+  .agent-card dt { color: var(--muted); font-weight: 600; }
+  .agent-card dd { margin: 0; }
+  .agent-card .hop {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .arrow-list {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 14px 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 2;
+  }
+  .arrow-list .stage {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-right: 4px;
+  }
+  .arrow-list .ok { color: var(--accent-2); }
+  .arrow-list .gate { color: var(--warn); }
+  .arrow-list .end { color: var(--accent); }
+
+  .callout {
+    background: rgba(88, 166, 255, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 16px;
+    margin: 14px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 13.5px;
+  }
+  .callout.warn {
+    background: rgba(210, 153, 34, 0.08);
+    border-left-color: var(--warn);
+  }
+  .callout strong { color: var(--accent); }
+  .callout.warn strong { color: var(--warn); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .grid-2 > div {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+  }
+  .grid-2 h4 { margin-top: 0; color: var(--accent); }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    nav.toc { width: 100%; height: auto; position: relative; }
+    main { padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#overview">项目概览</a></li>
+    <li><a href="#architecture">系统架构</a></li>
+    <li><a href="#agents">8 个 Agent 详解</a></li>
+    <li><a href="#datamodel">数据模型</a></li>
+    <li><a href="#runtime">队列与运行时</a></li>
+    <li><a href="#quickstart">快速开始</a></li>
+    <li><a href="#commands">常用命令</a></li>
+    <li><a href="#admin-api">Admin API</a></li>
+    <li><a href="#webpages">Web 页面</a></li>
+    <li><a href="#env">环境变量</a></li>
+    <li><a href="#testing">测试与调试</a></li>
+    <li><a href="#troubleshooting">故障排查</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero">
+  <h1>CH 内容中台 · 功能文档与使用说明</h1>
+  <div class="sub">8-Agent 内容流水线：选源 → 采集 → 分类与起标题 → 封面 → 合规 → 发布 → 分发 → 数据回流</div>
+  <div class="badges">
+    <span class="badge">Node ≥ 20.10</span>
+    <span class="badge">pnpm 9</span>
+    <span class="badge">Postgres 15 · Redis 6 · MinIO</span>
+    <span class="badge">Fastify + Next.js</span>
+    <span class="badge">BullMQ</span>
+    <span class="badge ok">8 agents · 87 assertions passing</span>
+  </div>
+</header>
+
+<!-- ============ 1. 项目概览 ============ -->
+<section id="overview">
+<h2>1. 项目概览</h2>
+
+<p>CH 是一个面向中文内容场的自动化生产 + 分发流水线。原始素材（RSS、HTML、Reddit、Bluesky、X 等）经过 8 个职责单一的 agent 串联，最终落地为站内文章并向社媒分发。</p>
+
+<h3>核心特征</h3>
+<ul>
+  <li><strong>Agent 解耦</strong>：每个 agent 一个 BullMQ 队列，前一步把下一步的任务直接 enqueue，失败可独立重试。</li>
+  <li><strong>状态机驱动</strong>：<code>items.status</code> 是单一事实源，下游 agent 用状态守门，避免重复消费。</li>
+  <li><strong>可降级</strong>：每个 LLM agent 都有 <code>*_SKIP_LLM=1</code> 规则版兜底，可在没有 LLM 配额时跑通流水线。</li>
+  <li><strong>人工闸口</strong>：<em>publishing</em> 和 <em>distribution</em> 是硬人工卡点，<em>auto-pipeline</em> 不会自动触发。</li>
+  <li><strong>可观测</strong>：每个 agent 调用都写 <code>agent_runs</code>（耗时、token、成本、错误）。</li>
+</ul>
+
+<h3>项目目录</h3>
+<pre><code>.
+├── apps/
+│   ├── api/                    Fastify + BullMQ worker host
+│   │   ├── src/
+│   │   │   ├── index.ts        启动入口（HTTP + workers + cron）
+│   │   │   ├── admin*.ts       Day1~Day7 admin API
+│   │   │   ├── auto-pipeline.ts 自动调度 tick
+│   │   │   ├── workers/        8 个 agent 实现
+│   │   │   └── alerts.ts, sentry.ts, scheduler.ts
+│   │   └── scripts/            seed / 压测 / 测试 / 排错
+│   └── web/                    Next.js 前端（站内 + admin UI）
+├── packages/
+│   ├── agents/                 队列/Groq SDK/runner 公共包
+│   └── db/                     pg client + migrations
+├── docker-compose.yml          Postgres + Redis + MinIO
+└── .env / .env.example</code></pre>
+</section>
+
+<!-- ============ 2. 系统架构 ============ -->
+<section id="architecture">
+<h2>2. 系统架构</h2>
+
+<h3>流水线全景</h3>
+<div class="arrow-list">
+  <span class="stage">source-scoring</span> →
+  <span class="stage">ingestion</span> →
+  <span class="stage">classify-title</span> →
+  <span class="stage">cover</span> →
+  <span class="stage gate">compliance</span> →
+  <span class="stage gate">publishing*</span> →
+  <span class="stage gate">distribution*</span> →
+  <span class="stage end">analytics</span>
+  <br>
+  <span style="color:var(--muted);font-size:11.5px">* 标记的 agent 是人工闸口，<code>auto-pipeline</code> 不会自动触发</span>
+</div>
+
+<h3>状态机</h3>
+<div class="arrow-list">
+  <span class="stage">INGESTED</span> →
+  <span class="stage">CLASSIFIED</span> →
+  <span class="stage">TITLED</span> →
+  <span class="stage">COVERED</span> →
+  <span class="stage">COMPLIANCE_PASS</span> | COMPLIANCE_REVIEW | COMPLIANCE_FAIL →
+  <span class="stage">PUBLISHED</span> →
+  <span class="stage end">DISTRIBUTED</span>
+</div>
+<p style="font-size:13px;color:var(--muted);">每个 agent 都做 <code>WHERE status IN (...)</code> 守门，串错状态会自动跳过（<code>{skipped: true}</code>），不会污染 <code>agent_runs</code>。</p>
+
+<h3>组件协作</h3>
+<pre><code>Fastify API (apps/api)           Next.js Web (apps/web)
+   ├── HTTP routes                   ├── 站内页面 /、/a/[slug]、/category/[slug]
+   ├── BullMQ workers (8 个) ──────► └── /admin/dayX 控制台 + /workbench
+   ├── auto-pipeline tick (15s)
+   ├── alerts poller
+   └── scheduler (cron)
+        │
+        ▼
+Postgres (5433) · Redis (6381) · MinIO (9002/9003)</code></pre>
+</section>
+
+<!-- ============ 3. Agent 详解 ============ -->
+<section id="agents">
+<h2>3. 8 个 Agent 详解</h2>
+<p>每个 agent 都住在 <code>apps/api/src/workers/&lt;name&gt;/</code>，导出一个 <code>start*Worker()</code>（被 <code>workers/index.ts</code> 注册），以及一个直接调用的 <code>*One()</code>（admin/测试用）。所有调用都包在 <code>withRun()</code> 里，自动写 <code>agent_runs</code>。</p>
+
+<!-- 1. source-scoring -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[1]</span><h3>source-scoring</h3></div>
+  <div class="role">为信源打分（0-100），决定其在 ingestion 灰度池里的权重，给低质源降级或拉黑。</div>
+  <dl>
+    <dt>核心函数</dt><dd><code>scoreAllSources()</code> · <code>workers/source-scoring/scorer.ts</code></dd>
+    <dt>实现方式</dt><dd>纯 SQL 聚合，不调 LLM。融合发布数、合规失败率、最近 7 天活跃度、PV、收入。</dd>
+    <dt>触发</dt><dd>auto-pipeline 周期性 enqueue，或 admin 手动调 <code>/admin/day5/score-now</code>。</dd>
+    <dt>副作用</dt><dd>更新 <code>sources</code> 的 <code>score / risk_level / stability / status</code>。</dd>
+  </dl>
+  <div class="hop">下一步：无（独立任务，结果被 ingestion 灰度阶段读取）</div>
+</div>
+
+<!-- 2. ingestion -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[2]</span><h3>ingestion</h3></div>
+  <div class="role">从激活信源拉取最新内容，去重 + 清洗后落库。</div>
+  <dl>
+    <dt>核心函数</dt><dd><code>ingestSource(sourceId)</code> · <code>workers/ingestion/index.ts</code></dd>
+    <dt>子模块</dt><dd>
+      <code>adapters/</code>（rss / html / reddit / bluesky / x / knit / json-2ksg / sitemap-images）<br>
+      <code>clean.ts</code>（Mozilla Readability）·
+      <code>dedupe.ts</code>（dedupe_key + content_hash）·
+      <code>simhash.ts</code>（语义近邻，阈值 3/63）·
+      <code>persist.ts</code>（写库）
+    </dd>
+    <dt>三层去重</dt><dd>① URL 级 dedupe_key　② 源内 content_hash　③ 源内 simhash 模糊匹配</dd>
+    <dt>灰度</dt><dd><code>sources.grayscale_pct</code> 控制本轮被采概率（默认 100）。</dd>
+    <dt>失败</dt><dd>认证失败抛 <code>AdapterAuthError</code>，工作台高亮。其他错误进 <code>stats.errors</code>。</dd>
+  </dl>
+  <div class="hop">下一步 → enqueue <code>classify-title</code>，jobId = <code>classify-title__&lt;itemId&gt;</code>（去重）</div>
+</div>
+
+<!-- 3. classify-title -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[3]</span><h3>classify-title</h3></div>
+  <div class="role">合并的 <em>分类 + 标题</em> agent。两步连跑省一次队列跳。</div>
+  <dl>
+    <dt>核心函数</dt><dd><code>classifyTitleOne(itemId)</code> · <code>workers/classify-title/index.ts</code></dd>
+    <dt>步骤</dt><dd>
+      ① 分类（taxonomy 映射，输出 category + tags + keywords）<br>
+      ② 标题（生成 N 个候选 + 选最优 + 摘要 + 唯一 slug）
+    </dd>
+    <dt>降级</dt><dd><code>CLASSIFICATION_SKIP_LLM=1</code> · <code>TITLE_SKIP_LLM=1</code>，走关键词分类 + 原标题保留。</dd>
+    <dt>幂等</dt><dd>状态守门：仅处理 <code>INGESTED / CLASSIFIED / TITLED</code>，重跑只升 <code>title_version</code>。</dd>
+  </dl>
+  <div class="hop">下一步 → enqueue <code>cover</code>，jobId = <code>cover__&lt;itemId&gt;</code></div>
+</div>
+
+<!-- 4. cover -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[4]</span><h3>cover</h3></div>
+  <div class="role">从 raw_items.media_urls 里挑最优封面（按分辨率 + 长宽比打分），多尺寸压制后传 S3，再生成封面文案。</div>
+  <dl>
+    <dt>核心函数</dt><dd><code>coverOne(itemId)</code> · <code>workers/cover/index.ts</code></dd>
+    <dt>子模块</dt><dd>
+      <code>select.ts</code>（多源反盗链下载 + sharp 元数据）·
+      <code>resize.ts</code>（多尺寸输出）·
+      <code>storage.ts</code>（S3/MinIO 上传）·
+      <code>caption.ts</code>（封面文案）
+    </dd>
+    <dt>反盗链</dt><dd>对 <code>2ksg/knit/x</code> 等带 Referer/Cookie 头部下载。</dd>
+    <dt>HTML 源加挂图集</dt><dd><code>platform=html</code> 时取 Top-6 作为 gallery，存入 <code>cover_sizes.gallery</code>。</dd>
+    <dt>降级</dt><dd><code>COVER_SKIP_LLM=1</code> 时 <code>cover_copy = 文章标题</code>。</dd>
+  </dl>
+  <div class="hop">下一步 → enqueue <code>compliance</code></div>
+</div>
+
+<!-- 5. compliance -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[5]</span><h3>compliance</h3></div>
+  <div class="role">两层风险审核：L1 正则黑名单（cheap）+ L2 LLM 6 维度打分。</div>
+  <dl>
+    <dt>核心函数</dt><dd><code>complianceOne(itemId)</code> · <code>workers/compliance/index.ts</code></dd>
+    <dt>L1 黑名单</dt><dd>政治 / 色情 / 版权水印 三类正则，命中即 FAIL（<code>blacklist.ts</code>）。</dd>
+    <dt>L2 LLM 评分</dt><dd>6 个维度 0-3 分（政治 / 色情 / 暴力 / 版权 / 医疗夸大 / 金融诱导）。最大值 ≥3 → FAIL；≥2 → REVIEW；其余 → PASS。</dd>
+    <dt>决策</dt><dd><code>decide()</code> 单元函数，黑名单永远优先。LLM 失败默认进 REVIEW（保守）。</dd>
+    <dt>降级</dt><dd><code>COMPLIANCE_SKIP_LLM=1</code>：黑名单干净就合成全 0 分，自动 PASS。</dd>
+  </dl>
+  <div class="hop">PASS 才 → enqueue <code>publishing</code>。FAIL/REVIEW 留在状态等人工。</div>
+</div>
+
+<!-- 6. publishing -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[6]</span><h3>publishing</h3><span class="badge" style="background:rgba(210,153,34,0.15);color:var(--warn);border-color:rgba(210,153,34,0.4)">人工闸口</span></div>
+  <div class="role">把 COMPLIANCE_PASS 的文章正式上线，写 <code>published_url</code>，触发 ISR 刷新。</div>
+  <dl>
+    <dt>核心函数</dt><dd><code>publishOne(itemId)</code> · <code>workers/publishing/index.ts</code></dd>
+    <dt>动作</dt><dd>① 补/重用 slug　② 写 published_url + published_at　③ POST <code>/api/revalidate</code> 刷四个路径（首页、文章、分类、sitemap）</dd>
+    <dt>strict 模式</dt><dd><code>PUBLISH_STRICT=1</code>：仅 COMPLIANCE_PASS 可发布。默认宽松（兼容历史数据）。</dd>
+    <dt>失败容忍</dt><dd>revalidate 失败不阻塞发布（fire-and-forget）。</dd>
+  </dl>
+  <div class="hop">手动触发：admin UI 的 publish queue / <code>POST /admin/pipeline/approve-publish</code></div>
+</div>
+
+<!-- 7. distribution -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[7]</span><h3>distribution</h3><span class="badge" style="background:rgba(210,153,34,0.15);color:var(--warn);border-color:rgba(210,153,34,0.4)">人工闸口</span></div>
+  <div class="role">为已发布文章生成社媒推文，写入 <code>distribution_tasks</code> 等待执行。当前默认 channel=twitter。</div>
+  <dl>
+    <dt>核心函数</dt><dd><code>distributeOne(itemId, channel)</code> · <code>workers/distribution/index.ts</code></dd>
+    <dt>改写</dt><dd><code>rewrite.ts::rewriteForTwitter</code>：Sonnet 模型，280 字符预算（含 t.co 占位 23 字符），结尾 2-3 个 hashtag。</dd>
+    <dt>降级</dt><dd><code>DISTRIBUTION_SKIP_LLM=1</code>：标题截断 + 标签拼接 + 链接，纯规则。</dd>
+    <dt>幂等</dt><dd>同 item + 同 channel 已存在记录就跳过。</dd>
+    <dt>实际投递</dt><dd>当前只入库，由人工或外部 worker 消费 <code>distribution_tasks WHERE status='pending'</code> 实际推送。</dd>
+  </dl>
+  <div class="hop">手动触发：<code>POST /admin/day6/distribute/:id</code> · <code>/admin/day6/distribute-all</code></div>
+</div>
+
+<!-- 8. analytics -->
+<div class="agent-card">
+  <div class="agent-head"><span class="order">[8]</span><h3>analytics</h3></div>
+  <div class="role">数据回流（GA4 拉昨日 PV/UV）+ 每周生成 markdown 报表。</div>
+  <dl>
+    <dt>核心函数</dt><dd>
+      <code>pullAnalyticsYesterday()</code> · <code>ga4.ts</code><br>
+      <code>generateWeeklyReport()</code> · <code>report.ts</code>
+    </dd>
+    <dt>GA4 拉取</dt><dd>需 <code>GA4_PROPERTY_ID</code> + <code>GOOGLE_APPLICATION_CREDENTIALS</code>，按 <code>/a/&lt;slug&gt;</code> 维度抓 PV/UV/平均时长。无凭证时优雅降级返回 <code>{upserted:0, skipped:0}</code>。</dd>
+    <dt>周报</dt><dd>近 7 天总 PV/UV/收入 + 每日趋势 + Top 10 文章 markdown 表格。</dd>
+    <dt>调度</dt><dd>cron <code>ANALYTICS_CRON</code>（默认 <code>0 2 * * *</code>，每天 2 点拉）。</dd>
+  </dl>
+  <div class="hop">无下游（终点）。结果反哺 source-scoring 的 PV/收入加分项。</div>
+</div>
+
+</section>
+
+<!-- ============ 4. 数据模型 ============ -->
+<section id="datamodel">
+<h2>4. 数据模型</h2>
+<p>schema 在 <code>packages/db/migrations/</code>，<code>0001_init.sql</code> 是核心。</p>
+
+<table>
+  <thead><tr><th>表</th><th>作用</th><th>关键字段</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>sources</code></td>
+      <td>上游账号 / 信源</td>
+      <td><code>platform, external_id, score, risk_level, status, config, grayscale_pct</code></td>
+    </tr>
+    <tr>
+      <td><code>raw_items</code></td>
+      <td>采集到的原始数据</td>
+      <td><code>source_id, url, dedupe_key (UNIQUE), content_hash, simhash, media_urls</code></td>
+    </tr>
+    <tr>
+      <td><code>items</code></td>
+      <td>处理中的文章（流水线主表）</td>
+      <td><code>status, category, tags, title, slug (UNIQUE), cover_url, cover_sizes, compliance_*, published_url</code></td>
+    </tr>
+    <tr>
+      <td><code>distribution_tasks</code></td>
+      <td>多渠道分发任务</td>
+      <td><code>item_id, channel, copy, status, scheduled_at, executed_at</code></td>
+    </tr>
+    <tr>
+      <td><code>analytics_daily</code></td>
+      <td>日级流量 + 收入</td>
+      <td>PK = <code>(item_id, date, channel)</code> · <code>pv, uv, avg_duration, revenue</code></td>
+    </tr>
+    <tr>
+      <td><code>agent_runs</code></td>
+      <td>每次 agent 调用的审计</td>
+      <td><code>agent, item_id, status (running/success/failed), model, tokens, cost_usd, latency_ms, error</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>状态守门约定</strong>：每个 agent 的 <code>*One()</code> 第一行就检查 <code>items.status</code> 是否在允许列表内，不在就 <code>return {skipped: true}</code>，不写 <code>agent_runs</code> 错误，不消耗重试预算。
+</div>
+</section>
+
+<!-- ============ 5. 队列与运行时 ============ -->
+<section id="runtime">
+<h2>5. 队列与运行时</h2>
+
+<h3>BullMQ 队列</h3>
+<p>8 个队列与 8 个 agent 一一对应，名字在 <code>packages/agents/src/queue.ts::QUEUE_NAMES</code>：</p>
+<pre><code>source-scoring · ingestion · classify-title · cover ·
+compliance · publishing · distribution · analytics</code></pre>
+
+<p>默认作业策略（<code>queue.ts</code>）：</p>
+<ul>
+  <li>重试 3 次，指数退避（500ms 起）</li>
+  <li>成功保留 7 天 / 5000 条；失败保留 30 天</li>
+  <li><code>jobId</code> 模板：<code>&lt;agent&gt;__&lt;itemId&gt;</code>，天然去重，并发触发只跑一次</li>
+</ul>
+
+<h3>auto-pipeline</h3>
+<p><code>auto-pipeline.ts</code> 每 <code>AUTO_PIPELINE_INTERVAL_MS</code>（默认 15s）扫一次：</p>
+<ul>
+  <li>仅当 agent 在 <code>autoState</code> 开启 + 不在 <code>pausedState</code> + 没有 emergency stop</li>
+  <li>队列 <code>waiting+active &lt; 10</code> 才补单（避免堆积）</li>
+  <li><strong>HARD_HUMAN_GATES</strong> = <code>{publishing, distribution}</code>，永远不会被 auto 触发</li>
+</ul>
+
+<h3>调度（scheduler.ts）</h3>
+<ul>
+  <li>ingestion fanout cron：默认 <code>0 * * * *</code>（每小时整点），可改 <code>INGESTION_CRON</code></li>
+  <li>analytics pull cron：默认 <code>0 2 * * *</code>（每天 2 点）</li>
+  <li>关闭：设 <code>DISABLE_SCHEDULER=1</code> 或 <code>DISABLE_AUTO_PIPELINE=1</code></li>
+</ul>
+
+<h3>告警</h3>
+<p><code>alerts.ts</code> 周期检查队列堆积和 LLM 失败率，超阈值发告警（Sentry/Webhook）。阈值：<code>ALERT_QUEUE_THRESHOLD</code>、<code>ALERT_LLM_FAIL_RATE</code>。</p>
+</section>
+
+<!-- ============ 6. 快速开始 ============ -->
+<section id="quickstart">
+<h2>6. 快速开始</h2>
+
+<h3>前置条件</h3>
+<ul>
+  <li>Node ≥ 20.10、pnpm 9</li>
+  <li>Docker + Docker Compose</li>
+  <li>（可选）Groq API key — 跑 LLM agent 时需要；不配也能用 SKIP 模式跑通</li>
+</ul>
+
+<h3>一键启动</h3>
+<pre><code><span class="comment"># 1) 复制环境变量模板</span>
+<span class="cmd">cp</span> .env.example .env
+<span class="comment">#    填 GROQ_API_KEY（或留空用 SKIP_LLM 模式）</span>
+
+<span class="comment"># 2) 起基础设施（Postgres / Redis / MinIO）</span>
+<span class="cmd">pnpm</span> infra:up
+
+<span class="comment"># 3) 安装依赖</span>
+<span class="cmd">pnpm</span> install
+
+<span class="comment"># 4) 跑数据库迁移</span>
+<span class="cmd">pnpm</span> migrate
+
+<span class="comment"># 5) （可选）灌种子数据 / 信源</span>
+<span class="cmd">pnpm</span> seed
+
+<span class="comment"># 6) 起开发环境（API :4000 + Web :3000 并行）</span>
+<span class="cmd">pnpm</span> dev</code></pre>
+
+<h3>验证</h3>
+<pre><code><span class="cmd">curl</span> http://localhost:4000/health
+<span class="comment"># → {"ok":true,"ts":...}</span>
+
+<span class="cmd">curl</span> http://localhost:4000/agents
+<span class="comment"># → {"agents":["source-scoring","ingestion",...]}</span>
+
+<span class="cmd">open</span> http://localhost:3000           <span class="comment"># 站点首页</span>
+<span class="cmd">open</span> http://localhost:3000/admin     <span class="comment"># 控制台</span>
+<span class="cmd">open</span> http://localhost:9003           <span class="comment"># MinIO console (minioadmin/minioadmin)</span></code></pre>
+
+<div class="callout warn">
+  <strong>注意</strong>：docker-compose 里 Postgres 映射到宿主 <code>5433</code>、Redis 到 <code>6381</code>、MinIO 到 <code>9002/9003</code>（避开 macOS 上常见的端口冲突）。.env 必须用这套端口。
+</div>
+</section>
+
+<!-- ============ 7. 常用命令 ============ -->
+<section id="commands">
+<h2>7. 常用命令</h2>
+
+<h3>开发与构建</h3>
+<table>
+  <thead><tr><th>命令</th><th>作用</th></tr></thead>
+  <tbody>
+    <tr><td><code>pnpm dev</code></td><td>API + Web 并行起 dev 模式（concurrently）</td></tr>
+    <tr><td><code>pnpm --filter @ch/api dev</code></td><td>只起 API（含所有 worker）</td></tr>
+    <tr><td><code>pnpm --filter @ch/web dev</code></td><td>只起 Web</td></tr>
+    <tr><td><code>pnpm build</code></td><td>构建所有 workspace</td></tr>
+    <tr><td><code>pnpm migrate</code></td><td>跑 <code>packages/db/migrations</code> 下的 SQL</td></tr>
+    <tr><td><code>pnpm seed</code></td><td>灌入示例信源/数据</td></tr>
+  </tbody>
+</table>
+
+<h3>基础设施</h3>
+<table>
+  <tbody>
+    <tr><td><code>pnpm infra:up</code></td><td>起 Postgres + Redis + MinIO（detached）</td></tr>
+    <tr><td><code>pnpm infra:down</code></td><td>关掉容器（数据卷保留）</td></tr>
+    <tr><td><code>pnpm infra:logs</code></td><td>tail 容器日志</td></tr>
+  </tbody>
+</table>
+
+<h3>测试</h3>
+<table>
+  <tbody>
+    <tr>
+      <td><code>pnpm --filter @ch/api exec tsx scripts/test-classify-title.ts</code></td>
+      <td>classify-title 单 agent 测试（32 断言）</td>
+    </tr>
+    <tr>
+      <td><code>pnpm --filter @ch/api exec tsx scripts/test-all-agents.ts</code></td>
+      <td>其余 7 个 agent 综合 smoke test（55 断言）</td>
+    </tr>
+    <tr>
+      <td><code>pnpm --filter @ch/api exec tsx scripts/stress.ts</code></td>
+      <td>压测脚本</td>
+    </tr>
+    <tr>
+      <td><code>pnpm --filter @ch/api exec tsx scripts/test-batch-import.ts</code></td>
+      <td>批量导入信源测试</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>排错与运维</h3>
+<table>
+  <tbody>
+    <tr><td><code>scripts/cleanup-queues.ts</code></td><td>清理过期 BullMQ jobs</td></tr>
+    <tr><td><code>scripts/clear-failed.ts</code></td><td>清空 failed 队列</td></tr>
+    <tr><td><code>scripts/retry-failed.ts</code></td><td>批量 retry failed jobs</td></tr>
+    <tr><td><code>scripts/inspect-failures.ts</code></td><td>查看最近的失败原因</td></tr>
+    <tr><td><code>scripts/find-bad-feeds.ts</code></td><td>找连续抓不到东西的源</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 8. Admin API ============ -->
+<section id="admin-api">
+<h2>8. Admin API 端点速查</h2>
+<p>所有端点托管在 API（默认 <code>http://localhost:4000</code>）。<code>dayN</code> 命名是开发节奏的产物，端点本身按职责分布。</p>
+
+<h3>通用</h3>
+<table>
+  <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/health</code></td><td>健康检查（含 DB ping）</td></tr>
+    <tr><td>GET</td><td><code>/agents</code></td><td>所有 agent 名字</td></tr>
+    <tr><td>GET</td><td><code>/admin/sources</code></td><td>信源列表</td></tr>
+    <tr><td>POST</td><td><code>/admin/sources</code></td><td>新增信源</td></tr>
+    <tr><td>PATCH</td><td><code>/admin/sources/:id</code></td><td>改信源</td></tr>
+    <tr><td>DELETE</td><td><code>/admin/sources/:id</code></td><td>删信源（<code>?cascade=1</code> 级联删 items）</td></tr>
+    <tr><td>POST</td><td><code>/admin/ingest/fanout</code></td><td>立即触发一轮 ingestion fanout</td></tr>
+    <tr><td>GET</td><td><code>/admin/items</code></td><td>分页查 items</td></tr>
+    <tr><td>GET</td><td><code>/admin/stats</code></td><td>全局计数（按状态、按 agent）</td></tr>
+  </tbody>
+</table>
+
+<h3>Pipeline 控制（admin-pipeline.ts）</h3>
+<table>
+  <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/admin/pipeline/state</code></td><td>各 agent 的 auto/paused 开关状态</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/set-auto</code></td><td>开/关单个 agent 的自动模式</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/set-paused</code></td><td>暂停/恢复单个 agent</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/emergency-stop</code></td><td>全局急停</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/resume</code></td><td>恢复全局</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/run/:agent</code></td><td>手动触发某 agent 一次</td></tr>
+    <tr><td>GET</td><td><code>/admin/pipeline/review-queue</code></td><td>合规 REVIEW 待人工列表</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/approve-review/:itemId</code></td><td>放行一篇 REVIEW 文章</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/reject-review/:itemId</code></td><td>拒绝一篇 REVIEW 文章</td></tr>
+    <tr><td>GET</td><td><code>/admin/pipeline/publish-queue</code></td><td>等待发布的列表</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/approve-publish</code></td><td>批量放行发布</td></tr>
+    <tr><td>GET</td><td><code>/admin/pipeline/distribution-queue</code></td><td>分发待执行任务</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/confirm-distribution/:taskId</code></td><td>确认完成一条分发</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/rollback/:itemId</code></td><td>回滚 item 到上一状态</td></tr>
+    <tr><td>POST</td><td><code>/admin/pipeline/rerun/:itemId</code></td><td>从某一步重跑</td></tr>
+    <tr><td>GET</td><td><code>/admin/pipeline/item-history/:itemId</code></td><td>该 item 在 agent_runs 的历史</td></tr>
+    <tr><td>GET</td><td><code>/admin/pipeline/live-jobs</code></td><td>当前所有队列的 active/waiting</td></tr>
+  </tbody>
+</table>
+
+<h3>分阶段控制台</h3>
+<table>
+  <thead><tr><th>路径前缀</th><th>覆盖</th></tr></thead>
+  <tbody>
+    <tr><td><code>/admin/day1/*</code></td><td>infra 健康 / 队列计数 / LLM 联通测试</td></tr>
+    <tr><td><code>/admin/day3/*</code></td><td>分类 + 标题（手动触发、按 id 重跑）</td></tr>
+    <tr><td><code>/admin/day4/*</code></td><td>封面 + 合规（覆盖、recover、recheck）</td></tr>
+    <tr><td><code>/admin/day5/*</code></td><td>发布（force-publish、publish-all、source-scoring 即时触发）</td></tr>
+    <tr><td><code>/admin/day6/*</code></td><td>分发与 analytics（distribute / pull / report）</td></tr>
+    <tr><td><code>/admin/day7/*</code></td><td>告警 / 全 agent_runs / 队列 / 灰度调整 / 压测触发</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 9. Web 页面 ============ -->
+<section id="webpages">
+<h2>9. Web 页面</h2>
+
+<div class="grid-2">
+  <div>
+    <h4>前台</h4>
+    <ul>
+      <li><code>/</code> — 站点首页</li>
+      <li><code>/a/[slug]</code> — 文章详情（ISR）</li>
+      <li><code>/category/[slug]</code> — 分类列表</li>
+      <li><code>/api/revalidate</code> — ISR 刷新接口（被 publishing 调用）</li>
+    </ul>
+  </div>
+  <div>
+    <h4>控制台</h4>
+    <ul>
+      <li><code>/admin</code> — 总览</li>
+      <li><code>/admin/day1</code> — 基础设施 / LLM 测试</li>
+      <li><code>/admin/day3</code> — 分类 + 标题</li>
+      <li><code>/admin/day4</code> — 封面 + 合规</li>
+      <li><code>/admin/day5</code> — 发布 + 信源打分</li>
+      <li><code>/admin/day6</code> — 分发 + 数据回流</li>
+      <li><code>/admin/day7</code> — 监控 / 告警 / 灰度</li>
+      <li><code>/workbench</code> — 流水线工作台</li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<!-- ============ 10. 环境变量 ============ -->
+<section id="env">
+<h2>10. 环境变量参考</h2>
+
+<h3>基础设施</h3>
+<table>
+  <thead><tr><th>变量</th><th>说明</th><th>默认 / 示例</th></tr></thead>
+  <tbody>
+    <tr><td><code>DATABASE_URL</code></td><td>Postgres 连接</td><td><code>postgresql://ch:ch@localhost:5433/ch</code></td></tr>
+    <tr><td><code>REDIS_URL</code></td><td>Redis 连接（BullMQ）</td><td><code>redis://localhost:6381</code></td></tr>
+    <tr><td><code>S3_ENDPOINT</code></td><td>对象存储</td><td><code>http://localhost:9002</code></td></tr>
+    <tr><td><code>S3_BUCKET</code></td><td>存储桶名</td><td><code>ch-media</code></td></tr>
+    <tr><td><code>S3_ACCESS_KEY / S3_SECRET_KEY</code></td><td>S3 凭证</td><td>MinIO 默认 <code>minioadmin / minioadmin</code></td></tr>
+  </tbody>
+</table>
+
+<h3>LLM</h3>
+<table>
+  <tbody>
+    <tr><td><code>GROQ_API_KEY</code></td><td>Groq 密钥（OpenAI 兼容协议）</td><td>必填（除非全部 SKIP_LLM）</td></tr>
+    <tr><td><code>GROQ_MODEL_LARGE / MEDIUM / SMALL</code></td><td>对应代码里的 opus / sonnet / haiku 别名</td><td>默认 llama-3.3-70b-versatile / llama-3.1-8b-instant</td></tr>
+    <tr><td><code>CLASSIFICATION_MODEL / TITLE_MODEL / COMPLIANCE_MODEL</code></td><td>覆盖各 agent 默认模型</td><td>haiku / sonnet / sonnet</td></tr>
+  </tbody>
+</table>
+
+<h3>降级开关（测试 / 无配额时常用）</h3>
+<table>
+  <tbody>
+    <tr><td><code>CLASSIFICATION_SKIP_LLM</code></td><td>=1 走关键词分类</td><td></td></tr>
+    <tr><td><code>TITLE_SKIP_LLM</code></td><td>=1 用原标题</td><td></td></tr>
+    <tr><td><code>COVER_SKIP_LLM</code></td><td>=1 cover_copy 用文章标题</td><td></td></tr>
+    <tr><td><code>COMPLIANCE_SKIP_LLM</code></td><td>=1 黑名单干净就 PASS</td><td></td></tr>
+    <tr><td><code>DISTRIBUTION_SKIP_LLM</code></td><td>=1 规则版推文（标题 + tags + 链接）</td><td></td></tr>
+  </tbody>
+</table>
+
+<h3>调度与运行时</h3>
+<table>
+  <tbody>
+    <tr><td><code>API_PORT / WEB_PORT</code></td><td>HTTP 端口</td><td>4000 / 3000</td></tr>
+    <tr><td><code>LOG_LEVEL</code></td><td>Fastify 日志级别</td><td>info</td></tr>
+    <tr><td><code>AUTO_PIPELINE_INTERVAL_MS</code></td><td>auto-pipeline tick 间隔</td><td>15000</td></tr>
+    <tr><td><code>DISABLE_AUTO_PIPELINE / DISABLE_SCHEDULER</code></td><td>=1 关闭对应模块</td><td></td></tr>
+    <tr><td><code>INGESTION_CRON / ANALYTICS_CRON</code></td><td>cron 表达式</td><td><code>0 * * * *</code> / <code>0 2 * * *</code></td></tr>
+    <tr><td><code>PUBLISH_STRICT</code></td><td>=1 仅 COMPLIANCE_PASS 才能发布</td><td>0</td></tr>
+  </tbody>
+</table>
+
+<h3>站点 / 监控</h3>
+<table>
+  <tbody>
+    <tr><td><code>SITE_URL</code></td><td>对外公开站点 URL（写入 published_url）</td><td>https://your-domain.com</td></tr>
+    <tr><td><code>WEB_URL</code></td><td>publishing 调 revalidate 用的内部地址</td><td>http://localhost:3000</td></tr>
+    <tr><td><code>REVALIDATE_SECRET</code></td><td>调 ISR 刷新接口的鉴权 secret</td><td>必填</td></tr>
+    <tr><td><code>SENTRY_DSN</code></td><td>Sentry 上报</td><td>可空</td></tr>
+    <tr><td><code>ALERT_QUEUE_THRESHOLD / ALERT_LLM_FAIL_RATE / ALERT_INTERVAL_MINUTES</code></td><td>告警阈值</td><td>100 / 0.15 / 5</td></tr>
+    <tr><td><code>GA4_PROPERTY_ID / GOOGLE_APPLICATION_CREDENTIALS</code></td><td>GA4 接入</td><td>可空（缺则降级）</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 11. 测试 ============ -->
+<section id="testing">
+<h2>11. 测试与调试</h2>
+
+<h3>已有测试</h3>
+<ul>
+  <li><strong>test-classify-title.ts</strong>：32 个断言，覆盖分类 + 标题 + slug + 状态机 + BullMQ 端到端。</li>
+  <li><strong>test-all-agents.ts</strong>：55 个断言，覆盖其他 7 个 agent 的核心路径 + 跨 agent handoff。</li>
+</ul>
+
+<p>两套测试都用 <code>SKIP_LLM</code> 规则版兜底，不依赖 LLM 配额、不会被运行中的 worker 抢任务（直接调 <code>*One()</code>）。</p>
+
+<pre><code><span class="cmd">pnpm</span> --filter @ch/api exec tsx scripts/test-all-agents.ts
+<span class="cmd">pnpm</span> --filter @ch/api exec tsx scripts/test-classify-title.ts</code></pre>
+
+<h3>定位问题</h3>
+<ul>
+  <li>看某 item 的全链路：<code>GET /admin/pipeline/item-history/:itemId</code></li>
+  <li>看 agent 失败日志：<code>SELECT * FROM agent_runs WHERE status='failed' ORDER BY started_at DESC LIMIT 50</code></li>
+  <li>看队列堆积：<code>GET /admin/day7/queues</code> 或 <code>GET /admin/pipeline/live-jobs</code></li>
+  <li>看信源认证失败：<code>GET /admin/sources/auth-status</code></li>
+</ul>
+</section>
+
+<!-- ============ 12. 故障排查 ============ -->
+<section id="troubleshooting">
+<h2>12. 故障排查</h2>
+
+<h3>常见问题</h3>
+
+<h4>API 起不来 / DB 连不上</h4>
+<ul>
+  <li>检查 <code>docker compose ps</code> 是否 healthy</li>
+  <li>确认 <code>.env</code> 用的是 docker-compose 实际映射的端口（5433/6381/9002）</li>
+  <li>跑一遍 <code>pnpm migrate</code> 确保 schema 是最新</li>
+</ul>
+
+<h4>队列堆积、worker 不消费</h4>
+<ul>
+  <li><code>GET /admin/day7/queues</code> 看具体哪个 queue 堆</li>
+  <li>看 agent 是不是被 paused：<code>GET /admin/pipeline/state</code></li>
+  <li>批量重试失败：<code>scripts/retry-failed.ts</code></li>
+  <li>清空 failed：<code>scripts/clear-failed.ts</code></li>
+</ul>
+
+<h4>LLM 调用失败 / 没配额</h4>
+<ul>
+  <li>临时设全部 <code>*_SKIP_LLM=1</code> 跑通流水线</li>
+  <li>看 <code>agent_runs.error</code> 字段定位错误码（429 / 5xx 由 callClaude 自动重试 3 次）</li>
+</ul>
+
+<h4>合规 REVIEW 队列堆积</h4>
+<ul>
+  <li>多半是 LLM 调用失败 → fallback 到保守 REVIEW</li>
+  <li>人工放行：<code>POST /admin/pipeline/approve-review/:itemId</code></li>
+  <li>批量重检：<code>POST /admin/day4/recheck/:id</code></li>
+</ul>
+
+<h4>封面下载 403 / 空 body</h4>
+<ul>
+  <li>多半是反盗链：在信源 <code>config.referer</code> / <code>config.cookie</code> 里补头部</li>
+  <li><code>workers/cover/select.ts::headersFor()</code> 已为 2ksg / knit / x 加了默认 Referer</li>
+</ul>
+
+<h4>发布后站点不更新</h4>
+<ul>
+  <li>检查 <code>WEB_URL</code> 和 <code>REVALIDATE_SECRET</code></li>
+  <li>看 API 日志是否有 <code>[publishing] revalidate failed</code></li>
+  <li>手动 curl <code>POST /api/revalidate</code> 触发一次</li>
+</ul>
+
+<h3>急停与恢复</h3>
+<pre><code><span class="comment"># 全局急停（所有 agent 暂不调度，运行中的 job 不会被打断）</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/emergency-stop
+
+<span class="comment"># 恢复</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/resume
+
+<span class="comment"># 单 agent 暂停 / 恢复</span>
+<span class="cmd">curl</span> -X POST http://localhost:4000/admin/pipeline/set-paused \
+     -H 'content-type: application/json' \
+     -d '{"agent":"compliance","paused":true}'</code></pre>
+</section>
+
+<footer>
+  生成时间 2026-04-28 · 文档对应代码：apps/api/src/workers/* · packages/agents/* · packages/db/migrations/*
+</footer>
+
+</main>
+</body>
+</html>

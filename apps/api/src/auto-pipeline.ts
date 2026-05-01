@@ -41,22 +41,14 @@ const STAGES: StageCheck[] = [
     },
   },
   {
-    agent: 'classification',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='INGESTED'`,
+    agent: 'classify-title',
+    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status IN ('INGESTED', 'CLASSIFIED')`,
     triggerFn: async () => {
-      const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='INGESTED' LIMIT 200`);
-      const q = getQueue(QUEUE_NAMES.classification);
-      for (const { id } of items) await q.add('classify', { itemId: id }, { jobId: `classify__${id}` });
-      return items.length;
-    },
-  },
-  {
-    agent: 'title',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='CLASSIFIED'`,
-    triggerFn: async () => {
-      const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='CLASSIFIED' LIMIT 200`);
-      const q = getQueue(QUEUE_NAMES.title);
-      for (const { id } of items) await q.add('title', { itemId: id }, { jobId: `title__${id}` });
+      const items = await query<{ id: string }>(
+        `SELECT id FROM items WHERE status IN ('INGESTED', 'CLASSIFIED') LIMIT 200`,
+      );
+      const q = getQueue(QUEUE_NAMES.classifyTitle);
+      for (const { id } of items) await q.add('classify-title', { itemId: id }, { jobId: `classify-title__${id}` });
       return items.length;
     },
   },

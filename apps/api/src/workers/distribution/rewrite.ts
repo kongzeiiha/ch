@@ -1,4 +1,5 @@
 import { callClaude } from '@ch/agents';
+import { getActiveRules, buildRulesPromptSection, recordRuleHits } from '../../memory-rules.js';
 
 export interface DistributionItem {
   title: string;
@@ -26,7 +27,26 @@ const SYSTEM = `你是一名专业的社交媒体编辑，擅长将文章改写�
 
 输出格式：只输出推文正文，不要任何解释。`;
 
+function rewriteByRules(item: DistributionItem): RewriteResult {
+  // Rule-based fallback: trim title to fit, append top tags as hashtags, then link.
+  // Used when DISTRIBUTION_SKIP_LLM=1 (smoke tests, no-credit envs).
+  const linkLen = 23; // X t.co budget
+  const tags = (item.tags ?? []).slice(0, 3).map((t) => `#${t.replace(/\s+/g, '')}`).join(' ');
+  const tagsLen = tags ? tags.length + 1 : 0;
+  const budget = 280 - linkLen - tagsLen - 1; // -1 for space before link
+  const headline = item.title.length > budget ? `${item.title.slice(0, budget - 1)}…` : item.title;
+  const copy = `${headline}${tags ? ' ' + tags : ''} ${item.published_url}`.trim();
+  return {
+    copy,
+    model: 'rule:headline+tags',
+    usage: { input_tokens: 0, output_tokens: 0 },
+    costUsd: 0,
+  };
+}
+
 export async function rewriteForTwitter(item: DistributionItem): Promise<RewriteResult> {
+  if (process.env.DISTRIBUTION_SKIP_LLM === '1') return rewriteByRules(item);
+
   const prompt = `文章标题：${item.title}
 分类：${item.category ?? '—'}
 标签：${item.tags.slice(0, 5).join('、') || '—'}
@@ -35,13 +55,24 @@ export async function rewriteForTwitter(item: DistributionItem): Promise<Rewrite
 
 请把这篇文章改写成一条 X（Twitter）推文，结尾加上文章链接。`;
 
+  // Inject any operator-curated rewrite rules from past edits. Same caching
+  // pattern as compliance: BASE prompt cached, rules appended uncached.
+  const rules = await getActiveRules('distribution', 'channel=twitter');
+  const rulesText = buildRulesPromptSection(rules);
+  const systemBlocks: { text: string; cache?: boolean }[] = [{ text: SYSTEM, cache: true }];
+  if (rulesText) systemBlocks.push({ text: rulesText });
+
   const res = await callClaude({
     model: 'sonnet',
-    system: [{ text: SYSTEM, cache: true }],
+    system: systemBlocks,
     messages: [{ role: 'user', content: prompt }],
     maxTokens: 256,
     temperature: 0.7,
   });
+
+  if (rules.length > 0) {
+    void recordRuleHits(rules.map((r) => r.id));
+  }
 
   return {
     copy: res.text.trim(),

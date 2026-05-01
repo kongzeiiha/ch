@@ -50,7 +50,13 @@ export async function generateWeeklyReport(): Promise<string> {
     `),
   ]);
 
-  const t = totals[0] ?? { total_pv: 0, total_uv: 0, total_revenue: 0 };
+  // SUM() over an empty result set returns null, not 0 — coerce to 0 here.
+  const raw = totals[0];
+  const t = {
+    total_pv: Number(raw?.total_pv ?? 0),
+    total_uv: Number(raw?.total_uv ?? 0),
+    total_revenue: Number(raw?.total_revenue ?? 0),
+  };
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 6);
   const weekEnd = new Date();
@@ -63,7 +69,7 @@ export async function generateWeeklyReport(): Promise<string> {
   md += `| 指标 | 本周 |\n|---|---|\n`;
   md += `| 总 PV | ${t.total_pv.toLocaleString()} |\n`;
   md += `| 总 UV | ${t.total_uv.toLocaleString()} |\n`;
-  md += `| 广告收入 | $${Number(t.total_revenue).toFixed(2)} |\n\n`;
+  md += `| 广告收入 | $${t.total_revenue.toFixed(2)} |\n\n`;
 
   md += `## 每日趋势\n\n`;
   md += `| 日期 | PV | UV | 收入 |\n|---|---|---|---|\n`;
