@@ -1,4 +1,6 @@
-import { callClaude, type Model } from '@ch/agents';
+import { callClaude, sanitizeForPrompt, type Model } from '@ch/agents';
+
+export const PROMPT_VERSION = 'v1';
 
 export interface TitleOutput {
   candidates: string[];
@@ -62,10 +64,10 @@ export async function generateTitle(
   opts: { model?: Model } = {},
 ): Promise<{ result: TitleOutput; model: string; usage: any; cost: number; latencyMs: number }> {
   const userText = [
-    input.originalTitle ? `原标题:${input.originalTitle}` : null,
+    input.originalTitle ? `原标题:${sanitizeForPrompt(input.originalTitle, 200)}` : null,
     input.category ? `分类:${input.category}` : null,
     input.tags.length ? `标签:${input.tags.join(' / ')}` : null,
-    `正文:\n${input.content.slice(0, MAX_CONTENT)}`,
+    `正文:\n${sanitizeForPrompt(input.content, MAX_CONTENT)}`,
   ]
     .filter(Boolean)
     .join('\n\n');

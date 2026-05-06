@@ -112,6 +112,7 @@ export default function AdminDashboard() {
   const [pageSize, setPageSize] = useState(20);
   const [itemsTotal, setItemsTotal] = useState(0);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [fanoutBusy, setFanoutBusy] = useState(false);
   const [lastResult, setLastResult] = useState<{ srcId: string; res: IngestResult } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -161,12 +162,15 @@ export default function AdminDashboard() {
   }
 
   async function fanout() {
+    setFanoutBusy(true);
     try {
       const r = await getJSON<{ jobId: string }>('/api/admin/ingest/fanout', { method: 'POST' });
       setLastResult({ srcId: 'all', res: { mode: 'async', jobId: r.jobId } });
       await refresh();
     } catch (e: any) {
       setErr(e.message);
+    } finally {
+      setFanoutBusy(false);
     }
   }
 
@@ -184,7 +188,7 @@ export default function AdminDashboard() {
         <span style={{ fontSize: 13, color: '#64748b' }}>采集总览</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={refresh}>↻ 刷新</button>
-          <button style={btnPrimary} onClick={fanout}>全量采集(异步)</button>
+          <button style={btnPrimary} disabled={fanoutBusy} onClick={fanout}>{fanoutBusy ? '入队中…' : '全量采集(异步)'}</button>
         </div>
       </header>
 

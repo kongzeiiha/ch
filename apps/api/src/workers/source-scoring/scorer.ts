@@ -1,4 +1,4 @@
-import { query, tx } from '@ch/db';
+import { query, tx, ITEM_STATUS as IS } from '@ch/db';
 
 /**
  * Pure SQL scorer. No LLM, no external calls. Reads item-flow signals we
@@ -31,9 +31,9 @@ export async function scoreAllSources(): Promise<{
           SELECT
             source_id,
             COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE status = 'PUBLISHED')         AS published,
-            COUNT(*) FILTER (WHERE status = 'COMPLIANCE_FAIL')   AS compliance_fail,
-            COUNT(*) FILTER (WHERE status = 'COMPLIANCE_REVIEW') AS compliance_review,
+            COUNT(*) FILTER (WHERE status = '${IS.PUBLISHED}')         AS published,
+            COUNT(*) FILTER (WHERE status = '${IS.COMPLIANCE_FAIL}')   AS compliance_fail,
+            COUNT(*) FILTER (WHERE status = '${IS.COMPLIANCE_REVIEW}') AS compliance_review,
             COUNT(*) FILTER (WHERE created_at > NOW() - interval '7 days') AS recent_ingested
           FROM items
           GROUP BY source_id

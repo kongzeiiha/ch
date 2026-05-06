@@ -1,4 +1,4 @@
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 
 /**
  * GA4 Data API integration (T+1 pull).
@@ -93,8 +93,8 @@ export async function pullAnalyticsYesterday(): Promise<AnalyticsPullResult> {
   // Resolve slug → item_id
   const slugs = ga4Rows.map((r) => r.slug);
   const itemRows = await query<{ id: string; slug: string }>(
-    `SELECT id, slug FROM items WHERE slug = ANY($1) AND status IN ('PUBLISHED', 'DISTRIBUTED')`,
-    [slugs],
+    `SELECT id, slug FROM items WHERE slug = ANY($1) AND status = ANY($2::text[])`,
+    [slugs, [IS.PUBLISHED, IS.DISTRIBUTED]],
   );
   const slugToId = new Map(itemRows.map((r) => [r.slug, r.id]));
 

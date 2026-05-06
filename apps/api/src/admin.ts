@@ -4,6 +4,14 @@ import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import type { IngestionJob } from './workers/ingestion/index.js';
 import { ingestSource } from './workers/ingestion/index.js';
 import { logOperation } from './op-log.js';
+import {
+  sourceCreateBody,
+  sourcePatchBody,
+  credentialCreateBody,
+  credentialPatchBody,
+  credentialSecretBody,
+  batchImportBody,
+} from './admin-validate.js';
 
 /**
  * Validate source config against its platform. Returns null when valid, or
@@ -11,7 +19,7 @@ import { logOperation } from './op-log.js';
  * (create) and PATCH (update) so a malformed source can never enter the queue
  * and waste retry budget like the bf306848 bug did.
  */
-function validateSourceConfig(platform: string, config: Record<string, unknown> | null | undefined): string | null {
+export function validateSourceConfig(platform: string, config: Record<string, unknown> | null | undefined): string | null {
   const cfg = config ?? {};
   const isNonEmptyString = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
   const isNonEmptyArray = (v: unknown): v is unknown[] => Array.isArray(v) && v.length > 0;
@@ -120,6 +128,7 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
   // Create source
   app.post<{ Body: { platform: string; external_id: string; name: string; url: string; config: Record<string, unknown> } }>(
     '/admin/sources',
+    { schema: { body: sourceCreateBody } },
     async (req, reply) => {
       const { platform, external_id, name, url, config } = req.body;
       const err = validateSourceConfig(platform, config);
@@ -173,9 +182,9 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
 
   app.post<{ Body: { platform: string; name: string; cookie?: string; user_agent?: string } }>(
     '/admin/credentials',
+    { schema: { body: credentialCreateBody } },
     async (req, reply) => {
-      const { platform, name, cookie, user_agent } = req.body ?? ({} as any);
-      if (!platform || !name) return reply.code(400).send({ error: 'platform 和 name 必填' });
+      const { platform, name, cookie, user_agent } = req.body;
       if (platform !== 'x' && platform !== 'knit' && platform !== 'bluesky') {
         return reply.code(400).send({ error: `凭证池目前支持 platform: x / knit / bluesky` });
       }
@@ -205,12 +214,10 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     Body: { name?: string; cookie?: string; user_agent?: string; status?: string };
   }>(
     '/admin/credentials/:id',
+    { schema: { body: credentialPatchBody } },
     async (req, reply) => {
       const { id } = req.params;
       const { name, cookie, user_agent, status } = req.body ?? ({} as any);
-      if (status && !['active', 'expired', 'revoked'].includes(status)) {
-        return reply.code(400).send({ error: 'status 必须是 active / expired / revoked' });
-      }
       const rows = await query(
         `UPDATE credentials SET
            name       = COALESCE($2, name),
@@ -231,13 +238,21 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       // again next cycle. Without this, status flips back but failures stay
       // at 3 and the scan keeps skipping it.
       if (status === 'active') {
-        await query(
-          `UPDATE credential_secrets SET
-             consecutive_failures = 0,
-             last_refresh_error = NULL
-           WHERE credential_id = $1`,
-          [id],
-        ).catch(() => { /* secret may not exist */ });
+        try {
+          await query(
+            `UPDATE credential_secrets SET
+               consecutive_failures = 0,
+               last_refresh_error = NULL
+             WHERE credential_id = $1`,
+            [id],
+          );
+        } catch (e: any) {
+          // 42P01 = undefined_table — tolerate if migration 0011 hasn't been
+          // applied yet. Anything else (FK, connection, lock) is a real error
+          // and must surface; silently swallowing them is what the previous
+          // bare .catch() did and it masked operational failures.
+          if (e?.code !== '42P01') throw e;
+        }
       }
       return { credential: rows[0] };
     },
@@ -261,12 +276,10 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string }; Body: { username: string; password: string } }>(
     '/admin/credentials/:id/secret',
+    { schema: { body: credentialSecretBody } },
     async (req, reply) => {
       const { id } = req.params;
-      const { username, password } = req.body ?? ({} as any);
-      if (!username || !password) {
-        return reply.code(400).send({ error: 'username 和 password 必填' });
-      }
+      const { username, password } = req.body;
       // Verify the credential exists first; FK would catch this but the error
       // is clearer this way.
       const cred = await query<{ platform: string }>(
@@ -367,14 +380,9 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     };
   }>(
     '/admin/sources/batch-import',
+    { schema: { body: batchImportBody } },
     async (req, reply) => {
-      const { platform, handles, sharedConfig = {}, credentialId, triggerFetch = false } = req.body ?? ({} as any);
-      if (platform !== 'x' && platform !== 'bluesky' && platform !== 'reddit') {
-        return reply.code(400).send({ error: 'platform 必须是 "x" / "bluesky" / "reddit"' });
-      }
-      if (!Array.isArray(handles) || handles.length === 0) {
-        return reply.code(400).send({ error: 'handles 必须是非空数组' });
-      }
+      const { platform, handles, sharedConfig = {}, credentialId, triggerFetch = false } = req.body;
 
       // Normalize, dedupe, drop blanks. X/Bluesky handles are case-insensitive
       // and may be pasted with leading @ or surrounding whitespace. Reddit
@@ -512,9 +520,10 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
   // Update source
   app.patch<{ Params: { id: string }; Body: { name?: string; url?: string; status?: string; config?: Record<string, unknown> } }>(
     '/admin/sources/:id',
+    { schema: { body: sourcePatchBody } },
     async (req, reply) => {
       const { id } = req.params;
-      const { name, url, status, config } = req.body;
+      const { name, url, status, config } = req.body ?? ({} as any);
       // If config is being changed, validate it against the source's current
       // platform (config alone could turn a good source bad).
       if (config !== undefined) {
@@ -692,16 +701,25 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         'User-Agent': ua,
         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
       };
+
+      // Allowed hostnames per platform for cookie forwarding. Cookies must
+      // never be forwarded to a hostname that doesn't belong to the platform —
+      // that would let an authenticated admin exfiltrate platform credentials.
+      const COOKIE_ALLOWED: Record<string, RegExp> = {
+        knit: /(?:^|\.)knit\.bid$/,
+        x:    /(?:^|\.)(?:twimg\.com|x\.com|twitter\.com)$/,
+      };
+      let remoteHost = '';
+      try { remoteHost = new URL(remoteUrl).hostname; } catch { /* invalid url caught earlier */ }
+
       if (platform === '2ksg') {
         headers['Referer'] = (cfg.referer as string) || 'https://uib.2ksg.com/';
       } else if (platform === 'knit') {
         headers['Referer'] = 'https://xx.knit.bid/';
-        if (cfg.cookie) headers['Cookie'] = cfg.cookie as string;
+        if (cfg.cookie && COOKIE_ALLOWED.knit.test(remoteHost)) headers['Cookie'] = cfg.cookie as string;
       } else if (platform === 'x') {
-        // X media (pbs.twimg.com / video.twimg.com) accepts no-Referer, but
-        // logged-in cookies help avoid intermittent NSFW gating on photos.
         headers['Referer'] = 'https://x.com/';
-        if (cfg.cookie) headers['Cookie'] = cfg.cookie as string;
+        if (cfg.cookie && COOKIE_ALLOWED.x.test(remoteHost)) headers['Cookie'] = cfg.cookie as string;
       }
 
       try {

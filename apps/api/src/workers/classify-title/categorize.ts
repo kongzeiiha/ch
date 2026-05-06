@@ -1,5 +1,7 @@
-import { callClaude, type Model } from '@ch/agents';
+import { callClaude, sanitizeForPrompt, type Model } from '@ch/agents';
 import { CATEGORIES, TAXONOMY_PROMPT, type Category } from './taxonomy.js';
+
+export const PROMPT_VERSION = 'v1';
 
 export interface Classified {
   category: Category;
@@ -110,9 +112,9 @@ export async function classify(
   input: { title: string | null; content: string },
   opts: { model?: Model } = {},
 ) {
-  const content = input.content.slice(0, MAX_CONTENT);
+  const content = sanitizeForPrompt(input.content, MAX_CONTENT);
   const userText = [
-    input.title ? `标题:${input.title}` : null,
+    input.title ? `标题:${sanitizeForPrompt(input.title, 200)}` : null,
     `正文:\n${content}`,
   ]
     .filter(Boolean)

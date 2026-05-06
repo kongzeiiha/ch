@@ -7,6 +7,19 @@ export interface RunOptions {
   inputHash?: string | null;
 }
 
+// Optional Sentry span provider — registered at startup by apps/api/sentry.ts.
+// When set, every withRun() call is wrapped in a Sentry span so the full agent
+// pipeline appears as linked traces rather than isolated captureException calls.
+type SpanFn = <T>(
+  opName: string,
+  attrs: Record<string, string>,
+  fn: () => Promise<T>,
+) => Promise<T>;
+let _spanProvider: SpanFn | null = null;
+export function setSpanProvider(fn: SpanFn): void {
+  _spanProvider = fn;
+}
+
 export interface RunResult<T> {
   output: T;
   model?: string;
@@ -36,7 +49,13 @@ export async function withRun<T>(
   );
 
   try {
-    const res = await fn();
+    const res = _spanProvider
+      ? await _spanProvider(
+          opts.agent,
+          { 'agent.name': opts.agent, 'item.id': String(opts.itemId ?? '') },
+          fn,
+        )
+      : await fn();
     await query(
       `UPDATE agent_runs SET
          status            = 'success',

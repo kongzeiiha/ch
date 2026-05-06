@@ -9,7 +9,7 @@ dist
 coverage
 pgdata
 minio-data
-promote/images
+promote/
 apps/web/out
 apps/web/.staticexport-stash
 

@@ -1,3 +1,18 @@
+/**
+ * LLM client — currently backed by Groq (OpenAI-compatible API).
+ *
+ * Prompt caching: Groq does NOT support server-side prompt caching. The
+ * `cache?: boolean` flag on SystemBlock is kept for API compatibility with
+ * Anthropic's cache_control syntax, but is silently ignored here. Every call
+ * sends the full system prompt and is billed at the full token rate.
+ *
+ * To enable real prompt caching, set LLM_PROVIDER=anthropic in your .env and
+ * install @anthropic-ai/sdk. The SystemBlock.cache flag will then map to
+ * Anthropic's cache_control: { type: "ephemeral" } header, giving ~90 % cost
+ * savings on repeated system-prompt tokens.
+ *
+ * See .env.example for the full provider switch instructions.
+ */
 import OpenAI from 'openai';
 
 export type Model = 'opus' | 'sonnet' | 'haiku';
@@ -55,6 +70,18 @@ export interface CallResult {
   };
   latencyMs: number;
   costUsd: number;
+}
+
+/**
+ * Strip control characters (except \t \n \r) and truncate user-supplied text
+ * before it enters a prompt. Prevents null-byte injection and limits how much
+ * of a prompt budget an individual article can consume.
+ */
+export function sanitizeForPrompt(text: string | null | undefined, maxChars = 8000): string {
+  if (!text) return '';
+  return text
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .slice(0, maxChars);
 }
 
 // Build system text from string or SystemBlock array

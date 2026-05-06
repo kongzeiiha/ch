@@ -6,10 +6,13 @@ import { NextResponse } from 'next/server';
  * updates `items.published_url` so the article / home / sitemap drop cache.
  *
  * Auth: shared secret via header. Set REVALIDATE_SECRET in both api and web
- * .env. Falls back to 'dev' for local.
+ * .env.
  */
 export async function POST(req: Request) {
-  const expected = process.env.REVALIDATE_SECRET ?? 'dev';
+  const expected = process.env.REVALIDATE_SECRET;
+  if (!expected) {
+    return NextResponse.json({ error: 'revalidation not configured' }, { status: 503 });
+  }
   const got = req.headers.get('x-revalidate-secret');
   if (got !== expected) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

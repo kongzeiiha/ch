@@ -96,5 +96,5 @@ export async function pickTopN(urls: string[], n: number, hint?: SourceHeaderHin
   const scored = await Promise.all(capped.map((u) => scoreOne(u, hint)));
   const valid = scored.filter((c): c is Candidate => c !== null);
   valid.sort((a, b) => b.score - a.score);
-  return valid.slice(0, Math.max(1, n));
+  return valid.slice(0, n);
 }

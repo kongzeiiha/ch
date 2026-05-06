@@ -42,8 +42,9 @@ async function checkLlmFailRate(): Promise<AlertResult[]> {
     `SELECT COUNT(*)::int AS total,
             COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
      FROM agent_runs
-     WHERE started_at >= NOW() - INTERVAL '${LLM_FAIL_WINDOW_MINUTES} minutes'
+     WHERE started_at >= NOW() - ($1 * INTERVAL '1 minute')
        AND agent NOT IN ('ingestion:fanout', 'source-scoring')`,
+    [LLM_FAIL_WINDOW_MINUTES],
   );
   const { total, failed } = rows[0] ?? { total: 0, failed: 0 };
   if (total === 0) {

@@ -74,6 +74,7 @@ export default function Day6Page() {
   const [report, setReport] = useState<string>('');
   const [showReport, setShowReport] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
   const load = useCallback(async () => {
@@ -99,6 +100,7 @@ export default function Day6Page() {
   useEffect(() => { load(); }, [load]);
 
   const action = async (url: string, label: string) => {
+    setBusy(true);
     setMsg(`${label}...`);
     try {
       const r = await fetch(url, { method: 'POST' });
@@ -107,10 +109,13 @@ export default function Day6Page() {
       await load();
     } catch (e) {
       setMsg(`${label} 失败: ${e}`);
+    } finally {
+      setBusy(false);
     }
   };
 
   const loadReport = async () => {
+    setBusy(true);
     setMsg('生成周报...');
     try {
       const r = await fetch(`${API}/admin/distribution/report`).then((r) => r.json());
@@ -119,6 +124,8 @@ export default function Day6Page() {
       setMsg('');
     } catch (e) {
       setMsg(`周报生成失败: ${e}`);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -134,9 +141,9 @@ export default function Day6Page() {
         <span style={{ fontSize: 13, color: '#64748b' }}>分发 & Analytics</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
-          <button style={btnViolet} onClick={loadReport}>生成周报</button>
-          <button style={btnGreen} onClick={() => action(`${API}/admin/distribution/analytics-pull`, 'GA4 拉取')}>拉取 GA4 数据</button>
-          <button style={btnPrimary} onClick={() => action(`${API}/admin/distribution/distribute-all`, '批量分发')}>批量生成推文</button>
+          <button style={btnViolet} disabled={busy} onClick={loadReport}>{busy ? '处理中…' : '生成周报'}</button>
+          <button style={btnGreen} disabled={busy} onClick={() => action(`${API}/admin/distribution/analytics-pull`, 'GA4 拉取')}>{busy ? '处理中…' : '拉取 GA4 数据'}</button>
+          <button style={btnPrimary} disabled={busy} onClick={() => action(`${API}/admin/distribution/distribute-all`, '批量分发')}>{busy ? '处理中…' : '批量生成推文'}</button>
         </div>
       </header>
 

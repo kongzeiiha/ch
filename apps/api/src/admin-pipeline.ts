@@ -9,9 +9,10 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { logOperation } from './op-log.js';
+import { revalidatePaths } from './workers/publishing/revalidate.js';
 
 // ── In-memory automation state (single-process MVP) ───────────────────────
 // Key = agent key (see AGENT_KEYS below), value = true/false
@@ -33,52 +34,65 @@ export function setGlobalStop(v: boolean) { globalStop = v; }
 
 // Status → agent that processes it next
 const STATUS_TO_AGENT: Record<string, string> = {
-  INGESTED:          'classify-title',
-  CLASSIFIED:        'classify-title', // legacy backlog — picked up to finish title step
-  TITLED:            'cover',
-  COVERED:           'compliance',
-  COMPLIANCE_PASS:   'publishing',
-  PUBLISHED:         'distribution',
+  [IS.INGESTED]:         'classify-title',
+  [IS.CLASSIFIED]:       'classify-title', // legacy backlog — picked up to finish title step
+  [IS.TITLED]:           'cover',
+  [IS.COVERED]:          'compliance',
+  [IS.COMPLIANCE_PASS]:  'publishing',
+  [IS.PUBLISHED]:        'distribution',
 };
 
 // Agent → queue action
 const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
   'classify-title': async () => {
     const items = await query<{ id: string }>(
-      `SELECT id FROM items WHERE status IN ('INGESTED', 'CLASSIFIED') LIMIT 200`,
+      `SELECT id FROM items WHERE status = ANY($1::text[]) LIMIT 200`,
+      [[IS.INGESTED, IS.CLASSIFIED]],
     );
-    const q = getQueue(QUEUE_NAMES.classifyTitle);
-    for (const { id } of items) await q.add('classify-title', { itemId: id }, { jobId: `classify-title__${id}` });
+    if (items.length === 0) return { queued: 0 };
+    await getQueue(QUEUE_NAMES.classifyTitle).addBulk(
+      items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}` } })),
+    );
     return { queued: items.length };
   },
   cover: async () => {
-    const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='TITLED' LIMIT 200`);
-    const q = getQueue(QUEUE_NAMES.cover);
-    for (const { id } of items) await q.add('cover', { itemId: id }, { jobId: `cover__${id}` });
+    const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.TITLED]);
+    if (items.length === 0) return { queued: 0 };
+    await getQueue(QUEUE_NAMES.cover).addBulk(
+      items.map(({ id }) => ({ name: 'cover', data: { itemId: id }, opts: { jobId: `cover__${id}` } })),
+    );
     return { queued: items.length };
   },
   compliance: async () => {
-    const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='COVERED' LIMIT 200`);
-    const q = getQueue(QUEUE_NAMES.compliance);
-    for (const { id } of items) await q.add('compliance', { itemId: id }, { jobId: `compliance__${id}` });
+    const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.COVERED]);
+    if (items.length === 0) return { queued: 0 };
+    await getQueue(QUEUE_NAMES.compliance).addBulk(
+      items.map(({ id }) => ({ name: 'compliance', data: { itemId: id }, opts: { jobId: `compliance__${id}` } })),
+    );
     return { queued: items.length };
   },
   publishing: async () => {
     const items = await query<{ id: string }>(
-      `SELECT id FROM items WHERE status='COMPLIANCE_PASS' AND slug IS NOT NULL LIMIT 200`,
+      `SELECT id FROM items WHERE status = $1 AND slug IS NOT NULL LIMIT 200`,
+      [IS.COMPLIANCE_PASS],
     );
-    const q = getQueue(QUEUE_NAMES.publishing);
-    for (const { id } of items) await q.add('publish', { itemId: id }, { jobId: `publish__${id}` });
+    if (items.length === 0) return { queued: 0 };
+    await getQueue(QUEUE_NAMES.publishing).addBulk(
+      items.map(({ id }) => ({ name: 'publish', data: { itemId: id }, opts: { jobId: `publish__${id}` } })),
+    );
     return { queued: items.length };
   },
   distribution: async () => {
     const items = await query<{ id: string }>(
-      `SELECT id FROM items WHERE status='PUBLISHED'
-       AND id NOT IN (SELECT DISTINCT item_id FROM distribution_tasks WHERE channel='twitter')
+      `SELECT id FROM items WHERE status = $1
+       AND NOT EXISTS (SELECT 1 FROM distribution_tasks WHERE item_id=items.id AND channel='twitter')
        LIMIT 100`,
+      [IS.PUBLISHED],
     );
-    const q = getQueue(QUEUE_NAMES.distribution);
-    for (const { id } of items) await q.add('distribute', { itemId: id, channel: 'twitter' }, { jobId: `dist__twitter__${id}` });
+    if (items.length === 0) return { queued: 0 };
+    await getQueue(QUEUE_NAMES.distribution).addBulk(
+      items.map(({ id }) => ({ name: 'distribute', data: { itemId: id, channel: 'twitter' }, opts: { jobId: `dist__twitter__${id}` } })),
+    );
     return { queued: items.length };
   },
   'source-scoring': async () => {
@@ -100,14 +114,14 @@ const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
 
 // Rollback map: status → previous status + fields to clear
 const ROLLBACK_MAP: Record<string, { toStatus: string; clearFields?: string[] }> = {
-  CLASSIFIED:        { toStatus: 'INGESTED',         clearFields: ['category', 'tags', 'keywords'] },
-  TITLED:            { toStatus: 'INGESTED',         clearFields: ['category', 'tags', 'keywords', 'title', 'summary', 'slug'] },
-  COVERED:           { toStatus: 'TITLED',           clearFields: ['cover_url', 'cover_sizes', 'cover_copy'] },
-  COMPLIANCE_PASS:   { toStatus: 'COVERED',           clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
-  COMPLIANCE_FAIL:   { toStatus: 'COVERED',           clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
-  COMPLIANCE_REVIEW: { toStatus: 'COVERED',           clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
-  PUBLISHED:         { toStatus: 'COMPLIANCE_PASS',   clearFields: ['published_url', 'published_at'] },
-  DISTRIBUTED:       { toStatus: 'PUBLISHED' },
+  [IS.CLASSIFIED]:        { toStatus: IS.INGESTED,        clearFields: ['category', 'tags', 'keywords'] },
+  [IS.TITLED]:            { toStatus: IS.INGESTED,        clearFields: ['category', 'tags', 'keywords', 'title', 'summary', 'slug'] },
+  [IS.COVERED]:           { toStatus: IS.TITLED,          clearFields: ['cover_url', 'cover_sizes', 'cover_copy'] },
+  [IS.COMPLIANCE_PASS]:   { toStatus: IS.COVERED,         clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
+  [IS.COMPLIANCE_FAIL]:   { toStatus: IS.COVERED,         clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
+  [IS.COMPLIANCE_REVIEW]: { toStatus: IS.COVERED,         clearFields: ['compliance_status', 'risk_tags', 'compliance_reasons'] },
+  [IS.PUBLISHED]:         { toStatus: IS.COMPLIANCE_PASS, clearFields: ['published_url', 'published_at'] },
+  [IS.DISTRIBUTED]:       { toStatus: IS.PUBLISHED },
 };
 
 export async function registerPipelineAdmin(app: FastifyInstance) {
@@ -121,10 +135,12 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     const pendingMap = Object.fromEntries(pending.map((r) => [r.status, r.cnt]));
 
     const reviewQueue = await query<{ cnt: number }>(
-      `SELECT COUNT(*)::int AS cnt FROM items WHERE status='COMPLIANCE_REVIEW'`,
+      `SELECT COUNT(*)::int AS cnt FROM items WHERE status = $1`,
+      [IS.COMPLIANCE_REVIEW],
     );
     const publishQueue = await query<{ cnt: number }>(
-      `SELECT COUNT(*)::int AS cnt FROM items WHERE status='COMPLIANCE_PASS'`,
+      `SELECT COUNT(*)::int AS cnt FROM items WHERE status = $1`,
+      [IS.COMPLIANCE_PASS],
     );
 
     return {
@@ -219,21 +235,23 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
        FROM items i
        JOIN sources s ON s.id = i.source_id
        JOIN raw_items r ON r.id = i.raw_item_id
-       WHERE i.status = 'COMPLIANCE_REVIEW'
+       WHERE i.status = $1
        ORDER BY i.updated_at DESC`,
+      [IS.COMPLIANCE_REVIEW],
     );
     return { items };
   });
 
   // Approve compliance review → COMPLIANCE_PASS + optionally queue for publishing
-  app.post('/admin/pipeline/approve-review/:itemId', async (req) => {
+  app.post('/admin/pipeline/approve-review/:itemId', async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
-    await query(
-      `UPDATE items SET status='COMPLIANCE_PASS', compliance_status='manual_pass'
-       WHERE id=$1 AND status='COMPLIANCE_REVIEW'`,
-      [itemId],
+    const [updated] = await query<{ id: string }>(
+      `UPDATE items SET status=$2, compliance_status='manual_pass'
+       WHERE id=$1 AND status=$3
+       RETURNING id`,
+      [itemId, IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW],
     );
-    // Record human decision in agent_runs
+    if (!updated) return reply.status(409).send({ error: 'item not in compliance_review state' });
     await query(
       `INSERT INTO agent_runs (agent, item_id, status, output, finished_at)
        VALUES ('human:review', $1, 'success', '{"decision":"approve"}', NOW())`,
@@ -249,14 +267,16 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
   });
 
   // Reject compliance review → COMPLIANCE_FAIL
-  app.post('/admin/pipeline/reject-review/:itemId', async (req) => {
+  app.post('/admin/pipeline/reject-review/:itemId', async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
     const { reason } = (req.body as { reason?: string }) ?? {};
-    await query(
-      `UPDATE items SET status='COMPLIANCE_FAIL', compliance_status='manual_fail'
-       WHERE id=$1 AND status='COMPLIANCE_REVIEW'`,
-      [itemId],
+    const [updated] = await query<{ id: string }>(
+      `UPDATE items SET status=$2, compliance_status='manual_fail'
+       WHERE id=$1 AND status=$3
+       RETURNING id`,
+      [itemId, IS.COMPLIANCE_FAIL, IS.COMPLIANCE_REVIEW],
     );
+    if (!updated) return reply.status(409).send({ error: 'item not in compliance_review state' });
     await query(
       `INSERT INTO agent_runs (agent, item_id, status, output, error, finished_at)
        VALUES ('human:review', $1, 'success', '{"decision":"reject"}', $2, NOW())`,
@@ -280,8 +300,9 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       `SELECT i.id, i.title, i.category, i.slug, i.cover_url, i.cover_sizes, i.summary,
               s.name AS source
        FROM items i JOIN sources s ON s.id = i.source_id
-       WHERE i.status = 'COMPLIANCE_PASS'
+       WHERE i.status = $1
        ORDER BY i.updated_at DESC`,
+      [IS.COMPLIANCE_PASS],
     );
     return { items };
   });
@@ -290,27 +311,29 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
   app.post('/admin/pipeline/approve-publish', async (req) => {
     const { itemIds } = req.body as { itemIds?: string[] };
     const candidates = itemIds
-      ? await query<{ id: string }>(`SELECT id FROM items WHERE id=ANY($1) AND status='COMPLIANCE_PASS'`, [itemIds])
-      : await query<{ id: string }>(`SELECT id FROM items WHERE status='COMPLIANCE_PASS' LIMIT 200`);
+      ? await query<{ id: string }>(`SELECT id FROM items WHERE id=ANY($1) AND status=$2`, [itemIds, IS.COMPLIANCE_PASS])
+      : await query<{ id: string }>(`SELECT id FROM items WHERE status=$1 LIMIT 200`, [IS.COMPLIANCE_PASS]);
 
-    const q = getQueue(QUEUE_NAMES.publishing);
-    const queuedIds: string[] = [];
-    for (const { id } of candidates) {
-      await q.add('publish', { itemId: id }, { jobId: `publish__${id}` });
-      await query(
-        `INSERT INTO agent_runs (agent, item_id, status, output, finished_at)
-         VALUES ('human:publish-gate', $1, 'success', '{"decision":"approve"}', NOW())`,
-        [id],
-      );
-      queuedIds.push(id);
-      // Per-item operation log so single-item history shows the publish event.
-      await logOperation(req, {
+    if (candidates.length === 0) return { queued: 0 };
+    const ids = candidates.map((c) => c.id);
+
+    await getQueue(QUEUE_NAMES.publishing).addBulk(
+      ids.map((id) => ({ name: 'publish', data: { itemId: id }, opts: { jobId: `publish__${id}` } })),
+    );
+    await query(
+      `INSERT INTO agent_runs (agent, item_id, status, output, finished_at)
+       SELECT 'human:publish-gate', unnest($1::uuid[]), 'success', '{"decision":"approve"}', NOW()`,
+      [ids],
+    );
+    // Per-item operation log so single-item history shows the publish event.
+    await Promise.all(ids.map((id) =>
+      logOperation(req, {
         operation: 'publish.approve',
         targetType: 'item',
         targetId: id,
         payload: { batch: itemIds ? true : false },
-      });
-    }
+      }),
+    ));
     return { queued: candidates.length };
   });
 
@@ -342,10 +365,10 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       [taskId],
     );
     await query(
-      `UPDATE items SET status='DISTRIBUTED'
+      `UPDATE items SET status=$2
        WHERE id=(SELECT item_id FROM distribution_tasks WHERE id=$1)
-         AND status='PUBLISHED'`,
-      [taskId],
+         AND status=$3`,
+      [taskId, IS.DISTRIBUTED, IS.PUBLISHED],
     );
     await logOperation(req, {
       operation: 'distribution.confirm',
@@ -364,8 +387,8 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
 
   app.post('/admin/pipeline/rollback/:itemId', async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
-    const rows = await query<{ id: string; status: string }>(
-      `SELECT id, status FROM items WHERE id=$1`,
+    const rows = await query<{ id: string; status: string; slug: string | null; category: string | null }>(
+      `SELECT id, status, slug, category FROM items WHERE id=$1`,
       [itemId],
     );
     const item = rows[0];
@@ -374,7 +397,7 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     const rb = ROLLBACK_MAP[item.status];
     if (!rb) return reply.status(400).send({ error: `no rollback defined for status=${item.status}` });
 
-    const clearSet = rb.clearFields?.map((f) => `${f}=NULL`).join(', ');
+    const clearSet = rb.clearFields?.map((f) => `"${f}"=NULL`).join(', ');
     const sql = `UPDATE items SET status=$2${clearSet ? `, ${clearSet}` : ''} WHERE id=$1`;
     await query(sql, [itemId, rb.toStatus]);
 
@@ -385,7 +408,15 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     );
     // PUBLISHED → COMPLIANCE_PASS rollback is the "紧急下线" path. Tag it
     // distinctly so the audit log can call it out vs. ordinary state rollback.
-    const isUnpublish = item.status === 'PUBLISHED';
+    const isUnpublish = item.status === IS.PUBLISHED;
+    // Drop the article from Next.js ISR cache so it actually disappears from
+    // the live site — without this the row is unpublished in DB but the page
+    // keeps serving from cache until the next regen.
+    if (isUnpublish && item.slug) {
+      const paths = ['/', `/a/${item.slug}`, '/sitemap.xml'];
+      if (item.category) paths.push(`/category/${encodeURIComponent(item.category)}`);
+      await revalidatePaths(paths);
+    }
     await logOperation(req, {
       operation: isUnpublish ? 'item.unpublish' : 'item.rollback',
       targetType: 'item',
@@ -490,19 +521,25 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     const active: Record<string, Array<{ itemId: string | null; label: string; since: string | null }>> = {};
     const itemIdsToLookup = new Set<string>();
 
-    // Pass 1: collect active jobs, remember item IDs that need titles
-    const perAgentActive: Array<{ key: string; jobs: Array<{ itemId: string | null; raw: any; since: string | null }> }> = [];
-    for (const { key, queue } of AGENT_QUEUES) {
-      const q = getQueue(QUEUE_NAMES[queue] as any);
-      const jobs = await q.getActive(0, 8);
-      const decoded = jobs.map((j) => {
-        const d = j.data as any;
-        const itemId: string | null = d?.itemId ?? null;
-        const since = j.processedOn ? new Date(j.processedOn).toISOString() : null;
-        if (itemId) itemIdsToLookup.add(itemId);
-        return { itemId, raw: d, since };
-      });
-      perAgentActive.push({ key, jobs: decoded });
+    // Pass 1: fetch active jobs from all 8 queues in parallel
+    const perAgentActive = await Promise.all(
+      AGENT_QUEUES.map(async ({ key, queue }) => {
+        const jobs = await getQueue(QUEUE_NAMES[queue] as any).getActive(0, 8);
+        const decoded = jobs.map((j) => {
+          const d = j.data as any;
+          return {
+            itemId: (d?.itemId ?? null) as string | null,
+            raw: d,
+            since: j.processedOn ? new Date(j.processedOn).toISOString() : null,
+          };
+        });
+        return { key, jobs: decoded };
+      }),
+    );
+    for (const { jobs } of perAgentActive) {
+      for (const j of jobs) {
+        if (j.itemId) itemIdsToLookup.add(j.itemId);
+      }
     }
 
     // Batch lookup item titles

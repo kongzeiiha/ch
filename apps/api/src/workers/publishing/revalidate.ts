@@ -6,7 +6,11 @@ import axios from 'axios';
  */
 export async function revalidatePaths(paths: string[]): Promise<void> {
   const base = process.env.WEB_URL ?? 'http://localhost:3000';
-  const secret = process.env.REVALIDATE_SECRET ?? 'dev';
+  const secret = process.env.REVALIDATE_SECRET;
+  if (!secret) {
+    console.warn('[publishing] REVALIDATE_SECRET not set — skipping cache revalidation');
+    return;
+  }
   try {
     await axios.post(
       `${base}/api/revalidate`,

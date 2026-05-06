@@ -26,13 +26,14 @@ const { registerCoverCompliance } = await import('./admin-cover-compliance.js');
 const { registerPublishing } = await import('./admin-publishing.js');
 const { registerDistribution } = await import('./admin-distribution.js');
 const { registerOps } = await import('./admin-ops.js');
-const { initSentry, captureException } = await import('./sentry.js');
+const { initSentry, captureException, flushSentry } = await import('./sentry.js');
 const { startAlertPoller } = await import('./alerts.js');
 const { setupScheduler } = await import('./scheduler.js');
 const { registerPipelineAdmin } = await import('./admin-pipeline.js');
 const { startAutoPipeline, stopAutoPipeline } = await import('./auto-pipeline.js');
 const { registerOpLogHook, registerOpLogAdmin } = await import('./op-log.js');
 const { registerFeedbackAdmin } = await import('./admin-feedback.js');
+const { registerAdminAuth } = await import('./admin-auth.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
 
@@ -76,6 +77,9 @@ async function main(): Promise<void> {
   registerOpLogHook(app);
   await registerOpLogAdmin(app);
 
+  // Auth MUST come before all admin route registrations.
+  registerAdminAuth(app);
+
   await registerAdmin(app);
   await registerInfra(app);
   await registerSourceScoring(app);
@@ -87,10 +91,12 @@ async function main(): Promise<void> {
   await registerPipelineAdmin(app);
   await registerFeedbackAdmin(app);
 
-  const workers = startWorkers();
-  app.log.info(`workers started: ${workers.length}`);
+  // In production, run workers in a separate process via `start:worker`.
+  // Set DISABLE_WORKERS=1 to decouple HTTP from queue processing.
+  const workers = process.env.DISABLE_WORKERS !== '1' ? startWorkers() : [];
+  if (workers.length) app.log.info(`workers started: ${workers.length}`);
 
-  startAlertPoller();
+  const alertTimer = startAlertPoller();
   if (process.env.DISABLE_AUTO_PIPELINE !== '1') startAutoPipeline();
 
   if (process.env.DISABLE_SCHEDULER !== '1') {
@@ -98,14 +104,16 @@ async function main(): Promise<void> {
     app.log.info(`scheduler: ingestion fanout cron=${process.env.INGESTION_CRON ?? '0 * * * *'}`);
   }
 
-  await app.listen({ port, host: '0.0.0.0' });
+  await app.listen({ port, host: '::' });
 
   const shutdown = async (): Promise<void> => {
     app.log.info('shutting down...');
     stopAutoPipeline();
+    clearInterval(alertTimer);
     await app.close();
     await Promise.all(workers.map((w) => w.close()));
     await closeAll();
+    await flushSentry();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);

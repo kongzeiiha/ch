@@ -8,9 +8,10 @@ import {
   dedupeKey as makeDedupeKey,
   normalizeForHash,
   sha256,
-  urlAlreadySeen,
-  contentAlreadySeenForSource,
-  nearestSimhash,
+  seenDedupeKeys,
+  seenContentHashes,
+  loadSimhashes,
+  findNearestSimhash,
 } from './dedupe.js';
 import { persistIngested } from './persist.js';
 
@@ -66,46 +67,52 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
     ...authInfo,
   };
 
-  for (const c of candidates) {
-    try {
-      const key = makeDedupeKey(source.platform, c.externalId);
-      if (await urlAlreadySeen(source.id, key)) {
-        stats.dupUrl++;
-        continue;
-      }
-      // Adapters that can't get a real article page (e.g. Google News SPA
-      // redirects) may supply plain `text` directly. In that case we skip
-      // Readability and build a minimal Cleaned struct from adapter output.
-      let cleaned: ReturnType<typeof clean> | null;
-      if (c.text && c.text.length >= 20) {
-        cleaned = {
-          title: c.title ?? null,
-          excerpt: c.text.slice(0, 220),
-          content: c.text,
-          contentHtml: `<p>${c.text}</p>`,
-          mediaUrls: c.mediaUrls ?? [],
-          length: c.text.length,
-        };
-      } else {
-        if (!c.html) {
-          stats.cleanFail++;
-          continue;
-        }
-        cleaned = clean(c.html, c.url);
-        if (!cleaned || cleaned.length < 200) {
-          stats.cleanFail++;
-          continue;
-        }
-      }
+  // ── Batch dedup pre-load (3 queries for the whole candidate set) ──────────
+  const allKeys = candidates.map((c) => makeDedupeKey(source.platform, c.externalId));
+  const knownKeys = await seenDedupeKeys(source.id, allKeys);
 
-      const contentHash = sha256(normalizeForHash(cleaned.content));
-      if (await contentAlreadySeenForSource(source.id, contentHash)) {
-        stats.dupContent++;
-        continue;
-      }
+  // Content hashes require cleaning first; pre-compute and filter in two passes.
+  // Pass 1: clean all candidates, drop URL dups immediately.
+  type Cleaned = ReturnType<typeof clean> & { length: number };
+  type CandidateWithHash = { c: typeof candidates[number]; key: string; cleaned: Cleaned; contentHash: string };
+  const toHashCheck: CandidateWithHash[] = [];
+
+  for (const c of candidates) {
+    const key = makeDedupeKey(source.platform, c.externalId);
+    if (knownKeys.has(key)) { stats.dupUrl++; continue; }
+
+    let cleaned: Cleaned | null;
+    if (c.text && c.text.length >= 20) {
+      const escapedText = c.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      cleaned = {
+        title: c.title ?? null,
+        excerpt: c.text.slice(0, 220),
+        content: c.text,
+        contentHtml: `<p>${escapedText}</p>`,
+        mediaUrls: c.mediaUrls ?? [],
+        length: c.text.length,
+      };
+    } else {
+      if (!c.html) { stats.cleanFail++; continue; }
+      cleaned = clean(c.html, c.url) as Cleaned | null;
+      if (!cleaned || cleaned.length < 200) { stats.cleanFail++; continue; }
+    }
+
+    const contentHash = sha256(normalizeForHash(cleaned.content));
+    toHashCheck.push({ c, key, cleaned, contentHash });
+  }
+
+  // Pass 2: batch content-hash check, then load simhashes once.
+  const knownHashes = await seenContentHashes(source.id, toHashCheck.map((x) => x.contentHash));
+  const simhashPool = await loadSimhashes(source.id);
+
+  for (const { c, key, cleaned, contentHash } of toHashCheck) {
+    try {
+      if (knownHashes.has(contentHash)) { stats.dupContent++; continue; }
+
       const fp = simhash(cleaned.content);
       if (!c.skipSimhash) {
-        const nearest = await nearestSimhash(source.id, fp);
+        const nearest = findNearestSimhash(fp, simhashPool);
         if (nearest && nearest.distance <= SIMHASH_THRESHOLD) {
           stats.dupContent++;
           continue;

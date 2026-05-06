@@ -85,6 +85,8 @@ export default function Day4Page() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -110,6 +112,7 @@ export default function Day4Page() {
   }, [refresh]);
 
   async function bulk(path: string, label: string) {
+    setBusy(true);
     try {
       const r = await getJSON<{ enqueued: number }>(`/api/admin/cover-compliance/${path}`, { method: 'POST' });
       setToast(`${label}:已入队 ${r.enqueued} 条`);
@@ -117,16 +120,21 @@ export default function Day4Page() {
       await refresh();
     } catch (e: any) {
       setErr(e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function retrigger(kind: 'recover' | 'recheck', id: string) {
+    setBusyId((b) => ({ ...b, [id]: true }));
     try {
       await getJSON<{ ok: true }>(`/api/admin/cover-compliance/${kind}/${id}`, { method: 'POST' });
       setToast(`已重新入队 ${kind}`);
       setTimeout(() => setToast(null), 2000);
     } catch (e: any) {
       setErr(e.message);
+    } finally {
+      setBusyId((b) => ({ ...b, [id]: false }));
     }
   }
 
@@ -143,8 +151,8 @@ export default function Day4Page() {
         <span style={{ fontSize: 13, color: '#64748b' }}>封面与合规</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link>
-          <button style={btn} onClick={() => bulk('cover-all', '封面')}>批量选封面 (TITLED)</button>
-          <button style={btnPrimary} onClick={() => bulk('compliance-all', '合规')}>批量合规 (COVERED)</button>
+          <button style={btn} disabled={busy} onClick={() => bulk('cover-all', '封面')}>{busy ? '处理中…' : '批量选封面 (TITLED)'}</button>
+          <button style={btnPrimary} disabled={busy} onClick={() => bulk('compliance-all', '合规')}>{busy ? '处理中…' : '批量合规 (COVERED)'}</button>
         </div>
       </header>
 
@@ -242,8 +250,8 @@ export default function Day4Page() {
                         : '—'}
                     </td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                      <button style={btn} onClick={() => retrigger('recover', it.id)}>重选封面</button>{' '}
-                      <button style={btn} onClick={() => retrigger('recheck', it.id)}>重跑合规</button>
+                      <button style={btn} disabled={!!busyId[it.id]} onClick={() => retrigger('recover', it.id)}>{busyId[it.id] ? '…' : '重选封面'}</button>{' '}
+                      <button style={btn} disabled={!!busyId[it.id]} onClick={() => retrigger('recheck', it.id)}>{busyId[it.id] ? '…' : '重跑合规'}</button>
                     </td>
                   </tr>
                 );

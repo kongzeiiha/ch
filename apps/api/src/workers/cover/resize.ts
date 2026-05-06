@@ -9,13 +9,16 @@ export const SIZES = {
 export type SizeName = keyof typeof SIZES;
 
 export async function renderSizes(buffer: Buffer): Promise<Record<SizeName, Buffer>> {
-  const out = {} as Record<SizeName, Buffer>;
-  for (const [name, { w, h }] of Object.entries(SIZES) as [SizeName, { w: number; h: number }][]) {
-    out[name] = await sharp(buffer)
-      .rotate()
-      .resize(w, h, { fit: 'cover', position: 'attention' })
-      .jpeg({ quality: 82, mozjpeg: true })
-      .toBuffer();
-  }
-  return out;
+  const entries = Object.entries(SIZES) as [SizeName, { w: number; h: number }][];
+  const rendered = await Promise.all(
+    entries.map(async ([name, { w, h }]) => {
+      const out = await sharp(buffer)
+        .rotate()
+        .resize(w, h, { fit: 'cover', position: 'attention' })
+        .jpeg({ quality: 82, mozjpeg: true })
+        .toBuffer();
+      return [name, out] as const;
+    }),
+  );
+  return Object.fromEntries(rendered) as Record<SizeName, Buffer>;
 }

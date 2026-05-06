@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 
 export async function registerCoverCompliance(app: FastifyInstance): Promise<void> {
@@ -41,11 +41,16 @@ export async function registerCoverCompliance(app: FastifyInstance): Promise<voi
   app.get<{ Querystring: { limit?: string; status?: string } }>('/admin/cover-compliance/items', async (req) => {
     const limit = Math.min(Number(req.query.limit ?? 30), 200);
     const status = req.query.status;
-    const params: any[] = [limit];
-    let where = `WHERE i.status IN ('TITLED','COVERED','COMPLIANCE_PASS','COMPLIANCE_REVIEW','COMPLIANCE_FAIL')`;
+    const COVER_STATUSES = [IS.TITLED, IS.COVERED, IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW, IS.COMPLIANCE_FAIL];
+    // $1 = status array (or single status), $2 = limit
+    let where: string;
+    let params: unknown[];
     if (status) {
-      params.push(status);
-      where = `WHERE i.status = $2`;
+      where = `WHERE i.status = $1`;
+      params = [status, limit];
+    } else {
+      where = `WHERE i.status = ANY($1::text[])`;
+      params = [COVER_STATUSES, limit];
     }
     const rows = await query(
       `SELECT i.id, i.status, i.title, i.category, i.cover_url, i.cover_sizes,
@@ -54,23 +59,29 @@ export async function registerCoverCompliance(app: FastifyInstance): Promise<voi
        FROM items i JOIN sources s ON s.id = i.source_id
        ${where}
        ORDER BY i.updated_at DESC
-       LIMIT $1`,
+       LIMIT $2`,
       params,
     );
     return { items: rows };
   });
 
   app.post('/admin/cover-compliance/cover-all', async () => {
-    const rows = await query<{ id: string }>(`SELECT id FROM items WHERE status = 'TITLED'`);
-    const q = getQueue(QUEUE_NAMES.cover);
-    for (const r of rows) await q.add('render', { itemId: r.id }, { jobId: `cover__${r.id}` });
+    const rows = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1`, [IS.TITLED]);
+    if (rows.length > 0) {
+      await getQueue(QUEUE_NAMES.cover).addBulk(
+        rows.map(({ id }) => ({ name: 'render', data: { itemId: id }, opts: { jobId: `cover__${id}` } })),
+      );
+    }
     return { enqueued: rows.length };
   });
 
   app.post('/admin/cover-compliance/compliance-all', async () => {
-    const rows = await query<{ id: string }>(`SELECT id FROM items WHERE status = 'COVERED'`);
-    const q = getQueue(QUEUE_NAMES.compliance);
-    for (const r of rows) await q.add('check', { itemId: r.id }, { jobId: `compliance__${r.id}` });
+    const rows = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1`, [IS.COVERED]);
+    if (rows.length > 0) {
+      await getQueue(QUEUE_NAMES.compliance).addBulk(
+        rows.map(({ id }) => ({ name: 'check', data: { itemId: id }, opts: { jobId: `compliance__${id}` } })),
+      );
+    }
     return { enqueued: rows.length };
   });
 

@@ -30,7 +30,9 @@ export function getQueue<T = any>(name: QueueName): Queue<T> {
         attempts: 3,
         backoff: { type: 'exponential', delay: 500 },
         removeOnComplete: { age: 7 * 24 * 3600, count: 5_000 },
-        removeOnFail: { age: 30 * 24 * 3600 },
+        // Keep up to 500 failed jobs per queue (DLQ behaviour).
+        // They remain visible in Bull Board and can be retried manually.
+        removeOnFail: { count: 500 },
       },
     });
     queues.set(name, q);

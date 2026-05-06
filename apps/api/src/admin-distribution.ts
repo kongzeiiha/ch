@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { generateWeeklyReport } from './workers/analytics/report.js';
 import { logOperation } from './op-log.js';
@@ -42,8 +42,9 @@ export async function registerDistribution(app: FastifyInstance) {
       ),
       query<{ cnt: number }>(
         `SELECT COUNT(*)::int AS cnt FROM items
-         WHERE status = 'PUBLISHED'
+         WHERE status = $1
            AND id NOT IN (SELECT DISTINCT item_id FROM distribution_tasks WHERE channel = 'twitter')`,
+        [IS.PUBLISHED],
       ),
     ]);
     return {
@@ -58,8 +59,8 @@ export async function registerDistribution(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const { channel = 'twitter' } = req.query as { channel?: string };
     const rows = await query<{ id: string }>(
-      `SELECT id FROM items WHERE id = $1 AND status IN ('PUBLISHED', 'DISTRIBUTED')`,
-      [id],
+      `SELECT id FROM items WHERE id = $1 AND status = ANY($2::text[])`,
+      [id, [IS.PUBLISHED, IS.DISTRIBUTED]],
     );
     if (!rows.length) return reply.status(404).send({ error: 'item not found or not published' });
     const q = getQueue(QUEUE_NAMES.distribution);
@@ -77,10 +78,11 @@ export async function registerDistribution(app: FastifyInstance) {
   app.post('/admin/distribution/distribute-all', async (req) => {
     const candidates = await query<{ id: string }>(
       `SELECT id FROM items
-       WHERE status = 'PUBLISHED'
+       WHERE status = $1
          AND id NOT IN (SELECT DISTINCT item_id FROM distribution_tasks WHERE channel = 'twitter')
        ORDER BY published_at DESC
        LIMIT 100`,
+      [IS.PUBLISHED],
     );
     const q = getQueue(QUEUE_NAMES.distribution);
     let queued = 0;

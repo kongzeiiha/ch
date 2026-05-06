@@ -1,5 +1,7 @@
-import { callClaude, type Model } from '@ch/agents';
+import { callClaude, sanitizeForPrompt, type Model } from '@ch/agents';
 import { getActiveRules, buildRulesPromptSection, recordRuleHits } from '../../memory-rules.js';
+
+export const PROMPT_VERSION = 'v1';
 
 export const DIMENSIONS = [
   '政治敏感',
@@ -64,8 +66,8 @@ export async function scoreCompliance(
   opts: { model?: Model } = {},
 ) {
   const userText = [
-    input.title ? `标题:${input.title}` : null,
-    `正文:\n${input.content.slice(0, MAX_CONTENT)}`,
+    input.title ? `标题:${sanitizeForPrompt(input.title, 200)}` : null,
+    `正文:\n${sanitizeForPrompt(input.content, MAX_CONTENT)}`,
   ]
     .filter(Boolean)
     .join('\n\n');

@@ -40,6 +40,8 @@ export default function Day5Page() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [items, setItems] = useState<PublishedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState('');
 
   const load = useCallback(async () => {
@@ -61,6 +63,7 @@ export default function Day5Page() {
   useEffect(() => { load(); }, [load]);
 
   const action = async (url: string, label: string) => {
+    setBusy(true);
     setMsg(`${label}...`);
     try {
       const r = await fetch(url, { method: 'POST' });
@@ -69,11 +72,18 @@ export default function Day5Page() {
       await load();
     } catch (e) {
       setMsg(`${label} 失败: ${e}`);
+    } finally {
+      setBusy(false);
     }
   };
 
   const forcePublish = async (id: string) => {
-    await action(`${API}/admin/publishing/force-publish/${id}`, '强制发布');
+    setBusyId((b) => ({ ...b, [id]: true }));
+    try {
+      await action(`${API}/admin/publishing/force-publish/${id}`, '强制发布');
+    } finally {
+      setBusyId((b) => ({ ...b, [id]: false }));
+    }
   };
 
   const s = stats?.byStatus ?? {};
@@ -90,8 +100,8 @@ export default function Day5Page() {
         <span style={{ fontSize: 13, color: '#64748b' }}>发布与 Source 评分</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
-          <button style={btnAlt} onClick={() => action(`${API}/admin/publishing/score-now`, 'Source评分')}>Source 评分</button>
-          <button style={btnPrimary} onClick={() => action(`${API}/admin/publishing/publish-all`, '批量发布')}>批量发布</button>
+          <button style={btnAlt} disabled={busy} onClick={() => action(`${API}/admin/publishing/score-now`, 'Source评分')}>{busy ? '处理中…' : 'Source 评分'}</button>
+          <button style={btnPrimary} disabled={busy} onClick={() => action(`${API}/admin/publishing/publish-all`, '批量发布')}>{busy ? '处理中…' : '批量发布'}</button>
         </div>
       </header>
 
@@ -150,7 +160,7 @@ export default function Day5Page() {
                       {item.published_at ? new Date(item.published_at).toLocaleString('zh-CN') : '—'}
                     </td>
                     <td style={td}>
-                      <button style={btn} onClick={() => forcePublish(item.id)}>重新发布</button>
+                      <button style={btn} disabled={!!busyId[item.id] || busy} onClick={() => forcePublish(item.id)}>{busyId[item.id] ? '…' : '重新发布'}</button>
                     </td>
                   </tr>
                 ))}

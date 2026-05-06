@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq';
-import { query } from '@ch/db';
-import { QUEUE_NAMES, startWorker, withRun } from '@ch/agents';
+import { query, ITEM_STATUS as IS } from '@ch/db';
+import { QUEUE_NAMES, startWorker, withRun, permanent } from '@ch/agents';
 import { rewriteForTwitter } from './rewrite.js';
 
 export interface DistributionJob {
@@ -21,12 +21,12 @@ interface ItemRow {
 export async function distributeOne(itemId: string, channel = 'twitter') {
   const rows = await query<ItemRow>(
     `SELECT id, title, summary, category, tags, published_url, slug
-     FROM items WHERE id = $1 AND status = 'PUBLISHED'`,
-    [itemId],
+     FROM items WHERE id = $1 AND status = $2`,
+    [itemId, IS.PUBLISHED],
   );
   const item = rows[0];
   if (!item) return { skipped: true, reason: 'item not found or not published' };
-  if (!item.published_url) return { skipped: true, reason: 'no published_url' };
+  if (!item.published_url) permanent(`item ${itemId} has no published_url — distribution cannot proceed`);
 
   // Skip if already distributed to this channel
   const existing = await query<{ id: string }>(
@@ -49,7 +49,7 @@ export async function distributeOne(itemId: string, channel = 'twitter') {
     [itemId, channel, result.copy],
   );
 
-  await query(`UPDATE items SET status = 'DISTRIBUTED' WHERE id = $1`, [itemId]);
+  await query(`UPDATE items SET status = $2 WHERE id = $1`, [itemId, IS.DISTRIBUTED]);
 
   return {
     channel,

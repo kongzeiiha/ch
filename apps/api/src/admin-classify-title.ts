@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 
 export async function registerClassifyTitle(app: FastifyInstance): Promise<void> {
@@ -68,7 +68,7 @@ export async function registerClassifyTitle(app: FastifyInstance): Promise<void>
   // Enqueue classify-title for all INGESTED or backlog CLASSIFIED items
   app.post('/admin/classify-title/classify-all', async () => {
     const rows = await query<{ id: string }>(
-      `SELECT id FROM items WHERE status IN ('INGESTED', 'CLASSIFIED')`,
+      `SELECT id FROM items WHERE status = ANY($1::text[])`, [[IS.INGESTED, IS.CLASSIFIED]],
     );
     const q = getQueue(QUEUE_NAMES.classifyTitle);
     for (const r of rows) {
@@ -82,7 +82,7 @@ export async function registerClassifyTitle(app: FastifyInstance): Promise<void>
   // INGESTED + CLASSIFIED set).
   app.post('/admin/classify-title/title-all', async () => {
     const rows = await query<{ id: string }>(
-      `SELECT id FROM items WHERE status IN ('INGESTED', 'CLASSIFIED')`,
+      `SELECT id FROM items WHERE status = ANY($1::text[])`, [[IS.INGESTED, IS.CLASSIFIED]],
     );
     const q = getQueue(QUEUE_NAMES.classifyTitle);
     for (const r of rows) {

@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq';
-import { query } from '@ch/db';
-import { getQueue, QUEUE_NAMES, startWorker, withRun, type Model } from '@ch/agents';
+import { query, ITEM_STATUS as IS } from '@ch/db';
+import { getQueue, QUEUE_NAMES, startWorker, withRun, permanent, type Model } from '@ch/agents';
 import { classify, classifyByRules } from './categorize.js';
 import { generateTitle, generateTitleByRules } from './generate.js';
 import { makeUniqueSlug } from './slug.js';
@@ -43,7 +43,7 @@ export async function classifyTitleOne(itemId: string) {
   );
   const item = rows[0];
   if (!item) return { skipped: true, reason: 'item not found' };
-  if (!['INGESTED', 'CLASSIFIED', 'TITLED'].includes(item.status)) {
+  if (![IS.INGESTED, IS.CLASSIFIED].includes(item.status as any)) {
     return { skipped: true, status: item.status };
   }
 
@@ -51,7 +51,7 @@ export async function classifyTitleOne(itemId: string) {
   const skipTitleLlm = process.env.TITLE_SKIP_LLM === '1';
   const minLen = skipClassifyLlm && skipTitleLlm ? 10 : 40;
   if (!item.content || item.content.length < minLen) {
-    throw new Error(`item ${itemId} content too short (${item.content?.length ?? 0}<${minLen})`);
+    permanent(`item ${itemId} content too short (${item.content?.length ?? 0}<${minLen}) — won't improve on retry`);
   }
 
   // Aggregated telemetry (cost/usage from both LLM calls combined).
@@ -61,7 +61,7 @@ export async function classifyTitleOne(itemId: string) {
 
   // ── Step 1: classify (skipped if backlog already classified) ──────────
   let classified: ClassifyOutput;
-  if (item.status === 'INGESTED') {
+  if (item.status === IS.INGESTED) {
     if (skipClassifyLlm) {
       classified = classifyByRules({ title: item.title, content: item.content });
       modelsUsed.push('rule:keyword');
@@ -77,9 +77,9 @@ export async function classifyTitleOne(itemId: string) {
 
     await query(
       `UPDATE items
-         SET category = $2, tags = $3, keywords = $4, status = 'CLASSIFIED'
+         SET category = $2, tags = $3, keywords = $4, status = $5
        WHERE id = $1`,
-      [itemId, classified.category, classified.tags, classified.keywords],
+      [itemId, classified.category, classified.tags, classified.keywords, IS.CLASSIFIED],
     );
   } else {
     // Backlog: status is already CLASSIFIED (or TITLED retry) — reuse what's in DB.
@@ -122,9 +122,9 @@ export async function classifyTitleOne(itemId: string) {
            summary = $3,
            slug = $4,
            title_version = title_version + 1,
-           status = 'TITLED'
+           status = $5
      WHERE id = $1`,
-    [itemId, best, titleOut.summary, slug],
+    [itemId, best, titleOut.summary, slug, IS.TITLED],
   );
 
   // Hand off to the Cover Agent. jobId dedupes concurrent retries.

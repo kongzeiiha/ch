@@ -1,5 +1,5 @@
 import type { Job } from 'bullmq';
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES, startWorker, withRun } from '@ch/agents';
 import { pickBest, pickTopN } from './select.js';
 import { renderSizes, SIZES, type SizeName } from './resize.js';
@@ -54,7 +54,7 @@ export async function coverOne(itemId: string) {
     // burning retry budget on a now-impossible job.
     return { skipped: true, reason: 'item not found' };
   }
-  if (!['TITLED', 'COVERED'].includes(item.status)) {
+  if (![IS.TITLED, IS.COVERED].includes(item.status as any)) {
     return { skipped: true, status: item.status };
   }
 
@@ -108,9 +108,9 @@ export async function coverOne(itemId: string) {
        SET cover_url = $2,
            cover_sizes = $3,
            cover_copy = $4,
-           status = 'COVERED'
+           status = $5
      WHERE id = $1`,
-    [itemId, coverUrl, coverSizes ? JSON.stringify(coverSizes) : null, coverCopy],
+    [itemId, coverUrl, coverSizes ? JSON.stringify(coverSizes) : null, coverCopy, IS.COVERED],
   );
 
   // Hand off to Compliance.

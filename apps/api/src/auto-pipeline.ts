@@ -7,7 +7,7 @@
  * even if auto mode is explicitly set — they require human approval via the UI.
  */
 
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { autoState, pausedState, globalStop } from './admin-pipeline.js';
 import { captureException } from './sentry.js';
@@ -28,7 +28,7 @@ const STAGES: StageCheck[] = [
     agent: 'source-scoring',
     countSql: `SELECT COUNT(*)::int AS cnt FROM sources WHERE status='active'`,
     triggerFn: async () => {
-      await getQueue(QUEUE_NAMES.sourceScoring).add('score', {}, { jobId: `score__auto__${Date.now()}` });
+      await getQueue(QUEUE_NAMES.sourceScoring).add('score', {}, { jobId: 'score__auto' });
       return 1;
     },
   },
@@ -36,39 +36,46 @@ const STAGES: StageCheck[] = [
     agent: 'ingestion',
     countSql: `SELECT COUNT(*)::int AS cnt FROM sources WHERE status='active'`,
     triggerFn: async () => {
-      await getQueue(QUEUE_NAMES.ingestion).add('fanout', { kind: 'fanout' }, { jobId: `fanout__auto__${Date.now()}` });
+      await getQueue(QUEUE_NAMES.ingestion).add('fanout', { kind: 'fanout' }, { jobId: 'fanout__auto' });
       return 1;
     },
   },
   {
     agent: 'classify-title',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status IN ('INGESTED', 'CLASSIFIED')`,
+    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status = ANY(ARRAY['${IS.INGESTED}','${IS.CLASSIFIED}'])`,
     triggerFn: async () => {
       const items = await query<{ id: string }>(
-        `SELECT id FROM items WHERE status IN ('INGESTED', 'CLASSIFIED') LIMIT 200`,
+        `SELECT id FROM items WHERE status = ANY($1::text[]) LIMIT 200`,
+        [[IS.INGESTED, IS.CLASSIFIED]],
       );
-      const q = getQueue(QUEUE_NAMES.classifyTitle);
-      for (const { id } of items) await q.add('classify-title', { itemId: id }, { jobId: `classify-title__${id}` });
+      if (items.length === 0) return 0;
+      await getQueue(QUEUE_NAMES.classifyTitle).addBulk(
+        items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}` } })),
+      );
       return items.length;
     },
   },
   {
     agent: 'cover',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='TITLED'`,
+    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='${IS.TITLED}'`,
     triggerFn: async () => {
-      const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='TITLED' LIMIT 200`);
-      const q = getQueue(QUEUE_NAMES.cover);
-      for (const { id } of items) await q.add('cover', { itemId: id }, { jobId: `cover__${id}` });
+      const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.TITLED]);
+      if (items.length === 0) return 0;
+      await getQueue(QUEUE_NAMES.cover).addBulk(
+        items.map(({ id }) => ({ name: 'cover', data: { itemId: id }, opts: { jobId: `cover__${id}` } })),
+      );
       return items.length;
     },
   },
   {
     agent: 'compliance',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='COVERED'`,
+    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='${IS.COVERED}'`,
     triggerFn: async () => {
-      const items = await query<{ id: string }>(`SELECT id FROM items WHERE status='COVERED' LIMIT 200`);
-      const q = getQueue(QUEUE_NAMES.compliance);
-      for (const { id } of items) await q.add('compliance', { itemId: id }, { jobId: `compliance__${id}` });
+      const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.COVERED]);
+      if (items.length === 0) return 0;
+      await getQueue(QUEUE_NAMES.compliance).addBulk(
+        items.map(({ id }) => ({ name: 'compliance', data: { itemId: id }, opts: { jobId: `compliance__${id}` } })),
+      );
       return items.length;
     },
   },
@@ -83,10 +90,23 @@ const STAGES: StageCheck[] = [
 ];
 
 let _timer: NodeJS.Timeout | null = null;
+let _inFlight = false;
 
 async function tick() {
   if (globalStop) return;
+  // Skip if previous tick is still running. A loaded tick walks 8 queues and
+  // hits Postgres several times — under load it can exceed INTERVAL_MS and
+  // overlap with itself, double-queuing the same items into BullMQ.
+  if (_inFlight) return;
+  _inFlight = true;
+  try {
+    await runStages();
+  } finally {
+    _inFlight = false;
+  }
+}
 
+async function runStages() {
   for (const stage of STAGES) {
     if (HARD_HUMAN_GATES.has(stage.agent)) continue;
     if (!autoState.get(stage.agent)) continue;

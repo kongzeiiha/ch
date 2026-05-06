@@ -14,6 +14,7 @@ export function normalizeForHash(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+/** Single-item lookup kept for backward-compat / ad-hoc use. */
 export async function urlAlreadySeen(sourceId: string, key: string): Promise<boolean> {
   const rows = await query<{ id: string }>(
     'SELECT id FROM raw_items WHERE source_id = $1 AND dedupe_key = $2 LIMIT 1',
@@ -23,9 +24,72 @@ export async function urlAlreadySeen(sourceId: string, key: string): Promise<boo
 }
 
 /**
- * Content-level dedupe scoped to a single source. Catches re-posts that
- * keep the same text/media but get a fresh external_id (account re-shares,
- * edited tweets that flip rest_id, re-uploads of the same article).
+ * Batch URL dedupe — one query for all candidates.
+ * Returns a Set of dedupe_keys that already exist for the source.
+ */
+export async function seenDedupeKeys(sourceId: string, keys: string[]): Promise<Set<string>> {
+  if (keys.length === 0) return new Set();
+  const rows = await query<{ dedupe_key: string }>(
+    'SELECT dedupe_key FROM raw_items WHERE source_id = $1 AND dedupe_key = ANY($2::text[])',
+    [sourceId, keys],
+  );
+  return new Set(rows.map((r) => r.dedupe_key));
+}
+
+/**
+ * Batch content-hash dedupe — one query for all candidates.
+ * Returns a Set of content_hashes already seen for the source.
+ */
+export async function seenContentHashes(sourceId: string, hashes: string[]): Promise<Set<string>> {
+  if (hashes.length === 0) return new Set();
+  const rows = await query<{ content_hash: string }>(
+    'SELECT content_hash FROM raw_items WHERE source_id = $1 AND content_hash = ANY($2::text[])',
+    [sourceId, hashes],
+  );
+  return new Set(rows.map((r) => r.content_hash));
+}
+
+/**
+ * Pre-load all recent simhashes for a source in one query.
+ * Returns an array suitable for in-process nearest-neighbour search.
+ * Call once per source batch, then pass to findNearestSimhash() per candidate.
+ */
+export async function loadSimhashes(
+  sourceId: string,
+  opts: { windowDays?: number; limit?: number } = {},
+): Promise<Array<{ id: string; simhash: bigint }>> {
+  const windowDays = opts.windowDays ?? 30;
+  const limit = opts.limit ?? 2000;
+  const rows = await query<{ id: string; simhash: string }>(
+    `SELECT id, simhash::text AS simhash
+     FROM raw_items
+     WHERE source_id = $1
+       AND simhash IS NOT NULL
+       AND fetched_at > NOW() - ($2 || ' days')::interval
+     ORDER BY fetched_at DESC
+     LIMIT $3`,
+    [sourceId, windowDays, limit],
+  );
+  return rows.map((r) => ({ id: r.id, simhash: BigInt(r.simhash) }));
+}
+
+/** In-process nearest-neighbour search over a pre-loaded simhash set. */
+export function findNearestSimhash(
+  fingerprint: bigint,
+  pool: Array<{ id: string; simhash: bigint }>,
+): { id: string; distance: number } | null {
+  let best: { id: string; distance: number } | null = null;
+  for (const r of pool) {
+    const d = hamming(fingerprint, r.simhash);
+    if (best === null || d < best.distance) best = { id: r.id, distance: d };
+    if (best.distance === 0) break;
+  }
+  return best;
+}
+
+/**
+ * Content-level dedupe scoped to a single source. Kept for backward-compat.
+ * Use seenContentHashes() for batch processing.
  */
 export async function contentAlreadySeenForSource(
   sourceId: string,
@@ -39,33 +103,14 @@ export async function contentAlreadySeenForSource(
 }
 
 /**
- * Fuzzy match: pull recent simhashes for the same source and return the
- * closest one. Caller decides the threshold — default 3/63 ≈ 95% similar.
+ * Single-item fuzzy match. Kept for backward-compat.
+ * Use loadSimhashes() + findNearestSimhash() for batch processing.
  */
 export async function nearestSimhash(
   sourceId: string,
   fingerprint: bigint,
   opts: { windowDays?: number; limit?: number } = {},
 ): Promise<{ id: string; distance: number } | null> {
-  const windowDays = opts.windowDays ?? 30;
-  const limit = opts.limit ?? 2000;
-
-  const rows = await query<{ id: string; simhash: string }>(
-    `SELECT id, simhash::text AS simhash
-     FROM raw_items
-     WHERE source_id = $1
-       AND simhash IS NOT NULL
-       AND fetched_at > NOW() - ($2 || ' days')::interval
-     ORDER BY fetched_at DESC
-     LIMIT $3`,
-    [sourceId, windowDays, limit],
-  );
-
-  let best: { id: string; distance: number } | null = null;
-  for (const r of rows) {
-    const d = hamming(fingerprint, BigInt(r.simhash));
-    if (best === null || d < best.distance) best = { id: r.id, distance: d };
-    if (best.distance === 0) break;
-  }
-  return best;
+  const pool = await loadSimhashes(sourceId, opts);
+  return findNearestSimhash(fingerprint, pool);
 }

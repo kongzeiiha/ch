@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { logOperation } from './op-log.js';
 
@@ -12,7 +12,8 @@ export async function registerPublishing(app: FastifyInstance) {
       ),
       query<{ cnt: string }>(
         `SELECT COUNT(*)::text AS cnt FROM items
-         WHERE status = 'PUBLISHED' AND published_at >= NOW() - INTERVAL '24 hours'`,
+         WHERE status = $1 AND published_at >= NOW() - INTERVAL '24 hours'`,
+        [IS.PUBLISHED],
       ),
     ]);
 
@@ -37,7 +38,7 @@ export async function registerPublishing(app: FastifyInstance) {
       published_url: string | null;
     }>(
       `SELECT id, slug, title, category, published_at, published_url
-       FROM items WHERE status = 'PUBLISHED'
+       FROM items WHERE status = '${IS.PUBLISHED}'
        ORDER BY published_at DESC
        LIMIT $1 OFFSET $2`,
       [Math.min(100, Number(limit)), Number(offset)],
@@ -69,10 +70,11 @@ export async function registerPublishing(app: FastifyInstance) {
   app.post('/admin/publishing/publish-all', async (req) => {
     const candidates = await query<{ id: string }>(
       `SELECT id FROM items
-       WHERE status IN ('COMPLIANCE_PASS', 'COMPLIANCE_REVIEW')
+       WHERE status = ANY($1::text[])
          AND slug IS NOT NULL
        ORDER BY published_at DESC NULLS LAST
        LIMIT 200`,
+      [[IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW]],
     );
     const q = getQueue(QUEUE_NAMES.publishing);
     let queued = 0;

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query } from '@ch/db';
+import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { runAlertChecks, agentRunsSummary } from './alerts.js';
 
@@ -25,8 +25,9 @@ export async function registerOps(app: FastifyInstance) {
               CASE WHEN length(error) > 120 THEN left(error,120)||'…' ELSE error END AS error,
               started_at::text
        FROM agent_runs
-       WHERE started_at >= NOW() - INTERVAL '${h} hours'
+       WHERE started_at >= NOW() - ($1 * INTERVAL '1 hour')
        ORDER BY started_at DESC LIMIT 100`,
+      [h],
     );
     return { summary, recent };
   });
@@ -74,9 +75,8 @@ export async function registerOps(app: FastifyInstance) {
     if (typeof pct !== 'number' || pct < 0 || pct > 100) {
       return reply.status(400).send({ error: 'pct must be 0–100' });
     }
-    const result = await query<{ cnt: number }>(
-      `UPDATE sources SET grayscale_pct = $1 WHERE status = 'active'
-       RETURNING (SELECT COUNT(*) FROM sources WHERE status = 'active')::int AS cnt`,
+    const result = await query<{ id: string }>(
+      `UPDATE sources SET grayscale_pct = $1 WHERE status = 'active' RETURNING id`,
       [Math.round(pct)],
     );
     return { updated: result.length, grayscale_pct: Math.round(pct) };
@@ -111,14 +111,84 @@ export async function registerOps(app: FastifyInstance) {
   app.post('/admin/ops/stress-trigger', async () => {
     // Enqueue all INGESTED items that haven't been classified yet
     const items = await query<{ id: string }>(
-      `SELECT id FROM items WHERE status = 'INGESTED' LIMIT 500`,
+      `SELECT id FROM items WHERE status = $1 LIMIT 500`,
+      [IS.INGESTED],
     );
-    const q = getQueue(QUEUE_NAMES.classifyTitle);
-    let enqueued = 0;
-    for (const { id } of items) {
-      await q.add('classify-title', { itemId: id }, { jobId: `classify-title__${id}` });
-      enqueued++;
+    if (items.length > 0) {
+      await getQueue(QUEUE_NAMES.classifyTitle).addBulk(
+        items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}` } })),
+      );
     }
-    return { enqueued };
+    return { enqueued: items.length };
+  });
+
+  // ── Prometheus metrics ────────────────────────────────────────────────────
+  // Scrape endpoint for Prometheus / Grafana. Protected by the same admin
+  // token as all other /admin/* routes. Configure your scrape job with:
+  //   bearer_token: <ADMIN_TOKEN>
+  //
+  // Exposed metrics (all gauges / counters scoped to the last 7 days):
+  //   ch_items_total{status}          — item counts by pipeline status
+  //   ch_sources_total{status}        — source counts by status
+  //   ch_agent_runs_total{agent,status} — agent run counts (7d window)
+  //   ch_agent_cost_usd_total{agent}  — cumulative LLM cost USD (7d)
+  //   ch_agent_latency_p50_ms{agent}  — median run latency ms (7d)
+  app.get('/admin/ops/metrics', async (_req, reply) => {
+    const [items, sources, runs, costs, latencies] = await Promise.all([
+      query<{ status: string; cnt: number }>(
+        `SELECT status, COUNT(*)::int AS cnt FROM items GROUP BY status`,
+      ),
+      query<{ status: string; cnt: number }>(
+        `SELECT status, COUNT(*)::int AS cnt FROM sources GROUP BY status`,
+      ),
+      query<{ agent: string; status: string; cnt: number }>(
+        `SELECT agent, status, COUNT(*)::int AS cnt
+         FROM agent_runs
+         WHERE started_at > NOW() - INTERVAL '7 days'
+         GROUP BY agent, status`,
+      ),
+      query<{ agent: string; total: number }>(
+        `SELECT agent, COALESCE(SUM(cost_usd), 0)::float AS total
+         FROM agent_runs
+         WHERE started_at > NOW() - INTERVAL '7 days'
+         GROUP BY agent`,
+      ),
+      query<{ agent: string; p50: number }>(
+        `SELECT agent,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms)::float AS p50
+         FROM agent_runs
+         WHERE started_at > NOW() - INTERVAL '7 days'
+           AND latency_ms IS NOT NULL
+         GROUP BY agent`,
+      ),
+    ]);
+
+    const escLbl = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+
+    const lines: string[] = [];
+    const line = (s: string) => lines.push(s);
+
+    line('# HELP ch_items_total Number of pipeline items by status');
+    line('# TYPE ch_items_total gauge');
+    for (const r of items) line(`ch_items_total{status="${escLbl(r.status)}"} ${r.cnt}`);
+
+    line('# HELP ch_sources_total Number of sources by status');
+    line('# TYPE ch_sources_total gauge');
+    for (const r of sources) line(`ch_sources_total{status="${escLbl(r.status)}"} ${r.cnt}`);
+
+    line('# HELP ch_agent_runs_total Agent run count by agent and status (last 7 days)');
+    line('# TYPE ch_agent_runs_total counter');
+    for (const r of runs) line(`ch_agent_runs_total{agent="${escLbl(r.agent)}",status="${escLbl(r.status)}"} ${r.cnt}`);
+
+    line('# HELP ch_agent_cost_usd_total Cumulative LLM cost USD per agent (last 7 days)');
+    line('# TYPE ch_agent_cost_usd_total counter');
+    for (const r of costs) line(`ch_agent_cost_usd_total{agent="${escLbl(r.agent)}"} ${r.total.toFixed(6)}`);
+
+    line('# HELP ch_agent_latency_p50_ms Median agent run latency milliseconds (last 7 days)');
+    line('# TYPE ch_agent_latency_p50_ms gauge');
+    for (const r of latencies) line(`ch_agent_latency_p50_ms{agent="${escLbl(r.agent)}"} ${r.p50.toFixed(1)}`);
+
+    reply.header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    return reply.send(lines.join('\n') + '\n');
   });
 }

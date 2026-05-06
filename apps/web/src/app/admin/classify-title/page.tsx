@@ -74,6 +74,7 @@ export default function Day3Page() {
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>('');
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -113,12 +114,15 @@ export default function Day3Page() {
   }
 
   async function retrigger(kind: 'reclassify' | 'retitle', id: string) {
+    setBusyId((b) => ({ ...b, [id]: true }));
     try {
       await getJSON<{ ok: true }>(`/api/admin/classify-title/${kind}/${id}`, { method: 'POST' });
       setToast(`已重新入队 ${kind}`);
       setTimeout(() => setToast(null), 2000);
     } catch (e: any) {
       setErr(e.message);
+    } finally {
+      setBusyId((b) => ({ ...b, [id]: false }));
     }
   }
 
@@ -216,8 +220,8 @@ export default function Day3Page() {
                     </code>
                   </td>
                   <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                    <button style={btn} onClick={() => retrigger('reclassify', it.id)}>重新分类</button>{' '}
-                    <button style={btn} onClick={() => retrigger('retitle', it.id)}>重起标题</button>
+                    <button style={btn} disabled={!!busyId[it.id]} onClick={() => retrigger('reclassify', it.id)}>{busyId[it.id] ? '…' : '重新分类'}</button>{' '}
+                    <button style={btn} disabled={!!busyId[it.id]} onClick={() => retrigger('retitle', it.id)}>{busyId[it.id] ? '…' : '重起标题'}</button>
                   </td>
                 </tr>
               ))}

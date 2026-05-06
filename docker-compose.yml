@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ch
       POSTGRES_DB: ch
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,9 +20,8 @@ services:
 
   redis:
     image: redis:6-alpine
-    # Host 6380 because MacPorts redis already holds 127.0.0.1:6379.
     ports:
-      - "6381:6379"
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -36,8 +35,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9002:9000"
-      - "9003:9001"
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio-data:/data
     healthcheck:
@@ -45,6 +44,59 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── Application services ────────────────────────────────────────────────
+  # These three services are optional in development (the default "pnpm dev"
+  # workflow runs everything natively). Use them for a self-contained stack:
+  #   docker compose --profile app up
+  #
+  # Both api services share the same image; the worker entry point is
+  # overridden via CMD. Copy .env.example → .env and fill in secrets before
+  # starting.
+
+  api-server:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "apps/api/dist/index.js"]
+    env_file: .env
+    environment:
+      DISABLE_WORKERS: "1"
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api-worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "apps/api/dist/worker.js"]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    env_file: .env
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api-server
+    restart: unless-stopped
 
 volumes:
   pgdata:

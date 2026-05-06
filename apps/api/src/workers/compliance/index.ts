@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq';
-import { query } from '@ch/db';
-import { getQueue, QUEUE_NAMES, startWorker, withRun, type Model } from '@ch/agents';
+import { query, ITEM_STATUS as IS } from '@ch/db';
+import { getQueue, QUEUE_NAMES, startWorker, withRun, isTransient, permanent, type Model } from '@ch/agents';
 import { runBlacklist } from './blacklist.js';
 import { scoreCompliance, type RiskScores } from './score.js';
 import { decide } from './decide.js';
@@ -29,7 +29,7 @@ export async function complianceOne(itemId: string) {
     // and pollutes agent_runs with errors.
     return { skipped: true, reason: 'item not found' };
   }
-  if (!['COVERED', 'COMPLIANCE_PASS', 'COMPLIANCE_REVIEW', 'COMPLIANCE_FAIL'].includes(item.status)) {
+  if (![IS.COVERED, IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW, IS.COMPLIANCE_FAIL].includes(item.status as any)) {
     return { skipped: true, status: item.status };
   }
 
@@ -53,9 +53,10 @@ export async function complianceOne(itemId: string) {
       cost = r.cost;
       model = r.model;
       usage = r.usage;
-    } catch (e: any) {
-      // L2 failed — decide() will send to REVIEW queue
-      console.warn(`[compliance] LLM score failed for ${itemId}: ${e?.message}`);
+    } catch (e: unknown) {
+      if (!isTransient(e)) permanent(`compliance LLM permanent failure for ${itemId}`, e);
+      // Transient LLM failure — decide() will default to REVIEW
+      console.warn(`[compliance] LLM score failed for ${itemId}: ${(e as any)?.message}`);
     }
   }
 
@@ -94,7 +95,7 @@ export async function complianceOne(itemId: string) {
     ],
   );
 
-  if (decision.status === 'COMPLIANCE_PASS') {
+  if (decision.status === IS.COMPLIANCE_PASS) {
     await getQueue(QUEUE_NAMES.publishing).add(
       'publish',
       { itemId },

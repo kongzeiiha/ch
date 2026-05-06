@@ -1,4 +1,4 @@
-import { tx } from '@ch/db';
+import { tx, ITEM_STATUS as IS } from '@ch/db';
 
 export interface PersistInput {
   sourceId: string;
@@ -43,15 +43,16 @@ export async function persistIngested(input: PersistInput): Promise<PersistResul
     const [item] = await q(
       `INSERT INTO items
          (raw_item_id, source_id, status, title, summary, content, content_html)
-       VALUES ($1,$2,'INGESTED',$3,$4,$5,$6)
+       VALUES ($1,$2,$7,$3,$4,$5,$6)
        RETURNING id`,
       [
-        raw.id,
-        input.sourceId,
-        input.title,
-        input.summary,
-        input.content,
-        input.contentHtml,
+        raw.id,           // $1
+        input.sourceId,   // $2
+        input.title,      // $3
+        input.summary,    // $4
+        input.content,    // $5
+        input.contentHtml, // $6
+        IS.INGESTED,      // $7
       ],
     );
 
