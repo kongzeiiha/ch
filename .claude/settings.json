@@ -69,7 +69,24 @@
       "Bash(node --check /tmp/wb.js)",
       "Bash(curl -sI 'https://pic.ylimg.com/images/2025/11/30/24010702060123f3b.jpg' -o /dev/null -w \"http=%{http_code} size=%{size_download} ct=%{content_type}\\\\n\")",
       "Bash(curl -sI https://pic.ylimg.com/images/2025/11/30/24010702060123f3b.jpg -H 'Referer: https://uib.2ksg.com/' -o /dev/null -w 'http=%{http_code} size=%{size_download} ct=%{content_type}\\\\n')",
-      "Bash(curl -sI 'https://xx.knit.bid/static/images/2025/12/30/aa.png' -o /dev/null -w \"http=%{http_code} size=%{size_download}\\\\n\")"
+      "Bash(curl -sI 'https://xx.knit.bid/static/images/2025/12/30/aa.png' -o /dev/null -w \"http=%{http_code} size=%{size_download}\\\\n\")",
+      "Bash(curl -s -u admin:admin -m 5 -o /dev/null -w \"HTTP %{http_code}  size=%{size_download}\\\\n\" http://localhost:3000/workbench)",
+      "Bash(curl -s -u admin:admin -m 5 -o /dev/null -w '%{http_code}  __TRACKED_VAR__\\\\n' http://localhost:3000__TRACKED_VAR__)",
+      "Bash(python3 -c \"import sys,json; [print\\(f\\\\\"{q['name']:24} w={q['counts']['waiting']:3} a={q['counts']['active']:3} d={q['counts']['delayed']:3} c={q['counts']['completed']:5} f={q['counts']['failed']:3}\\\\\"\\) for q in json.load\\(sys.stdin\\)['queues']]\")",
+      "Bash(curl -s -m 5 http://localhost:4000/admin/ops/pipeline-stats)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); levels={}; [levels.setdefault\\(a['level'],0\\) or levels.update\\({a['level']: levels.get\\(a['level'],0\\)+1}\\) for a in d['alerts']]; print\\(levels\\); fails=[a for a in d['alerts'] if a['level']!='ok']; print\\('non-ok:'\\); [print\\(' ',a\\) for a in fails]\")",
+      "Bash(curl -s -m 5 -o /dev/null -w 'HTTP %{http_code}\\\\n' http://localhost:3000/a/__TRACKED_VAR__)",
+      "Bash(lsof -i :4000 -sTCP:LISTEN)",
+      "Bash(curl -s -m 5 -w \"HTTP %{http_code}\\\\n\" http://localhost:4000/admin/cover-compliance/stats)",
+      "Bash(curl -s -m 30 -X POST http://localhost:4000/admin/infra/test-llm -H 'Content-Type: application/json' -d '{}')",
+      "Bash(python3 -c \"import sys,json; print\\(json.dumps\\(json.load\\(sys.stdin\\)['env'], indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(curl -s -m 5 http://localhost:4000/admin/cover-compliance/stats)",
+      "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:4000/admin/cover-compliance/stats)",
+      "Bash(git -C /Users/mac/AUD/ch log --oneline -5)",
+      "Bash(git -C /Users/mac/AUD/ch diff .claude/settings.json)",
+      "Bash(git -C /Users/mac/AUD/ch diff apps/api/src/admin-infra.ts apps/web/src/app/page.tsx apps/web/src/app/a/\\\\[slug\\\\]/page.tsx)",
+      "Bash(git -C /Users/mac/AUD/ch diff apps/web/src/app/page.tsx apps/web/src/app/a/\\\\[slug\\\\]/page.tsx)",
+      "Bash(git -C /Users/mac/AUD/ch add -A)"
     ]
   }
 }

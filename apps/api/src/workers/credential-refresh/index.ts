@@ -138,15 +138,18 @@ async function recordFailure(credentialId: string, reason: string, detail: strin
   // Bump failure count atomically; if we've hit the budget, also flip the
   // credential to 'revoked' so the scan stops touching it and the workbench
   // shows a hard error.
-  const rows = await query<{ consecutive_failures: number }>(
+  await query(
     `UPDATE credential_secrets
        SET last_refresh_at = NOW(),
            last_refresh_ok = false,
            last_refresh_error = $2,
            consecutive_failures = consecutive_failures + 1
-     WHERE credential_id = $1
-     RETURNING consecutive_failures`,
+     WHERE credential_id = $1`,
     [credentialId, `${reason}: ${detail}`.slice(0, 300)],
+  );
+  const rows = await query<{ consecutive_failures: number }>(
+    `SELECT consecutive_failures FROM credential_secrets WHERE credential_id = $1`,
+    [credentialId],
   );
   const failures = rows[0]?.consecutive_failures ?? 0;
   if (failures >= MAX_CONSECUTIVE_FAILURES) {

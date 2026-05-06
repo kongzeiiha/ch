@@ -153,7 +153,7 @@
   <div class="meta">
     版本 1.0<br/>
     2026-04-24<br/>
-    技术栈: TypeScript · Next.js · PostgreSQL · Redis · BullMQ · Groq LLM
+    技术栈: TypeScript · Next.js · MySQL · Redis · BullMQ · Groq LLM
   </div>
 </div>
 
@@ -196,7 +196,7 @@
 <tr><th>层</th><th>组件</th><th>作用</th></tr>
 <tr><td>前端</td><td>Next.js 14 App Router</td><td>站点 + Workbench 控制台</td></tr>
 <tr><td>后端</td><td>Fastify + BullMQ</td><td>API + 9 个 worker 进程</td></tr>
-<tr><td>存储</td><td>PostgreSQL 16</td><td>sources / raw_items / items / agent_runs / analytics_daily / distribution_tasks</td></tr>
+<tr><td>存储</td><td>MySQL 8.0</td><td>sources / raw_items / items / agent_runs / analytics_daily / distribution_tasks</td></tr>
 <tr><td>队列</td><td>Redis 7 + BullMQ</td><td>9 个命名队列</td></tr>
 <tr><td>对象存储</td><td>MinIO（S3 协议）</td><td>封面多尺寸图</td></tr>
 <tr><td>LLM</td><td>Groq（免费）</td><td>分类 / 标题 / 合规打分 / 封面文案</td></tr>
@@ -213,7 +213,7 @@
 </ul>
 
 <h3>五步启动</h3>
-<pre><code># 1. 起基础设施（Postgres + Redis + MinIO）
+<pre><code># 1. 起基础设施（MySQL + Redis + MinIO）
 pnpm infra:up
 
 # 2. 跑数据库迁移
@@ -237,7 +237,7 @@ open http://localhost:3000/workbench
 </div>
 
 <h3>环境变量（.env）</h3>
-<pre><code>DATABASE_URL=postgresql://ch:ch@localhost:5433/ch
+<pre><code>DATABASE_URL=mysql://ch:ch@localhost:3306/ch
 REDIS_URL=redis://localhost:6381
 S3_ENDPOINT=http://localhost:9002
 S3_ACCESS_KEY=minioadmin
@@ -260,14 +260,14 @@ ALERT_LLM_FAIL_RATE=0.15
 <tr><th>端口</th><th>服务</th><th>说明</th></tr>
 <tr><td>3000</td><td>Next.js Web</td><td>站点首页 + <code>/workbench</code> + <code>/admin/*</code></td></tr>
 <tr><td>4000</td><td>Fastify API</td><td><code>/admin/*</code> 接口 + 9 worker 进程</td></tr>
-<tr><td>5433</td><td>PostgreSQL</td><td>容器端口 <code>ch-postgres-1</code></td></tr>
+<tr><td>3306</td><td>MySQL 8.0</td><td>容器端口 <code>ch-mysql-1</code></td></tr>
 <tr><td>6381</td><td>Redis</td><td>容器端口 <code>ch-redis-1</code></td></tr>
 <tr><td>9002</td><td>MinIO API (S3)</td><td>对象上传端点</td></tr>
 <tr><td>9003</td><td>MinIO Console</td><td>浏览器管理界面</td></tr>
 </table>
 
 <div class="box info">
-端口和常见本地服务（Postgres 5432、Redis 6379）错开，避免和其他项目冲突。
+端口和常见本地服务（Redis 6379）错开，避免和其他项目冲突。MySQL 默认 3306。
 </div>
 
 <!-- 4. 9 个 Agent -->
@@ -554,7 +554,7 @@ pnpm --filter @ch/api dev &amp;
 <h2>12. 常用命令速查</h2>
 
 <h3>系统</h3>
-<pre><code>pnpm infra:up             # 起 Postgres / Redis / MinIO
+<pre><code>pnpm infra:up             # 起 MySQL / Redis / MinIO
 pnpm infra:down           # 停
 pnpm infra:logs           # 看容器日志
 pnpm migrate              # 跑数据库迁移
@@ -564,20 +564,26 @@ pnpm build                # 全仓库构建
 </code></pre>
 
 <h3>数据库（直连）</h3>
-<pre><code># 连上 psql
-docker exec -it ch-postgres-1 psql -U ch ch
+<pre><code># 连上 mysql client
+docker exec -it ch-mysql-1 mysql -u ch -pch ch
 
 # 看 items 状态分布
-docker exec ch-postgres-1 psql -U ch ch -c \
+docker exec ch-mysql-1 mysql -u ch -pch ch -e \
   "SELECT status, COUNT(*) FROM items GROUP BY status;"
 
 # 看源列表
-docker exec ch-postgres-1 psql -U ch ch -c \
+docker exec ch-mysql-1 mysql -u ch -pch ch -e \
   "SELECT external_id, name, status, last_fetch_at FROM sources;"
 
 # 清空所有数据（保留 sources）
-docker exec ch-postgres-1 psql -U ch ch -c \
-  "TRUNCATE items, raw_items, agent_runs, distribution_tasks, analytics_daily RESTART IDENTITY CASCADE;"
+docker exec ch-mysql-1 mysql -u ch -pch ch -e \
+  "SET FOREIGN_KEY_CHECKS=0;
+   TRUNCATE items;
+   TRUNCATE raw_items;
+   TRUNCATE agent_runs;
+   TRUNCATE distribution_tasks;
+   TRUNCATE analytics_daily;
+   SET FOREIGN_KEY_CHECKS=1;"
 </code></pre>
 
 <h3>BullMQ 队列</h3>
@@ -647,8 +653,8 @@ curl -X POST http://localhost:4000/admin/pipeline/emergency-stop
 │   │       ├── queue.ts              # BullMQ getQueue / startWorker
 │   │       └── runner.ts             # withRun 包装器（写 agent_runs）
 │   └── db/
-│       └── src/client.ts             # pg Pool + query()
-├── docker-compose.yml                # Postgres/Redis/MinIO
+│       └── src/client.ts             # mysql2 Pool + query()
+├── docker-compose.yml                # MySQL/Redis/MinIO
 ├── .env                              # 配置
 └── promote/                          # 文档与预览
     ├── user-guide.html               # 本文档

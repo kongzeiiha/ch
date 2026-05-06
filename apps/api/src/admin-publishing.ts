@@ -8,11 +8,11 @@ export async function registerPublishing(app: FastifyInstance) {
   app.get('/admin/publishing/stats', async () => {
     const [totals, recent] = await Promise.all([
       query<{ status: string; cnt: string }>(
-        `SELECT status, COUNT(*)::text AS cnt FROM items GROUP BY status ORDER BY cnt DESC`,
+        `SELECT status, CAST(COUNT(*) AS CHAR) AS cnt FROM items GROUP BY status ORDER BY cnt DESC`,
       ),
       query<{ cnt: string }>(
-        `SELECT COUNT(*)::text AS cnt FROM items
-         WHERE status = $1 AND published_at >= NOW() - INTERVAL '24 hours'`,
+        `SELECT CAST(COUNT(*) AS CHAR) AS cnt FROM items
+         WHERE status = $1 AND published_at >= NOW() - INTERVAL 24 HOUR`,
         [IS.PUBLISHED],
       ),
     ]);
@@ -72,7 +72,7 @@ export async function registerPublishing(app: FastifyInstance) {
       `SELECT id FROM items
        WHERE status = ANY($1::text[])
          AND slug IS NOT NULL
-       ORDER BY published_at DESC NULLS LAST
+       ORDER BY published_at IS NULL, published_at DESC
        LIMIT 200`,
       [[IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW]],
     );

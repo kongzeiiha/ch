@@ -20,33 +20,33 @@ export async function generateWeeklyReport(): Promise<string> {
   const [topItems, dailySummary, totals] = await Promise.all([
     query<ReportRow>(`
       SELECT i.slug, i.title, i.category,
-             SUM(a.pv)::int      AS total_pv,
-             SUM(a.uv)::int      AS total_uv,
-             SUM(a.revenue)::float AS total_revenue
+             SUM(a.pv)      AS total_pv,
+             SUM(a.uv)      AS total_uv,
+             SUM(a.revenue) AS total_revenue
       FROM analytics_daily a
       JOIN items i ON i.id = a.item_id
-      WHERE a.date >= CURRENT_DATE - 6
+      WHERE a.date >= CURRENT_DATE - INTERVAL 6 DAY
         AND a.channel = 'site'
       GROUP BY i.id, i.slug, i.title, i.category
       ORDER BY total_pv DESC
       LIMIT 10
     `),
     query<DailySummary>(`
-      SELECT date::text,
-             SUM(pv)::int        AS pv,
-             SUM(uv)::int        AS uv,
-             SUM(revenue)::float AS revenue
+      SELECT date,
+             SUM(pv)        AS pv,
+             SUM(uv)        AS uv,
+             SUM(revenue)   AS revenue
       FROM analytics_daily
-      WHERE date >= CURRENT_DATE - 6 AND channel = 'site'
+      WHERE date >= CURRENT_DATE - INTERVAL 6 DAY AND channel = 'site'
       GROUP BY date
       ORDER BY date
     `),
     query<{ total_pv: number; total_uv: number; total_revenue: number }>(`
-      SELECT SUM(pv)::int        AS total_pv,
-             SUM(uv)::int        AS total_uv,
-             SUM(revenue)::float AS total_revenue
+      SELECT SUM(pv)        AS total_pv,
+             SUM(uv)        AS total_uv,
+             SUM(revenue)   AS total_revenue
       FROM analytics_daily
-      WHERE date >= CURRENT_DATE - 6 AND channel = 'site'
+      WHERE date >= CURRENT_DATE - INTERVAL 6 DAY AND channel = 'site'
     `),
   ]);
 

@@ -28,6 +28,7 @@ loadEnv({ path: path.resolve(here, '..', '..', '..', '.env') });
 
 const Fastify = (await import('fastify')).default;
 const { query } = await import('@ch/db');
+const { randomUUID } = await import('node:crypto');
 const { registerOpLogHook, registerOpLogAdmin } = await import('../src/op-log.js');
 const { registerAdmin } = await import('../src/admin.js');
 const { registerDay5 } = await import('../src/admin-day5.js');
@@ -89,57 +90,51 @@ let taskId = '';
 
 async function setup() {
   console.log('\n[setup] inserting raw fixtures');
-  const [src] = await query<{ id: string }>(
-    `INSERT INTO sources (platform, external_id, name, url, status, config)
-     VALUES ('html', $1, $1, 'https://example.test/oplog', 'active', '{}'::jsonb)
-     RETURNING id`,
-    [`${TAG}_pre`],
+  sourceId = randomUUID();
+  await query(
+    `INSERT INTO sources (id, platform, external_id, name, url, status, config)
+     VALUES ($1, 'html', $2, $2, 'https://example.test/oplog', 'active', '{}')`,
+    [sourceId, `${TAG}_pre`],
   );
-  sourceId = src.id;
   // We'll create a fresh source via the API too, but a pre-existing one is
   // useful so the patch / delete tests have a target without depending on the
   // create test's success.
 
-  const [raw] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/a', $2, $3, NOW(), '{}'::jsonb, ARRAY[]::text[])
-     RETURNING id`,
-    [sourceId, `${TAG}_pre_dk`, `${TAG}_pre_h`],
+  rawItemId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/a', $3, $4, NOW(), '{}', JSON_ARRAY())`,
+    [rawItemId, sourceId, `${TAG}_pre_dk`, `${TAG}_pre_h`],
   );
-  rawItemId = raw.id;
-  const [it] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, content)
-     VALUES ($1, $2, 'COMPLIANCE_REVIEW', 'review subject', $3)
-     RETURNING id`,
-    [rawItemId, sourceId, 'x'.repeat(220)],
+  itemId = randomUUID();
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, content)
+     VALUES ($1, $2, $3, 'COMPLIANCE_REVIEW', 'review subject', $4)`,
+    [itemId, rawItemId, sourceId, 'x'.repeat(220)],
   );
-  itemId = it.id;
 
   // A second item already PUBLISHED — for unpublish (紧急下线) test
-  const [raw2] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/b', $2, $3, NOW(), '{}'::jsonb, ARRAY[]::text[])
-     RETURNING id`,
-    [sourceId, `${TAG}_pre_dk2`, `${TAG}_pre_h2`],
+  publishedRawItemId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/b', $3, $4, NOW(), '{}', JSON_ARRAY())`,
+    [publishedRawItemId, sourceId, `${TAG}_pre_dk2`, `${TAG}_pre_h2`],
   );
-  publishedRawItemId = raw2.id;
-  const [it2] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, slug, published_url, published_at)
-     VALUES ($1, $2, 'PUBLISHED', 'will-be-unpublished', 'will-be-unpublished-${Date.now()}',
-             'http://localhost:3000/a/will-be-unpublished', NOW())
-     RETURNING id`,
-    [publishedRawItemId, sourceId],
+  publishedItemId = randomUUID();
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, slug, published_url, published_at)
+     VALUES ($1, $2, $3, 'PUBLISHED', 'will-be-unpublished', 'will-be-unpublished-${Date.now()}',
+             'http://localhost:3000/a/will-be-unpublished', NOW())`,
+    [publishedItemId, publishedRawItemId, sourceId],
   );
-  publishedItemId = it2.id;
 
   // A pending distribution_task for the edit-copy test
-  const [t] = await query<{ id: string }>(
-    `INSERT INTO distribution_tasks (item_id, channel, copy, status)
-     VALUES ($1, 'twitter', 'original copy', 'pending')
-     RETURNING id`,
-    [publishedItemId],
+  taskId = randomUUID();
+  await query(
+    `INSERT INTO distribution_tasks (id, item_id, channel, copy, status)
+     VALUES ($1, $2, 'twitter', 'original copy', 'pending')`,
+    [taskId, publishedItemId],
   );
-  taskId = t.id;
 
   console.log(`  src=${sourceId.slice(0,8)}  item=${itemId.slice(0,8)}  pubItem=${publishedItemId.slice(0,8)}  task=${taskId.slice(0,8)}`);
 }
@@ -223,26 +218,26 @@ async function testEditDistributionCopy() {
 async function testForcePublish() {
   console.log('\n[6] 发布至主站（force-publish）');
   // Create a fresh item in COMPLIANCE_PASS to publish
-  const [raw] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/c', $2, $3, NOW(), '{}'::jsonb, ARRAY[]::text[])
-     RETURNING id`,
-    [sourceId, `${TAG}_pub_dk`, `${TAG}_pub_h`],
+  const rawId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/c', $3, $4, NOW(), '{}', JSON_ARRAY())`,
+    [rawId, sourceId, `${TAG}_pub_dk`, `${TAG}_pub_h`],
   );
-  const [pubIt] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, slug)
-     VALUES ($1, $2, 'COMPLIANCE_PASS', 'force pub', 'force-pub-${Date.now()}')
-     RETURNING id`,
-    [raw.id, sourceId],
+  const pubItId = randomUUID();
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, slug)
+     VALUES ($1, $2, $3, 'COMPLIANCE_PASS', 'force pub', 'force-pub-${Date.now()}')`,
+    [pubItId, rawId, sourceId],
   );
-  const r = await inject('POST', `/admin/day5/force-publish/${pubIt.id}`);
+  const r = await inject('POST', `/admin/day5/force-publish/${pubItId}`);
   ok(r.statusCode === 200, `POST force-publish returned 200`);
-  const log = await findLog('publish.force', pubIt.id);
+  const log = await findLog('publish.force', pubItId);
   ok(!!log, 'publish.force row exists');
   ok(log?.payload?.bypassCompliance === true, 'payload notes compliance bypass');
 
-  await query(`DELETE FROM items WHERE id=$1`, [pubIt.id]);
-  await query(`DELETE FROM raw_items WHERE id=$1`, [raw.id]);
+  await query(`DELETE FROM items WHERE id=$1`, [pubItId]);
+  await query(`DELETE FROM raw_items WHERE id=$1`, [rawId]);
 }
 
 async function testUnpublishRollback() {
@@ -315,7 +310,7 @@ async function testExplicitStatusBackfill() {
   // status_code (200 in our case — none of the tests' POST/PATCH paths 4xx-d).
   // Assert no NULL status codes remain for this operator.
   const rows = await query<{ cnt: number }>(
-    `SELECT COUNT(*)::int AS cnt
+    `SELECT COUNT(*) AS cnt
      FROM operation_logs
      WHERE operator = $1 AND status_code IS NULL`,
     [OPERATOR],

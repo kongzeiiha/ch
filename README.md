@@ -16,8 +16,8 @@ Day 1 delivers the skeleton: infra + data model + queue + SDK wrapper. Days 2–
 │   └── web/          Next.js site (article pages, SEO)
 ├── packages/
 │   ├── agents/       Anthropic SDK wrapper, queue helpers, run tracking
-│   └── db/           pg client, migrations, schema
-├── docker-compose.yml  Postgres + Redis + MinIO
+│   └── db/           mysql2 client, migrations, schema
+├── docker-compose.yml  MySQL + Redis + MinIO
 └── .env.example
 ```
 
@@ -35,7 +35,7 @@ cp .env.example .env
 #  → fill in ANTHROPIC_API_KEY
 
 # 2. infra
-pnpm infra:up        # postgres:5432, redis:6380, minio:9000/9001
+pnpm infra:up        # mysql:3306, redis:6380, minio:9000/9001
 
 # 3. deps
 pnpm install

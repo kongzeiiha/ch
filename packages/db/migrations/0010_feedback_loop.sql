@@ -8,71 +8,62 @@
 -- ============================================================
 
 -- ---------- training_examples ----------
--- 一行 = 一条可用于训练的人工反馈样本。
 CREATE TABLE IF NOT EXISTS training_examples (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id              CHAR(36)     NOT NULL DEFAULT (UUID()),
 
   -- 来源域：'compliance' 或 'distribution'。后续可加 'classify-title' 等。
-  source          TEXT NOT NULL,
-  -- 关联回原始 item / 任务,便于追溯。
-  item_id         UUID REFERENCES items(id) ON DELETE CASCADE,
-  task_id         UUID REFERENCES distribution_tasks(id) ON DELETE CASCADE,
+  source          VARCHAR(64)  NOT NULL,
+  item_id         CHAR(36),
+  task_id         CHAR(36),
 
-  -- 模型当时看到的输入（标题/正文摘要 等）。结构化以便构造训练 prompt。
-  input_data      JSONB NOT NULL,
-  -- 模型当时给出的输出（risk scores、生成的文案等)。
-  machine_output  JSONB NOT NULL,
-  -- 人工最终的标注（决定/编辑后的文案/拒绝理由）。
-  human_label     JSONB NOT NULL,
+  input_data      JSON         NOT NULL,
+  machine_output  JSON         NOT NULL,
+  human_label     JSON         NOT NULL,
 
   -- agreement = false 表示人工推翻了机器（高信号样本,优先用于训练）。
-  agreement       BOOLEAN NOT NULL DEFAULT false,
+  agreement         BOOLEAN    NOT NULL DEFAULT FALSE,
+  used_for_training BOOLEAN    NOT NULL DEFAULT FALSE,
 
-  -- 是否已用于某次训练运行（避免重复使用）。
-  used_for_training BOOLEAN NOT NULL DEFAULT false,
+  op_log_id       CHAR(36),
+  created_at      TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
-  -- 反查溯源
-  op_log_id       UUID,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_train_source        ON training_examples (source, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_train_agreement     ON training_examples (source, agreement);
-CREATE INDEX IF NOT EXISTS idx_train_unused        ON training_examples (used_for_training) WHERE used_for_training = false;
--- 同一 op_log 不可重复入样,harvest 幂等
-CREATE UNIQUE INDEX IF NOT EXISTS uq_train_oplog   ON training_examples (op_log_id) WHERE op_log_id IS NOT NULL;
+  PRIMARY KEY (id),
+  KEY idx_train_source        (source, created_at),
+  KEY idx_train_agreement     (source, agreement),
+  KEY idx_train_unused        (used_for_training),
+  -- 同一 op_log 不可重复入样;MySQL UNIQUE 允许多个 NULL,
+  -- 与 PG `WHERE op_log_id IS NOT NULL` 部分索引语义一致。
+  UNIQUE KEY uq_train_oplog   (op_log_id),
+  CONSTRAINT fk_train_item FOREIGN KEY (item_id)
+    REFERENCES items(id) ON DELETE CASCADE,
+  CONSTRAINT fk_train_task FOREIGN KEY (task_id)
+    REFERENCES distribution_tasks(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 -- ---------- agent_memory_rules ----------
--- 由人工沉淀（或后续由 LLM 自动归纳）的"复核规则",在 LLM 调用前注入到 system prompt。
 CREATE TABLE IF NOT EXISTS agent_memory_rules (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id              CHAR(36)     NOT NULL DEFAULT (UUID()),
 
-  -- 应用到哪个 agent: 'compliance' / 'distribution' / ...
-  domain          TEXT NOT NULL,
-  -- 可选作用域,如 'category=AI' 或 'channel=twitter'。NULL = 通用。
-  scope           TEXT,
+  domain          VARCHAR(64)  NOT NULL,
+  scope           VARCHAR(255),
 
-  -- 规则文本（直接拼到 system prompt）。要写成命令式短句。
-  rule            TEXT NOT NULL,
+  rule            TEXT         NOT NULL,
 
-  -- 规则来源：'human' = 运营手写, 'derived' = 从 training_examples 自动归纳的
-  origin          TEXT NOT NULL DEFAULT 'human',
-  -- 若 origin='derived',指向归纳所基于的样本（一对多,这里取代表样本）
-  derived_from    UUID REFERENCES training_examples(id) ON DELETE SET NULL,
+  origin          VARCHAR(32)  NOT NULL DEFAULT 'human',
+  derived_from    CHAR(36),
 
-  -- 状态:active 才会被注入。paused/deprecated 留作历史。
-  status          TEXT NOT NULL DEFAULT 'active',
+  status          VARCHAR(32)  NOT NULL DEFAULT 'active',
 
-  -- 命中计数 + 最后使用时间。低命中规则可定期清理,避免 prompt 膨胀。
-  hit_count       INTEGER NOT NULL DEFAULT 0,
-  last_used_at    TIMESTAMPTZ,
+  hit_count       INT          NOT NULL DEFAULT 0,
+  last_used_at    TIMESTAMP(6) NULL,
 
-  created_by      TEXT,
+  created_by      VARCHAR(128),
   notes           TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_rules_domain_status ON agent_memory_rules (domain, status);
+  created_at      TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at      TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
 
-DROP TRIGGER IF EXISTS trg_rules_updated ON agent_memory_rules;
-CREATE TRIGGER trg_rules_updated BEFORE UPDATE ON agent_memory_rules
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  PRIMARY KEY (id),
+  KEY idx_rules_domain_status (domain, status),
+  CONSTRAINT fk_rules_derived FOREIGN KEY (derived_from)
+    REFERENCES training_examples(id) ON DELETE SET NULL
+) ENGINE=InnoDB;

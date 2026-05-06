@@ -23,20 +23,20 @@ export async function registerSourceScoring(app: FastifyInstance): Promise<void>
   // Aggregate stats for the top of the page (counts + last run summary).
   app.get('/admin/source-scoring/stats', async () => {
     const byStatus = await query<{ status: string; cnt: number }>(
-      `SELECT status, COUNT(*)::int AS cnt FROM sources GROUP BY status`,
+      `SELECT status, COUNT(*) AS cnt FROM sources GROUP BY status`,
     );
     const byRisk = await query<{ risk_level: string | null; cnt: number }>(
-      `SELECT risk_level, COUNT(*)::int AS cnt FROM sources GROUP BY risk_level`,
+      `SELECT risk_level, COUNT(*) AS cnt FROM sources GROUP BY risk_level`,
     );
     const [scoreStats] = await query<{ avg: number | null; min: number | null; max: number | null; cnt: number }>(
-      `SELECT AVG(score)::float AS avg, MIN(score)::int AS min, MAX(score)::int AS max,
-              COUNT(score)::int AS cnt FROM sources WHERE score IS NOT NULL`,
+      `SELECT AVG(score) AS avg, MIN(score) AS min, MAX(score) AS max,
+              COUNT(score) AS cnt FROM sources WHERE score IS NOT NULL`,
     );
     const [lastRun] = await query<{
       id: string; status: string; started_at: string;
       finished_at: string | null; latency_ms: number | null; output: any;
     }>(
-      `SELECT id, status, started_at::text, finished_at::text, latency_ms, output
+      `SELECT id, status, started_at, finished_at, latency_ms, output
        FROM agent_runs
        WHERE agent = 'source-scoring'
        ORDER BY started_at DESC LIMIT 1`,
@@ -53,9 +53,9 @@ export async function registerSourceScoring(app: FastifyInstance): Promise<void>
   app.get('/admin/source-scoring/runs', async (req) => {
     const { limit = '10' } = req.query as Record<string, string>;
     const rows = await query(
-      `SELECT id, status, started_at::text, finished_at::text,
+      `SELECT id, status, started_at, finished_at,
               latency_ms, output,
-              CASE WHEN length(error) > 200 THEN left(error, 200) || '…' ELSE error END AS error
+              CASE WHEN length(error) > 200 THEN CONCAT(left(error, 200), '…') ELSE error END AS error
        FROM agent_runs
        WHERE agent = 'source-scoring'
        ORDER BY started_at DESC LIMIT $1`,

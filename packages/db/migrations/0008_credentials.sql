@@ -7,30 +7,27 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS credentials (
-  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  platform            text NOT NULL,
-  name                text NOT NULL,
-  cookie              text,
-  user_agent          text,
-  status              text NOT NULL DEFAULT 'active',  -- 'active' | 'expired' | 'revoked'
-  last_used_at        timestamptz,
-  last_auth_check_at  timestamptz,
-  last_auth_ok        boolean,
-  created_at          timestamptz NOT NULL DEFAULT NOW(),
-  updated_at          timestamptz NOT NULL DEFAULT NOW(),
-  UNIQUE (platform, name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_credentials_platform_status
-  ON credentials (platform, status);
-
-DROP TRIGGER IF EXISTS trg_credentials_updated ON credentials;
-CREATE TRIGGER trg_credentials_updated
-  BEFORE UPDATE ON credentials
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  id                  CHAR(36)     NOT NULL DEFAULT (UUID()),
+  platform            VARCHAR(64)  NOT NULL,
+  name                VARCHAR(255) NOT NULL,
+  cookie              TEXT,
+  user_agent          TEXT,
+  status              VARCHAR(32)  NOT NULL DEFAULT 'active',  -- 'active' | 'expired' | 'revoked'
+  last_used_at        TIMESTAMP(6) NULL,
+  last_auth_check_at  TIMESTAMP(6) NULL,
+  last_auth_ok        BOOLEAN,
+  created_at          TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at          TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_credentials_platform_name (platform, name),
+  KEY idx_credentials_platform_status (platform, status)
+) ENGINE=InnoDB;
 
 ALTER TABLE sources
-  ADD COLUMN IF NOT EXISTS credential_id uuid REFERENCES credentials(id) ON DELETE SET NULL;
+  ADD COLUMN credential_id CHAR(36) NULL,
+  ADD CONSTRAINT fk_sources_credential FOREIGN KEY (credential_id)
+    REFERENCES credentials(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS idx_sources_credential
-  ON sources (credential_id) WHERE credential_id IS NOT NULL;
+-- MySQL has no partial indexes; the WHERE credential_id IS NOT NULL filter is
+-- dropped. Effect on lookups is negligible (NULL rows take one bucket).
+CREATE INDEX idx_sources_credential ON sources (credential_id);

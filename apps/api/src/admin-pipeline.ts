@@ -9,7 +9,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { query, ITEM_STATUS as IS } from '@ch/db';
+import { query, execute, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { logOperation } from './op-log.js';
 import { revalidatePaths } from './workers/publishing/revalidate.js';
@@ -130,16 +130,16 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
 
   app.get('/admin/pipeline/state', async () => {
     const pending = await query<{ status: string; cnt: number }>(
-      `SELECT status, COUNT(*)::int AS cnt FROM items GROUP BY status`,
+      `SELECT status, COUNT(*) AS cnt FROM items GROUP BY status`,
     );
     const pendingMap = Object.fromEntries(pending.map((r) => [r.status, r.cnt]));
 
     const reviewQueue = await query<{ cnt: number }>(
-      `SELECT COUNT(*)::int AS cnt FROM items WHERE status = $1`,
+      `SELECT COUNT(*) AS cnt FROM items WHERE status = $1`,
       [IS.COMPLIANCE_REVIEW],
     );
     const publishQueue = await query<{ cnt: number }>(
-      `SELECT COUNT(*)::int AS cnt FROM items WHERE status = $1`,
+      `SELECT COUNT(*) AS cnt FROM items WHERE status = $1`,
       [IS.COMPLIANCE_PASS],
     );
 
@@ -245,13 +245,12 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
   // Approve compliance review → COMPLIANCE_PASS + optionally queue for publishing
   app.post('/admin/pipeline/approve-review/:itemId', async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
-    const [updated] = await query<{ id: string }>(
+    const r = await execute(
       `UPDATE items SET status=$2, compliance_status='manual_pass'
-       WHERE id=$1 AND status=$3
-       RETURNING id`,
+       WHERE id=$1 AND status=$3`,
       [itemId, IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW],
     );
-    if (!updated) return reply.status(409).send({ error: 'item not in compliance_review state' });
+    if (r.affectedRows === 0) return reply.status(409).send({ error: 'item not in compliance_review state' });
     await query(
       `INSERT INTO agent_runs (agent, item_id, status, output, finished_at)
        VALUES ('human:review', $1, 'success', '{"decision":"approve"}', NOW())`,
@@ -270,13 +269,12 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
   app.post('/admin/pipeline/reject-review/:itemId', async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
     const { reason } = (req.body as { reason?: string }) ?? {};
-    const [updated] = await query<{ id: string }>(
+    const r = await execute(
       `UPDATE items SET status=$2, compliance_status='manual_fail'
-       WHERE id=$1 AND status=$3
-       RETURNING id`,
+       WHERE id=$1 AND status=$3`,
       [itemId, IS.COMPLIANCE_FAIL, IS.COMPLIANCE_REVIEW],
     );
-    if (!updated) return reply.status(409).send({ error: 'item not in compliance_review state' });
+    if (r.affectedRows === 0) return reply.status(409).send({ error: 'item not in compliance_review state' });
     await query(
       `INSERT INTO agent_runs (agent, item_id, status, output, error, finished_at)
        VALUES ('human:review', $1, 'success', '{"decision":"reject"}', $2, NOW())`,
@@ -320,10 +318,11 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     await getQueue(QUEUE_NAMES.publishing).addBulk(
       ids.map((id) => ({ name: 'publish', data: { itemId: id }, opts: { jobId: `publish__${id}` } })),
     );
+    // Single multi-row INSERT — one round-trip regardless of batch size.
+    const valueRows = ids.map((_, i) => `('human:publish-gate', $${i + 1}, 'success', '{"decision":"approve"}', NOW())`).join(', ');
     await query(
-      `INSERT INTO agent_runs (agent, item_id, status, output, finished_at)
-       SELECT 'human:publish-gate', unnest($1::uuid[]), 'success', '{"decision":"approve"}', NOW()`,
-      [ids],
+      `INSERT INTO agent_runs (agent, item_id, status, output, finished_at) VALUES ${valueRows}`,
+      ids,
     );
     // Per-item operation log so single-item history shows the publish event.
     await Promise.all(ids.map((id) =>
@@ -344,7 +343,7 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       task_id: string; channel: string; copy: string; status: string; created_at: string;
     }>(
       `SELECT dt.item_id, i.title, i.slug,
-              dt.id AS task_id, dt.channel, dt.copy, dt.status, dt.created_at::text
+              dt.id AS task_id, dt.channel, dt.copy, dt.status, dt.created_at
        FROM distribution_tasks dt
        JOIN items i ON i.id = dt.item_id
        WHERE dt.status = 'pending'
@@ -483,7 +482,7 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
                 i.cover_url, i.cover_sizes, i.compliance_status, i.risk_tags,
                 i.compliance_reasons, i.published_url,
                 i.summary, i.content,
-                i.created_at::text, i.updated_at::text,
+                i.created_at, i.updated_at,
                 s.name AS source, r.url AS original_url
          FROM items i
          JOIN sources s ON s.id = i.source_id
@@ -493,8 +492,8 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       ),
       query(
         `SELECT id, agent, status, latency_ms, cost_usd,
-                CASE WHEN length(error)>200 THEN left(error,200)||'…' ELSE error END AS error,
-                output, started_at::text, finished_at::text
+                CASE WHEN length(error)>200 THEN CONCAT(left(error,200),'…') ELSE error END AS error,
+                output, started_at, finished_at
          FROM agent_runs WHERE item_id=$1
          ORDER BY started_at ASC`,
         [itemId],
@@ -591,7 +590,7 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     // Recent completed (last 3 per agent from agent_runs)
     const recent = await query<{ agent: string; item_id: string | null; title: string | null; finished_at: string; latency_ms: number | null; status: string }>(
       `SELECT ar.agent, ar.item_id, i.title,
-              ar.finished_at::text AS finished_at, ar.latency_ms, ar.status
+              ar.finished_at AS finished_at, ar.latency_ms, ar.status
        FROM (
          SELECT agent, item_id, finished_at, latency_ms, status,
                 ROW_NUMBER() OVER (PARTITION BY agent ORDER BY finished_at DESC) AS rn

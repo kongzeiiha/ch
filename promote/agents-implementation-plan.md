@@ -15,7 +15,7 @@
 | 语言 | Node.js (TS) 或 Python | TS 生态对 SEO/前端一体化更友好；Python 对 NLP/数据分析更顺手。**建议主服务 TS + 分析/ML 脚本 Python** |
 | LLM | Claude Opus/Sonnet 4.x(主)+ Haiku(低成本批处理) | 分类、打标、标题、封面文案、合规都走 LLM；启用 **prompt caching** 降本 |
 | 编排 | Temporal 或 BullMQ + Redis | Agent 间靠事件流转，Temporal 提供重试/补偿/可观测 |
-| 存储 | PostgreSQL(主业务)+ pgvector(语义检索)+ S3/OSS(原始素材、图片) | 统一事务；向量库用于去重与相似检索 |
+| 存储 | MySQL 8(主业务)+ S3/OSS(原始素材、图片) | 统一事务；simhash 用于去重 |
 | 搜索 | Meilisearch / Elasticsearch | 站内搜索 + 后台审核检索 |
 | 站点 | Next.js(ISR) | SEO 页面用 ISR 增量生成 |
 | 监控 | OpenTelemetry + Grafana + Sentry | 每个 Agent 打 span |

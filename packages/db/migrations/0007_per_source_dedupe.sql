@@ -6,7 +6,8 @@
 -- prevents within-source duplicates.
 -- ============================================================
 
-ALTER TABLE raw_items DROP CONSTRAINT IF EXISTS raw_items_dedupe_key_key;
+-- 0001 created uq_raw_items_dedupe_key in MySQL — drop it.
+ALTER TABLE raw_items DROP INDEX uq_raw_items_dedupe_key;
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_items_source_dedupe
+CREATE UNIQUE INDEX uq_raw_items_source_dedupe
   ON raw_items (source_id, dedupe_key);

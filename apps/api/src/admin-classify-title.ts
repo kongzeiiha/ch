@@ -6,26 +6,26 @@ export async function registerClassifyTitle(app: FastifyInstance): Promise<void>
   // Count items in each pipeline stage
   app.get('/admin/classify-title/stats', async () => {
     const [total] = await query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM items`,
+      `SELECT COUNT(*) AS count FROM items`,
     );
     const byStatus = await query<{ status: string; count: number }>(
-      `SELECT status, COUNT(*)::int AS count FROM items GROUP BY status ORDER BY status`,
+      `SELECT status, COUNT(*) AS count FROM items GROUP BY status ORDER BY status`,
     );
     const byCategory = await query<{ category: string; count: number }>(
-      `SELECT category, COUNT(*)::int AS count
+      `SELECT category, COUNT(*) AS count
        FROM items WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC`,
     );
     const runs = await query(
       `SELECT id, agent, status, latency_ms, cost_usd, started_at, finished_at,
-              CASE WHEN length(error) > 200 THEN left(error, 200) || '…' ELSE error END AS error
+              CASE WHEN length(error) > 200 THEN CONCAT(left(error, 200), '…') ELSE error END AS error
        FROM agent_runs
        WHERE agent IN ('classify-title', 'classification', 'title')
        ORDER BY started_at DESC
        LIMIT 20`,
     );
     const [costToday] = await query<{ sum: string | null }>(
-      `SELECT SUM(cost_usd)::text AS sum FROM agent_runs
-       WHERE started_at > NOW() - interval '1 day'
+      `SELECT CAST(SUM(cost_usd) AS CHAR) AS sum FROM agent_runs
+       WHERE started_at > NOW() - INTERVAL 1 DAY
          AND agent IN ('classify-title', 'classification', 'title')`,
     );
 

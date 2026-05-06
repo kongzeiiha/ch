@@ -26,7 +26,7 @@ interface StageCheck {
 const STAGES: StageCheck[] = [
   {
     agent: 'source-scoring',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM sources WHERE status='active'`,
+    countSql: `SELECT COUNT(*) AS cnt FROM sources WHERE status='active'`,
     triggerFn: async () => {
       await getQueue(QUEUE_NAMES.sourceScoring).add('score', {}, { jobId: 'score__auto' });
       return 1;
@@ -34,7 +34,7 @@ const STAGES: StageCheck[] = [
   },
   {
     agent: 'ingestion',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM sources WHERE status='active'`,
+    countSql: `SELECT COUNT(*) AS cnt FROM sources WHERE status='active'`,
     triggerFn: async () => {
       await getQueue(QUEUE_NAMES.ingestion).add('fanout', { kind: 'fanout' }, { jobId: 'fanout__auto' });
       return 1;
@@ -42,7 +42,7 @@ const STAGES: StageCheck[] = [
   },
   {
     agent: 'classify-title',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status = ANY(ARRAY['${IS.INGESTED}','${IS.CLASSIFIED}'])`,
+    countSql: `SELECT COUNT(*) AS cnt FROM items WHERE status IN ('${IS.INGESTED}','${IS.CLASSIFIED}')`,
     triggerFn: async () => {
       const items = await query<{ id: string }>(
         `SELECT id FROM items WHERE status = ANY($1::text[]) LIMIT 200`,
@@ -57,7 +57,7 @@ const STAGES: StageCheck[] = [
   },
   {
     agent: 'cover',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='${IS.TITLED}'`,
+    countSql: `SELECT COUNT(*) AS cnt FROM items WHERE status='${IS.TITLED}'`,
     triggerFn: async () => {
       const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.TITLED]);
       if (items.length === 0) return 0;
@@ -69,7 +69,7 @@ const STAGES: StageCheck[] = [
   },
   {
     agent: 'compliance',
-    countSql: `SELECT COUNT(*)::int AS cnt FROM items WHERE status='${IS.COVERED}'`,
+    countSql: `SELECT COUNT(*) AS cnt FROM items WHERE status='${IS.COVERED}'`,
     triggerFn: async () => {
       const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.COVERED]);
       if (items.length === 0) return 0;
@@ -81,7 +81,7 @@ const STAGES: StageCheck[] = [
   },
   {
     agent: 'analytics',
-    countSql: `SELECT 1::int AS cnt`, // always check — just schedule if auto
+    countSql: `SELECT 1 AS cnt`, // always check — just schedule if auto
     triggerFn: async () => {
       await getQueue(QUEUE_NAMES.analytics).add('analytics', { kind: 'pull' }, { jobId: `analytics__auto__${Date.now()}` });
       return 1;

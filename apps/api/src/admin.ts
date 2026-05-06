@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { query } from '@ch/db';
+import { randomUUID } from 'node:crypto';
+import { query, execute } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import type { IngestionJob } from './workers/ingestion/index.js';
 import { ingestSource } from './workers/ingestion/index.js';
@@ -133,17 +134,23 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       const { platform, external_id, name, url, config } = req.body;
       const err = validateSourceConfig(platform, config);
       if (err) return reply.code(400).send({ error: err });
-      const rows = await query<{ id: string; xmax: number }>(
-        `INSERT INTO sources (platform, external_id, name, url, config, status)
-         VALUES ($1, $2, $3, $4, $5, 'active')
-         ON CONFLICT (platform, external_id) DO UPDATE SET
-           name = EXCLUDED.name, url = EXCLUDED.url, config = EXCLUDED.config, status = 'active'
-         RETURNING *, (xmax = 0) AS was_insert`,
-        [platform, external_id, name, url, config ?? {}],
+      // MySQL upsert: INSERT ... ON DUPLICATE KEY UPDATE. affectedRows: 1=insert, 2=update.
+      const newId = randomUUID();
+      const r = await execute(
+        `INSERT INTO sources (id, platform, external_id, name, url, config, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'active')
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name), url = VALUES(url), config = VALUES(config), status = 'active'`,
+        [newId, platform, external_id, name, url, JSON.stringify(config ?? {})],
       );
-      const source = rows[0] as any;
+      const wasInsert = r.affectedRows === 1;
+      const rows = await query<any>(
+        `SELECT * FROM sources WHERE platform = $1 AND external_id = $2`,
+        [platform, external_id],
+      );
+      const source = rows[0];
       await logOperation(req, {
-        operation: source.was_insert ? 'source.create' : 'source.upsert',
+        operation: wasInsert ? 'source.create' : 'source.upsert',
         targetType: 'source',
         targetId: source.id,
         payload: { platform, external_id, name, url, config: config ?? {} },
@@ -166,7 +173,7 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
               c.user_agent,
               c.last_used_at, c.last_auth_check_at, c.last_auth_ok,
               c.created_at, c.updated_at,
-              (SELECT COUNT(*)::int FROM sources WHERE credential_id = c.id) AS source_count,
+              (SELECT COUNT(*) FROM sources WHERE credential_id = c.id) AS source_count,
               (cs.credential_id IS NOT NULL)            AS has_secret,
               cs.username                                AS secret_username,
               cs.last_refresh_at                         AS secret_last_refresh_at,
@@ -193,17 +200,22 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       if (platform === 'x' && cookie && !/(?:^|;\s*)ct0=/.test(cookie)) {
         return reply.code(400).send({ error: 'X 凭证的 cookie 必须含 ct0=…（CSRF token）' });
       }
-      const rows = await query(
-        `INSERT INTO credentials (platform, name, cookie, user_agent)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (platform, name) DO UPDATE SET
-           cookie = EXCLUDED.cookie,
-           user_agent = EXCLUDED.user_agent,
+      const newId = randomUUID();
+      await execute(
+        `INSERT INTO credentials (id, platform, name, cookie, user_agent)
+         VALUES ($1, $2, $3, $4, $5)
+         ON DUPLICATE KEY UPDATE
+           cookie = VALUES(cookie),
+           user_agent = VALUES(user_agent),
            status = 'active',
            last_auth_check_at = NULL,
-           last_auth_ok = NULL
-         RETURNING id, platform, name, status, length(cookie) AS cookie_len, user_agent`,
-        [platform, name, cookie ?? null, user_agent ?? null],
+           last_auth_ok = NULL`,
+        [newId, platform, name, cookie ?? null, user_agent ?? null],
+      );
+      const rows = await query(
+        `SELECT id, platform, name, status, length(cookie) AS cookie_len, user_agent
+         FROM credentials WHERE platform = $1 AND name = $2`,
+        [platform, name],
       );
       return { credential: rows[0] };
     },
@@ -218,7 +230,7 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const { id } = req.params;
       const { name, cookie, user_agent, status } = req.body ?? ({} as any);
-      const rows = await query(
+      const r = await execute(
         `UPDATE credentials SET
            name       = COALESCE($2, name),
            cookie     = COALESCE($3, cookie),
@@ -226,11 +238,15 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
            status     = COALESCE($5, status),
            last_auth_check_at = CASE WHEN $3 IS NOT NULL THEN NULL ELSE last_auth_check_at END,
            last_auth_ok       = CASE WHEN $3 IS NOT NULL THEN NULL ELSE last_auth_ok END
-         WHERE id = $1
-         RETURNING id, platform, name, status, length(cookie) AS cookie_len, user_agent`,
+         WHERE id = $1`,
         [id, name ?? null, cookie ?? null, user_agent ?? null, status ?? null],
       );
-      if (!rows.length) return reply.code(404).send({ error: 'credential not found' });
+      if (r.affectedRows === 0) return reply.code(404).send({ error: 'credential not found' });
+      const rows = await query(
+        `SELECT id, platform, name, status, length(cookie) AS cookie_len, user_agent
+         FROM credentials WHERE id = $1`,
+        [id],
+      );
 
       // Re-activating a credential is the user overriding our auto-revoke
       // decision (or pasting a fresh cookie after the old one expired). Reset
@@ -247,11 +263,11 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
             [id],
           );
         } catch (e: any) {
-          // 42P01 = undefined_table — tolerate if migration 0011 hasn't been
+          // ER_NO_SUCH_TABLE (1146) — tolerate if migration 0011 hasn't been
           // applied yet. Anything else (FK, connection, lock) is a real error
           // and must surface; silently swallowing them is what the previous
           // bare .catch() did and it masked operational failures.
-          if (e?.code !== '42P01') throw e;
+          if (e?.code !== 'ER_NO_SUCH_TABLE' && e?.errno !== 1146) throw e;
         }
       }
       return { credential: rows[0] };
@@ -263,8 +279,8 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const { id } = req.params;
       // FK is ON DELETE SET NULL on sources, ON DELETE CASCADE on secrets.
-      const rows = await query(`DELETE FROM credentials WHERE id = $1 RETURNING id`, [id]);
-      if (!rows.length) return reply.code(404).send({ error: 'credential not found' });
+      const r = await execute(`DELETE FROM credentials WHERE id = $1`, [id]);
+      if (r.affectedRows === 0) return reply.code(404).send({ error: 'credential not found' });
       return { ok: true };
     },
   );
@@ -299,9 +315,9 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       await query(
         `INSERT INTO credential_secrets (credential_id, username, password_blob, consecutive_failures)
          VALUES ($1, $2, $3, 0)
-         ON CONFLICT (credential_id) DO UPDATE SET
-           username = EXCLUDED.username,
-           password_blob = EXCLUDED.password_blob,
+         ON DUPLICATE KEY UPDATE
+           username = VALUES(username),
+           password_blob = VALUES(password_blob),
            consecutive_failures = 0,
            last_refresh_at = NULL,
            last_refresh_ok = NULL,
@@ -316,11 +332,11 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     '/admin/credentials/:id/secret',
     async (req, reply) => {
       const { id } = req.params;
-      const rows = await query(
-        `DELETE FROM credential_secrets WHERE credential_id = $1 RETURNING credential_id`,
+      const r = await execute(
+        `DELETE FROM credential_secrets WHERE credential_id = $1`,
         [id],
       );
-      if (!rows.length) return reply.code(404).send({ error: 'no secret stored for this credential' });
+      if (r.affectedRows === 0) return reply.code(404).send({ error: 'no secret stored for this credential' });
       return { ok: true };
     },
   );
@@ -466,23 +482,26 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
             platform === 'reddit' ? `https://www.reddit.com/r/${handle}` :
             `https://bsky.app/profile/${handle}`;
 
-          // ON CONFLICT (platform, external_id) tells us whether the row was
-          // pre-existing — we use xmax=0 to flag inserts. (Postgres exposes
-          // the system column for the ON CONFLICT path: xmax=0 ⇒ insert,
-          // xmax≠0 ⇒ update.)
-          const rows = await query<{ id: string; was_insert: boolean }>(
-            `INSERT INTO sources (platform, external_id, name, url, config, status, credential_id)
-             VALUES ($1, $2, $3, $4, $5, 'active', $6)
-             ON CONFLICT (platform, external_id) DO UPDATE SET
-               name = EXCLUDED.name,
-               url = EXCLUDED.url,
-               config = EXCLUDED.config,
+          // MySQL upsert via INSERT ... ON DUPLICATE KEY UPDATE.
+          // affectedRows: 1 = insert (new row), 2 = update (existing row matched).
+          const newId = randomUUID();
+          const upsertResult = await execute(
+            `INSERT INTO sources (id, platform, external_id, name, url, config, status, credential_id)
+             VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
+             ON DUPLICATE KEY UPDATE
+               name = VALUES(name),
+               url = VALUES(url),
+               config = VALUES(config),
                status = 'active',
-               credential_id = EXCLUDED.credential_id
-             RETURNING id, (xmax = 0) AS was_insert`,
-            [platform, externalId, name, url, config, credentialId ?? null],
+               credential_id = VALUES(credential_id)`,
+            [newId, platform, externalId, name, url, JSON.stringify(config), credentialId ?? null],
           );
-          const row = rows[0]!;
+          const wasInsert = upsertResult.affectedRows === 1;
+          const idRows = await query<{ id: string }>(
+            `SELECT id FROM sources WHERE platform = $1 AND external_id = $2`,
+            [platform, externalId],
+          );
+          const row = { id: idRows[0]!.id, was_insert: wasInsert };
           (row.was_insert ? created : updated).push({ handle, sourceId: row.id });
 
           if (triggerFetch) {
@@ -535,16 +554,17 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         const err = validateSourceConfig(cur[0].platform, config);
         if (err) return reply.code(400).send({ error: err });
       }
-      const rows = await query(
+      const r = await execute(
         `UPDATE sources SET
            name   = COALESCE($2, name),
            url    = COALESCE($3, url),
            status = COALESCE($4, status),
            config = COALESCE($5, config)
-         WHERE id = $1 RETURNING *`,
-        [id, name ?? null, url ?? null, status ?? null, config ?? null],
+         WHERE id = $1`,
+        [id, name ?? null, url ?? null, status ?? null, config !== undefined ? JSON.stringify(config) : null],
       );
-      if (!rows.length) return reply.code(404).send({ error: 'source not found' });
+      if (r.affectedRows === 0) return reply.code(404).send({ error: 'source not found' });
+      const rows = await query(`SELECT * FROM sources WHERE id = $1`, [id]);
       await logOperation(req, {
         operation: 'source.update',
         targetType: 'source',
@@ -569,7 +589,7 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         // inserting new items for this source between the two DELETEs.
         await query(`UPDATE sources SET status = 'inactive' WHERE id = $1`, [id]);
         const itemRows = await query<{ count: number }>(
-          `SELECT COUNT(*)::int AS count FROM items WHERE source_id = $1`,
+          `SELECT COUNT(*) AS count FROM items WHERE source_id = $1`,
           [id],
         );
         await query(`DELETE FROM items WHERE source_id = $1`, [id]);
@@ -583,7 +603,7 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         return { ok: true, cascade: true };
       }
       const rows = await query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM items WHERE source_id = $1`,
+        `SELECT COUNT(*) AS count FROM items WHERE source_id = $1`,
         [id],
       );
       const itemCount = rows[0]?.count ?? 0;
@@ -629,17 +649,17 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
   // Pipeline stats — cheap dashboard for the Day 2 smoke test
   app.get('/admin/stats', async () => {
     const [sources] = await query<{ count: string }>(
-      `SELECT COUNT(*)::int AS count FROM sources`,
+      `SELECT COUNT(*) AS count FROM sources`,
     );
     const [raw] = await query<{ count: string }>(
-      `SELECT COUNT(*)::int AS count FROM raw_items`,
+      `SELECT COUNT(*) AS count FROM raw_items`,
     );
     const byStatus = await query<{ status: string; count: string }>(
-      `SELECT status, COUNT(*)::int AS count FROM items GROUP BY status ORDER BY status`,
+      `SELECT status, COUNT(*) AS count FROM items GROUP BY status ORDER BY status`,
     );
     const runs = await query(
       `SELECT id, agent, status, latency_ms, cost_usd, started_at, finished_at,
-              CASE WHEN length(error) > 200 THEN left(error, 200) || '…' ELSE error END AS error
+              CASE WHEN length(error) > 200 THEN CONCAT(left(error, 200), '…') ELSE error END AS error
        FROM agent_runs
        ORDER BY started_at DESC
        LIMIT 20`,
@@ -777,28 +797,29 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       auth_status: number | null; auth_reason: string | null;
       candidates: number | null; finished_at: string;
     }>(
-      `WITH latest AS (
-         SELECT DISTINCT ON (input_hash)
-           input_hash AS source_id,
-           output,
-           finished_at
+      `WITH ranked AS (
+         SELECT input_hash AS source_id,
+                output,
+                finished_at,
+                ROW_NUMBER() OVER (PARTITION BY input_hash ORDER BY started_at DESC) AS rn
          FROM agent_runs
          WHERE agent = 'ingestion'
            AND status = 'success'
            AND input_hash IS NOT NULL
-           AND finished_at > NOW() - INTERVAL '6 hours'
-         ORDER BY input_hash, started_at DESC
+           AND finished_at > NOW() - INTERVAL 6 HOUR
+       ), latest AS (
+         SELECT source_id, output, finished_at FROM ranked WHERE rn = 1
        )
        SELECT
          s.id, s.name, s.platform,
-         (l.output->>'authStatus')::int  AS auth_status,
-          l.output->>'authReason'        AS auth_reason,
-         (l.output->>'candidates')::int  AS candidates,
+         CAST(JSON_UNQUOTE(JSON_EXTRACT(l.output, '$.authStatus')) AS SIGNED) AS auth_status,
+         JSON_UNQUOTE(JSON_EXTRACT(l.output, '$.authReason'))                  AS auth_reason,
+         CAST(JSON_UNQUOTE(JSON_EXTRACT(l.output, '$.candidates')) AS SIGNED) AS candidates,
          l.finished_at
        FROM sources s
-       JOIN latest l ON l.source_id = s.id::text
+       JOIN latest l ON l.source_id = s.id
        WHERE s.status = 'active'
-         AND (l.output->>'authFail')::boolean = true
+         AND JSON_UNQUOTE(JSON_EXTRACT(l.output, '$.authFail')) = 'true'
        ORDER BY l.finished_at DESC`,
     );
     return { suspect: rows };
@@ -816,7 +837,7 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       const where: string[] = [];
       const params: unknown[] = [];
       if (sourceId) { params.push(sourceId); where.push(`r.source_id = $${params.length}`); }
-      if (onlyWithMedia) where.push(`array_length(r.media_urls, 1) > 0`);
+      if (onlyWithMedia) where.push(`JSON_LENGTH(r.media_urls) > 0`);
       const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
       params.push(limit); const limitIdx = params.length;
@@ -825,8 +846,8 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       const rows = await query(
         `SELECT r.id, r.url, r.fetched_at, r.media_urls, r.dedupe_key,
                 s.id AS source_id, s.name AS source_name, s.platform,
-                COALESCE(r.raw_payload->>'title', '') AS title,
-                COALESCE(r.raw_payload->'extra'->'videoUrls', '[]'::jsonb) AS video_urls
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.raw_payload, '$.title')), '') AS title,
+                COALESCE(JSON_EXTRACT(r.raw_payload, '$.extra.videoUrls'), JSON_ARRAY()) AS video_urls
          FROM raw_items r
          JOIN sources s ON s.id = r.source_id
          ${whereSql}
@@ -837,9 +858,9 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
 
       const countParams = sourceId ? [sourceId] : [];
       const [countRow] = await query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM raw_items r
+        `SELECT COUNT(*) AS count FROM raw_items r
          ${sourceId ? 'WHERE r.source_id = $1' : ''}
-         ${onlyWithMedia ? (sourceId ? 'AND' : 'WHERE') + ' array_length(r.media_urls, 1) > 0' : ''}`,
+         ${onlyWithMedia ? (sourceId ? 'AND' : 'WHERE') + ' JSON_LENGTH(r.media_urls) > 0' : ''}`,
         countParams,
       );
 
@@ -863,7 +884,7 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
          LIMIT $1 OFFSET $2`,
         [limit, offset],
       ),
-      query<{ cnt: string }>(`SELECT COUNT(*)::text AS cnt FROM items`),
+      query<{ cnt: string }>(`SELECT CAST(COUNT(*) AS CHAR) AS cnt FROM items`),
     ]);
     return { items: rows, total: Number(totalRows[0]?.cnt ?? 0), limit, offset };
   });

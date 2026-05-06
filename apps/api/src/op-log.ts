@@ -13,6 +13,7 @@
  * read from req.user.
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { query } from '@ch/db';
 
 export interface OperationContext {
@@ -69,13 +70,14 @@ async function insertRow(row: LogRow): Promise<string | null> {
   // logging failed. Swallow + console.warn. Returns the row id for explicit
   // logs (so the onResponse hook can backfill status_code), or null on error.
   try {
-    const rows = await query<{ id: string }>(
+    const id = randomUUID();
+    await query(
       `INSERT INTO operation_logs
-        (operator, operator_id, operation, target_type, target_id, payload,
+        (id, operator, operator_id, operation, target_type, target_id, payload,
          request_id, http_method, http_path, status_code, ip, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12)
-       RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
+        id,
         row.operator,
         row.operatorId,
         row.operation,
@@ -90,7 +92,7 @@ async function insertRow(row: LogRow): Promise<string | null> {
         row.userAgent,
       ],
     );
-    return rows[0]?.id ?? null;
+    return id;
   } catch (e: any) {
     console.warn(`[op-log] insert failed: ${e?.message ?? e}`);
     return null;
@@ -256,7 +258,7 @@ export async function registerOpLogAdmin(app: FastifyInstance): Promise<void> {
 
     // Reuse params for COUNT, then add limit/offset only for the data query.
     const [countRow] = await query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM operation_logs ${whereSql}`,
+      `SELECT COUNT(*) AS count FROM operation_logs ${whereSql}`,
       params,
     );
 
@@ -264,7 +266,7 @@ export async function registerOpLogAdmin(app: FastifyInstance): Promise<void> {
     params.push(offset); const offsetIdx = params.length;
 
     const rows = await query(
-      `SELECT id, operator, operator_id, occurred_at::text,
+      `SELECT id, operator, operator_id, occurred_at,
               operation, target_type, target_id, payload,
               request_id, http_method, http_path, status_code, ip, user_agent
        FROM operation_logs
@@ -284,7 +286,7 @@ export async function registerOpLogAdmin(app: FastifyInstance): Promise<void> {
     async (req) => {
       const { type, id } = req.params;
       const rows = await query(
-        `SELECT id, operator, operator_id, occurred_at::text,
+        `SELECT id, operator, operator_id, occurred_at,
                 operation, target_type, target_id, payload,
                 http_method, http_path, status_code
          FROM operation_logs

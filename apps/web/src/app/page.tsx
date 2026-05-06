@@ -25,7 +25,7 @@ export default async function Home() {
     query<FeedRow>(
       `SELECT i.id, i.slug, i.title, i.summary, i.cover_url, i.cover_sizes,
               i.category, i.published_at,
-              r.media_urls[1] AS first_media
+              r.media_urls->>'$[0]' AS first_media
        FROM items i
        JOIN raw_items r ON r.id = i.raw_item_id
        WHERE i.status = 'PUBLISHED'

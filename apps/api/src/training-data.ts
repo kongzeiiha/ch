@@ -13,6 +13,7 @@
  *     {"messages":[{"role":"system",...},{"role":"user",...},{"role":"assistant",...}]}
  *   - one example per line
  */
+import { randomUUID } from 'node:crypto';
 import { query } from '@ch/db';
 
 export interface HarvestStats {
@@ -62,7 +63,7 @@ export async function harvestComplianceFeedback(): Promise<HarvestStats> {
     `SELECT
        ol.id           AS op_id,
        ol.operator     AS operator,
-       ol.occurred_at::text AS occurred_at,
+       ol.occurred_at  AS occurred_at,
        ol.operation    AS operation,
        ol.target_id    AS item_id,
        ol.payload      AS payload,
@@ -71,14 +72,14 @@ export async function harvestComplianceFeedback(): Promise<HarvestStats> {
        i.category      AS i_category,
        i.summary       AS i_summary,
        (SELECT output FROM agent_runs
-          WHERE agent='compliance' AND item_id = ol.target_id::uuid AND status='success'
+          WHERE agent='compliance' AND item_id = ol.target_id AND status='success'
           ORDER BY started_at DESC LIMIT 1) AS ar_output,
-       (SELECT started_at::text FROM agent_runs
-          WHERE agent='compliance' AND item_id = ol.target_id::uuid AND status='success'
+       (SELECT started_at FROM agent_runs
+          WHERE agent='compliance' AND item_id = ol.target_id AND status='success'
           ORDER BY started_at DESC LIMIT 1) AS ar_started_at
      FROM operation_logs ol
      LEFT JOIN training_examples te ON te.op_log_id = ol.id
-     LEFT JOIN items i ON i.id = ol.target_id::uuid
+     LEFT JOIN items i ON i.id = ol.target_id
      WHERE ol.operation IN ('compliance.approve', 'compliance.reject')
        AND ol.target_type = 'item'
        AND te.id IS NULL
@@ -119,13 +120,12 @@ export async function harvestComplianceFeedback(): Promise<HarvestStats> {
     };
 
     await query(
-      // Partial unique index requires the predicate to be repeated here so the
-      // planner can match it (PG quirk).
-      `INSERT INTO training_examples
-         (source, item_id, input_data, machine_output, human_label, agreement, op_log_id)
-       VALUES ('compliance', $1::uuid, $2::jsonb, $3::jsonb, $4::jsonb, false, $5::uuid)
-       ON CONFLICT (op_log_id) WHERE op_log_id IS NOT NULL DO NOTHING`,
+      // INSERT IGNORE drops dup-key violations on the unique index over op_log_id.
+      `INSERT IGNORE INTO training_examples
+         (id, source, item_id, input_data, machine_output, human_label, agreement, op_log_id)
+       VALUES ($1, 'compliance', $2, $3, $4, $5, false, $6)`,
       [
+        randomUUID(),
         r.item_id,
         JSON.stringify(inputData),
         JSON.stringify(r.ar_output),
@@ -167,7 +167,7 @@ export async function harvestDistributionFeedback(): Promise<HarvestStats> {
     `SELECT
        ol.id          AS op_id,
        ol.operator    AS operator,
-       ol.occurred_at::text AS occurred_at,
+       ol.occurred_at AS occurred_at,
        ol.target_id   AS task_id,
        ol.payload     AS payload,
        i.id           AS i_id,
@@ -178,7 +178,7 @@ export async function harvestDistributionFeedback(): Promise<HarvestStats> {
        i.published_url AS i_published_url
      FROM operation_logs ol
      LEFT JOIN training_examples te ON te.op_log_id = ol.id
-     LEFT JOIN distribution_tasks dt ON dt.id = ol.target_id::uuid
+     LEFT JOIN distribution_tasks dt ON dt.id = ol.target_id
      LEFT JOIN items i ON i.id = dt.item_id
      WHERE ol.operation = 'distribution.edit-copy'
        AND ol.target_type = 'distribution_task'
@@ -216,11 +216,11 @@ export async function harvestDistributionFeedback(): Promise<HarvestStats> {
     };
 
     await query(
-      `INSERT INTO training_examples
-         (source, item_id, task_id, input_data, machine_output, human_label, agreement, op_log_id)
-       VALUES ('distribution', $1::uuid, $2::uuid, $3::jsonb, $4::jsonb, $5::jsonb, false, $6::uuid)
-       ON CONFLICT (op_log_id) WHERE op_log_id IS NOT NULL DO NOTHING`,
+      `INSERT IGNORE INTO training_examples
+         (id, source, item_id, task_id, input_data, machine_output, human_label, agreement, op_log_id)
+       VALUES ($1, 'distribution', $2, $3, $4, $5, $6, false, $7)`,
       [
+        randomUUID(),
         r.i_id,
         r.task_id,
         JSON.stringify(inputData),
@@ -369,24 +369,24 @@ export interface FeedbackStats {
 export async function feedbackStats(): Promise<FeedbackStats> {
   const [byCount, complianceTotal, complianceReview, distTotal, distEdits, recent] = await Promise.all([
     query<{ source: string; count: number }>(
-      `SELECT source, COUNT(*)::int AS count FROM training_examples GROUP BY source`,
+      `SELECT source, COUNT(*) AS count FROM training_examples GROUP BY source`,
     ),
     query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM agent_runs WHERE agent='compliance' AND status='success'`,
+      `SELECT COUNT(*) AS count FROM agent_runs WHERE agent='compliance' AND status='success'`,
     ),
     query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM operation_logs WHERE operation IN ('compliance.approve', 'compliance.reject')`,
+      `SELECT COUNT(*) AS count FROM operation_logs WHERE operation IN ('compliance.approve', 'compliance.reject')`,
     ),
     query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM distribution_tasks`,
+      `SELECT COUNT(*) AS count FROM distribution_tasks`,
     ),
     query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM operation_logs WHERE operation = 'distribution.edit-copy'`,
+      `SELECT COUNT(*) AS count FROM operation_logs WHERE operation = 'distribution.edit-copy'`,
     ),
     query<{ source: string; count: number; latest: string }>(
-      `SELECT source, COUNT(*)::int AS count, MAX(created_at)::text AS latest
+      `SELECT source, COUNT(*) AS count, MAX(created_at) AS latest
          FROM training_examples
-         WHERE created_at > NOW() - INTERVAL '7 days'
+         WHERE created_at > NOW() - INTERVAL 7 DAY
          GROUP BY source`,
     ),
   ]);

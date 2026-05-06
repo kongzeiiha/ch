@@ -59,7 +59,7 @@ export async function registerFeedbackAdmin(app: FastifyInstance): Promise<void>
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const [countRow] = await query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM training_examples ${whereSql}`,
+      `SELECT COUNT(*) AS count FROM training_examples ${whereSql}`,
       params,
     );
     params.push(limit);  const limitIdx = params.length;
@@ -67,7 +67,7 @@ export async function registerFeedbackAdmin(app: FastifyInstance): Promise<void>
 
     const rows = await query(
       `SELECT id, source, item_id, task_id, input_data, machine_output, human_label,
-              agreement, used_for_training, created_at::text
+              agreement, used_for_training, created_at
        FROM training_examples
        ${whereSql}
        ORDER BY created_at DESC

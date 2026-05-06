@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query, ITEM_STATUS as IS } from '@ch/db';
+import { query, execute, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { runAlertChecks, agentRunsSummary } from './alerts.js';
 
@@ -22,10 +22,10 @@ export async function registerOps(app: FastifyInstance) {
       error: string | null; started_at: string;
     }>(
       `SELECT id, agent, item_id, status, latency_ms, cost_usd,
-              CASE WHEN length(error) > 120 THEN left(error,120)||'…' ELSE error END AS error,
-              started_at::text
+              CASE WHEN length(error) > 120 THEN CONCAT(left(error,120),'…') ELSE error END AS error,
+              started_at
        FROM agent_runs
-       WHERE started_at >= NOW() - ($1 * INTERVAL '1 hour')
+       WHERE started_at >= (NOW() - INTERVAL $1 HOUR)
        ORDER BY started_at DESC LIMIT 100`,
       [h],
     );
@@ -49,7 +49,7 @@ export async function registerOps(app: FastifyInstance) {
     }>(
       `SELECT id, name, platform, status, score,
               COALESCE(grayscale_pct, 100) AS grayscale_pct,
-              last_fetch_at::text
+              last_fetch_at
        FROM sources ORDER BY name`,
     );
     return { sources: rows };
@@ -75,11 +75,11 @@ export async function registerOps(app: FastifyInstance) {
     if (typeof pct !== 'number' || pct < 0 || pct > 100) {
       return reply.status(400).send({ error: 'pct must be 0–100' });
     }
-    const result = await query<{ id: string }>(
-      `UPDATE sources SET grayscale_pct = $1 WHERE status = 'active' RETURNING id`,
+    const r = await execute(
+      `UPDATE sources SET grayscale_pct = $1 WHERE status = 'active'`,
       [Math.round(pct)],
     );
-    return { updated: result.length, grayscale_pct: Math.round(pct) };
+    return { updated: r.affectedRows, grayscale_pct: Math.round(pct) };
   });
 
   // ── Pipeline stats ────────────────────────────────────────
@@ -87,17 +87,17 @@ export async function registerOps(app: FastifyInstance) {
   app.get('/admin/ops/pipeline-stats', async () => {
     const [byStatus, sources, totalCost] = await Promise.all([
       query<{ status: string; cnt: number }>(
-        `SELECT status, COUNT(*)::int AS cnt FROM items GROUP BY status ORDER BY cnt DESC`,
+        `SELECT status, COUNT(*) AS cnt FROM items GROUP BY status ORDER BY cnt DESC`,
       ),
       query<{ total: number; active: number; paused: number; blacklist: number }>(
-        `SELECT COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE status='active')::int     AS active,
-                COUNT(*) FILTER (WHERE status='paused')::int     AS paused,
-                COUNT(*) FILTER (WHERE status='blacklist')::int  AS blacklist
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN status='active' THEN 1 ELSE 0 END)    AS active,
+                SUM(CASE WHEN status='paused' THEN 1 ELSE 0 END)    AS paused,
+                SUM(CASE WHEN status='blacklist' THEN 1 ELSE 0 END) AS blacklist
          FROM sources`,
       ),
       query<{ total: number }>(
-        `SELECT COALESCE(SUM(cost_usd),0)::float AS total FROM agent_runs`,
+        `SELECT COALESCE(SUM(cost_usd),0) AS total FROM agent_runs`,
       ),
     ]);
     return {
@@ -136,28 +136,28 @@ export async function registerOps(app: FastifyInstance) {
   app.get('/admin/ops/metrics', async (_req, reply) => {
     const [items, sources, runs, costs, latencies] = await Promise.all([
       query<{ status: string; cnt: number }>(
-        `SELECT status, COUNT(*)::int AS cnt FROM items GROUP BY status`,
+        `SELECT status, COUNT(*) AS cnt FROM items GROUP BY status`,
       ),
       query<{ status: string; cnt: number }>(
-        `SELECT status, COUNT(*)::int AS cnt FROM sources GROUP BY status`,
+        `SELECT status, COUNT(*) AS cnt FROM sources GROUP BY status`,
       ),
       query<{ agent: string; status: string; cnt: number }>(
-        `SELECT agent, status, COUNT(*)::int AS cnt
+        `SELECT agent, status, COUNT(*) AS cnt
          FROM agent_runs
-         WHERE started_at > NOW() - INTERVAL '7 days'
+         WHERE started_at > NOW() - INTERVAL 7 DAY
          GROUP BY agent, status`,
       ),
       query<{ agent: string; total: number }>(
-        `SELECT agent, COALESCE(SUM(cost_usd), 0)::float AS total
+        `SELECT agent, COALESCE(SUM(cost_usd), 0) AS total
          FROM agent_runs
-         WHERE started_at > NOW() - INTERVAL '7 days'
+         WHERE started_at > NOW() - INTERVAL 7 DAY
          GROUP BY agent`,
       ),
+      // MySQL 8 has no PERCENTILE_CONT — AVG is acceptable for monitoring.
       query<{ agent: string; p50: number }>(
-        `SELECT agent,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms)::float AS p50
+        `SELECT agent, AVG(latency_ms) AS p50
          FROM agent_runs
-         WHERE started_at > NOW() - INTERVAL '7 days'
+         WHERE started_at > NOW() - INTERVAL 7 DAY
            AND latency_ms IS NOT NULL
          GROUP BY agent`,
       ),
@@ -182,11 +182,11 @@ export async function registerOps(app: FastifyInstance) {
 
     line('# HELP ch_agent_cost_usd_total Cumulative LLM cost USD per agent (last 7 days)');
     line('# TYPE ch_agent_cost_usd_total counter');
-    for (const r of costs) line(`ch_agent_cost_usd_total{agent="${escLbl(r.agent)}"} ${r.total.toFixed(6)}`);
+    for (const r of costs) line(`ch_agent_cost_usd_total{agent="${escLbl(r.agent)}"} ${Number(r.total ?? 0).toFixed(6)}`);
 
     line('# HELP ch_agent_latency_p50_ms Median agent run latency milliseconds (last 7 days)');
     line('# TYPE ch_agent_latency_p50_ms gauge');
-    for (const r of latencies) line(`ch_agent_latency_p50_ms{agent="${escLbl(r.agent)}"} ${r.p50.toFixed(1)}`);
+    for (const r of latencies) line(`ch_agent_latency_p50_ms{agent="${escLbl(r.agent)}"} ${Number(r.p50 ?? 0).toFixed(1)}`);
 
     reply.header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
     return reply.send(lines.join('\n') + '\n');

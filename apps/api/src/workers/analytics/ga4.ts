@@ -108,11 +108,11 @@ export async function pullAnalyticsYesterday(): Promise<AnalyticsPullResult> {
     await query(
       `INSERT INTO analytics_daily (item_id, date, channel, pv, uv, avg_duration, raw)
        VALUES ($1, $2, 'site', $3, $4, $5, $6)
-       ON CONFLICT (item_id, date, channel) DO UPDATE
-         SET pv = EXCLUDED.pv,
-             uv = EXCLUDED.uv,
-             avg_duration = EXCLUDED.avg_duration,
-             raw = EXCLUDED.raw`,
+       ON DUPLICATE KEY UPDATE
+         pv = VALUES(pv),
+         uv = VALUES(uv),
+         avg_duration = VALUES(avg_duration),
+         raw = VALUES(raw)`,
       [itemId, date, row.pv, row.uv, row.avg_duration, JSON.stringify(row)],
     );
     upserted++;

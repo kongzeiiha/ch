@@ -3,4 +3,4 @@
 -- ============================================================
 
 ALTER TABLE items
-  ADD COLUMN IF NOT EXISTS cover_sizes JSONB;
+  ADD COLUMN cover_sizes JSON NULL;

@@ -61,11 +61,11 @@ export async function loadSimhashes(
   const windowDays = opts.windowDays ?? 30;
   const limit = opts.limit ?? 2000;
   const rows = await query<{ id: string; simhash: string }>(
-    `SELECT id, simhash::text AS simhash
+    `SELECT id, CAST(simhash AS CHAR) AS simhash
      FROM raw_items
      WHERE source_id = $1
        AND simhash IS NOT NULL
-       AND fetched_at > NOW() - ($2 || ' days')::interval
+       AND fetched_at > NOW() - INTERVAL $2 DAY
      ORDER BY fetched_at DESC
      LIMIT $3`,
     [sourceId, windowDays, limit],

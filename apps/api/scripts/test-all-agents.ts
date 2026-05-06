@@ -32,6 +32,7 @@ process.env.DISTRIBUTION_SKIP_LLM = '1';
 
 const { query } = await import('@ch/db');
 const { getQueue, QUEUE_NAMES } = await import('@ch/agents');
+const { randomUUID } = await import('node:crypto');
 
 const ingestion = await import('../src/workers/ingestion/index.js');
 const dedupe = await import('../src/workers/ingestion/dedupe.js');
@@ -71,25 +72,26 @@ async function makeFixture(opts: { content?: string; status?: string; title?: st
       'Anthropic 的 Claude 此前是该领域强有力的竞争对手。'.repeat(2));
   const title = opts.title ?? 'OpenAI 发布全新 GPT-5 大语言模型';
 
-  const [src] = await query<{ id: string }>(
-    `INSERT INTO sources (platform, external_id, name, url, status, config)
-     VALUES ('html', $1, $1, 'https://example.test/feed', 'active', '{}'::jsonb)
-     RETURNING id`,
-    [`${TAG}_${Math.random().toString(36).slice(2, 8)}`],
+  const externalId = `${TAG}_${Math.random().toString(36).slice(2, 8)}`;
+  const sourceId = randomUUID();
+  await query(
+    `INSERT INTO sources (id, platform, external_id, name, url, status, config)
+     VALUES ($1, 'html', $2, $2, 'https://example.test/feed', 'active', '{}')`,
+    [sourceId, externalId],
   );
-  const [raw] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/a', $2, $3, NOW(), '{}'::jsonb, ARRAY[]::text[])
-     RETURNING id`,
-    [src.id, `${TAG}_${src.id}_dedupe`, `${TAG}_${src.id}_hash`],
+  const rawItemId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/a', $3, $4, NOW(), '{}', JSON_ARRAY())`,
+    [rawItemId, sourceId, `${TAG}_${sourceId}_dedupe`, `${TAG}_${sourceId}_hash`],
   );
-  const [it] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, content, content_html, category)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id`,
-    [raw.id, src.id, opts.status ?? 'INGESTED', title, content, `<p>${content}</p>`, opts.category ?? null],
+  const itemId = randomUUID();
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, content, content_html, category)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [itemId, rawItemId, sourceId, opts.status ?? 'INGESTED', title, content, `<p>${content}</p>`, opts.category ?? null],
   );
-  return { sourceId: src.id, rawItemId: raw.id, itemId: it.id };
+  return { sourceId, rawItemId, itemId };
 }
 
 async function dropFixture(f: Fixture) {
@@ -319,9 +321,9 @@ async function testDistribution() {
   const f = await makeFixture({ status: 'PUBLISHED', title: 'dist 测试文章 标题' });
   // Give it a published_url + slug like a real PUBLISHED item
   await query(
-    `UPDATE items SET slug = $2, published_url = $3, summary = '一段简短的摘要', tags = ARRAY['AI','测试']
+    `UPDATE items SET slug = $2, published_url = $3, summary = '一段简短的摘要', tags = $4
      WHERE id = $1`,
-    [f.itemId, `slug-${f.itemId.slice(0, 6)}`, `http://localhost:3000/a/slug-${f.itemId.slice(0, 6)}`],
+    [f.itemId, `slug-${f.itemId.slice(0, 6)}`, `http://localhost:3000/a/slug-${f.itemId.slice(0, 6)}`, ['AI', '测试']],
   );
 
   const out = await distribution.distributeOne(f.itemId, 'twitter') as any;
@@ -372,7 +374,7 @@ async function testAnalytics() {
   await query(
     `INSERT INTO analytics_daily (item_id, date, channel, pv, uv, avg_duration, revenue)
      VALUES ($1, $2, 'site', 1234, 567, 90, 12.34)
-     ON CONFLICT (item_id, date, channel) DO UPDATE SET pv = EXCLUDED.pv`,
+     ON DUPLICATE KEY UPDATE pv = VALUES(pv)`,
     [f.itemId, today],
   );
 

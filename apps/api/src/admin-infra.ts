@@ -10,7 +10,7 @@ interface Check {
   error?: string;
 }
 
-async function checkPostgres(): Promise<Check> {
+async function checkDatabase(): Promise<Check> {
   const start = Date.now();
   try {
     const rows = await query<{ version: string }>('SELECT version() AS version');
@@ -49,21 +49,25 @@ async function checkMinio(): Promise<Check> {
 
 export async function registerInfra(app: FastifyInstance): Promise<void> {
   app.get('/admin/infra/health', async () => {
-    const [postgres, redis, minio] = await Promise.all([
-      checkPostgres(),
+    const [database, redis, minio] = await Promise.all([
+      checkDatabase(),
       checkRedis(),
       checkMinio(),
     ]);
     return {
-      postgres,
+      // `postgres` retained for the existing admin/infra UI; the field now
+      // reflects whatever DATABASE_URL points at (MySQL after the migration).
+      postgres: database,
+      database,
       redis,
       minio,
       env: {
-        hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+        hasLLMKey: !!(process.env.GROQ_API_KEY ?? process.env.ANTHROPIC_API_KEY),
+        hasAnthropicKey: !!(process.env.GROQ_API_KEY ?? process.env.ANTHROPIC_API_KEY),
         models: {
-          opus: process.env.ANTHROPIC_MODEL_OPUS ?? 'claude-opus-4-7',
-          sonnet: process.env.ANTHROPIC_MODEL_SONNET ?? 'claude-sonnet-4-6',
-          haiku: process.env.ANTHROPIC_MODEL_HAIKU ?? 'claude-haiku-4-5-20251001',
+          opus: process.env.GROQ_MODEL_LARGE ?? process.env.ANTHROPIC_MODEL_OPUS ?? 'llama-3.3-70b-versatile',
+          sonnet: process.env.GROQ_MODEL_MEDIUM ?? process.env.ANTHROPIC_MODEL_SONNET ?? 'llama-3.3-70b-versatile',
+          haiku: process.env.GROQ_MODEL_SMALL ?? process.env.ANTHROPIC_MODEL_HAIKU ?? 'llama-3.1-8b-instant',
         },
         scheduler: process.env.DISABLE_SCHEDULER === '1' ? 'disabled' : 'enabled',
       },
@@ -76,8 +80,8 @@ export async function registerInfra(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/admin/infra/test-llm', async () => {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return { ok: false, error: 'ANTHROPIC_API_KEY 未配置 — 请在 .env 中填入后重启 api' };
+    if (!process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+      return { ok: false, error: 'LLM API key 未配置 — 请在 .env 中填入 GROQ_API_KEY 后重启 api' };
     }
     try {
       const result = await withRun({ agent: 'infra:test-llm' }, async () => {

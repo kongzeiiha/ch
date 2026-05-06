@@ -1,5 +1,5 @@
 import type { Job } from 'bullmq';
-import { query, ITEM_STATUS as IS, type ItemStatus } from '@ch/db';
+import { query, execute, ITEM_STATUS as IS, type ItemStatus } from '@ch/db';
 import { QUEUE_NAMES, startWorker, withRun } from '@ch/agents';
 import { makeUniqueSlug } from '../classify-title/slug.js';
 import { revalidatePaths } from './revalidate.js';
@@ -45,17 +45,16 @@ export async function publishOne(itemId: string) {
 
   // Guard against concurrent duplicate publish jobs: only update if the item
   // hasn't already been moved to PUBLISHED by a racing sibling job.
-  const [updated] = await query<{ id: string }>(
+  const r = await execute(
     `UPDATE items
        SET status = $4,
            slug = $2,
            published_url = $3,
            published_at = COALESCE(published_at, NOW())
-     WHERE id = $1 AND status != $5
-     RETURNING id`,
+     WHERE id = $1 AND status != $5`,
     [itemId, slug, fullUrl, IS.PUBLISHED, IS.PUBLISHED],
   );
-  if (!updated) return { skipped: true, reason: 'already published (concurrent job)' };
+  if (r.affectedRows === 0) return { skipped: true, reason: 'already published (concurrent job)' };
 
   // ISR drop: article page, category page, home, sitemap.
   const paths = ['/', `/a/${slug}`, '/sitemap.xml'];

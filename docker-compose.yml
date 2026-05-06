@@ -1,19 +1,21 @@
 services:
-  postgres:
-    # Reusing 15-alpine (already cached locally from the Dify stack) to avoid
-    # re-pulling on a stacked overlay2 that hits ELOOP. gen_random_uuid() is
-    # core since PG13, so our schema works unchanged.
-    image: postgres:15-alpine
+  mysql:
+    image: mysql:8.0
     environment:
-      POSTGRES_USER: ch
-      POSTGRES_PASSWORD: ch
-      POSTGRES_DB: ch
+      MYSQL_ROOT_PASSWORD: ch
+      MYSQL_USER: ch
+      MYSQL_PASSWORD: ch
+      MYSQL_DATABASE: ch
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysqldata:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "ch"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "ch", "-pch"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -66,7 +68,7 @@ services:
     ports:
       - "${API_PORT:-4000}:4000"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -80,7 +82,7 @@ services:
     command: ["node", "apps/api/dist/worker.js"]
     env_file: .env
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -99,5 +101,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  mysqldata:
   minio-data:

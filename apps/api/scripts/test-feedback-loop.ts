@@ -25,6 +25,7 @@ process.env.DISTRIBUTION_SKIP_LLM = '0';
 
 const Fastify = (await import('fastify')).default;
 const { query } = await import('@ch/db');
+const { randomUUID } = await import('node:crypto');
 
 const { registerOpLogHook, registerOpLogAdmin } = await import('../src/op-log.js');
 const { registerAdmin } = await import('../src/admin.js');
@@ -70,35 +71,32 @@ let taskId: string;
 
 async function setup() {
   console.log('\n[setup] inserting fixtures');
-  const [src] = await query<{ id: string }>(
-    `INSERT INTO sources (platform, external_id, name, url, status, config)
-     VALUES ('html', $1, $1, 'https://example.test/fb', 'active', '{}'::jsonb)
-     RETURNING id`,
-    [TAG],
+  sourceId = randomUUID();
+  await query(
+    `INSERT INTO sources (id, platform, external_id, name, url, status, config)
+     VALUES ($1, 'html', $2, $2, 'https://example.test/fb', 'active', '{}')`,
+    [sourceId, TAG],
   );
-  sourceId = src.id;
 
   // Item that's currently in COMPLIANCE_REVIEW with a synthetic compliance run.
-  const [raw] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/a', $2, $3, NOW(), '{}'::jsonb, ARRAY[]::text[])
-     RETURNING id`,
-    [sourceId, `${TAG}_dk1`, `${TAG}_h1`],
+  rawItemId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/a', $3, $4, NOW(), '{}', JSON_ARRAY())`,
+    [rawItemId, sourceId, `${TAG}_dk1`, `${TAG}_h1`],
   );
-  rawItemId = raw.id;
-  const [it] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, content, category)
-     VALUES ($1, $2, 'COMPLIANCE_REVIEW', 'review subject', $3, 'AI')
-     RETURNING id`,
-    [rawItemId, sourceId, 'x'.repeat(220)],
+  reviewItemId = randomUUID();
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, content, category)
+     VALUES ($1, $2, $3, 'COMPLIANCE_REVIEW', 'review subject', $4, 'AI')`,
+    [reviewItemId, rawItemId, sourceId, 'x'.repeat(220)],
   );
-  reviewItemId = it.id;
   // Synthetic agent_run so harvest has machine_output to join against.
   await query(
-    `INSERT INTO agent_runs (agent, item_id, status, output, finished_at)
-     VALUES ('compliance', $1, 'success',
-             $2::jsonb, NOW())`,
+    `INSERT INTO agent_runs (id, agent, item_id, status, output, finished_at)
+     VALUES ($1, 'compliance', $2, 'success', $3, NOW())`,
     [
+      randomUUID(),
       reviewItemId,
       JSON.stringify({
         decision: 'COMPLIANCE_REVIEW',
@@ -111,28 +109,26 @@ async function setup() {
   );
 
   // Published item + a pending distribution_task so we can edit its copy.
-  const [raw2] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/b', $2, $3, NOW(), '{}'::jsonb, ARRAY[]::text[])
-     RETURNING id`,
-    [sourceId, `${TAG}_dk2`, `${TAG}_h2`],
+  publishedRawItemId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/b', $3, $4, NOW(), '{}', JSON_ARRAY())`,
+    [publishedRawItemId, sourceId, `${TAG}_dk2`, `${TAG}_h2`],
   );
-  publishedRawItemId = raw2.id;
-  const [it2] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, slug, summary, category, tags, published_url, published_at)
-     VALUES ($1, $2, 'PUBLISHED', 'pub headline', $3, 'short summary', 'AI', ARRAY['ai','test']::text[],
-             'http://localhost:3000/a/' || $3, NOW())
-     RETURNING id`,
-    [raw2.id, sourceId, `pub-${Date.now()}`],
+  publishedItemId = randomUUID();
+  const slugStr = `pub-${Date.now()}`;
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, slug, summary, category, tags, published_url, published_at)
+     VALUES ($1, $2, $3, 'PUBLISHED', 'pub headline', $4, 'short summary', 'AI', $5,
+             CONCAT('http://localhost:3000/a/', $4), NOW())`,
+    [publishedItemId, publishedRawItemId, sourceId, slugStr, ['ai', 'test']],
   );
-  publishedItemId = it2.id;
-  const [t] = await query<{ id: string }>(
-    `INSERT INTO distribution_tasks (item_id, channel, copy, status)
-     VALUES ($1, 'twitter', 'machine-generated copy with a generic hashtag #ai', 'pending')
-     RETURNING id`,
-    [publishedItemId],
+  taskId = randomUUID();
+  await query(
+    `INSERT INTO distribution_tasks (id, item_id, channel, copy, status)
+     VALUES ($1, $2, 'twitter', 'machine-generated copy with a generic hashtag #ai', 'pending')`,
+    [taskId, publishedItemId],
   );
-  taskId = t.id;
 
   console.log(`  src=${sourceId.slice(0,8)}  review=${reviewItemId.slice(0,8)}  task=${taskId.slice(0,8)}`);
 }
@@ -335,7 +331,7 @@ async function testRulesInjectedIntoLlmCall() {
   // d) recordRuleHits bumps counters
   await memoryRulesMod.recordRuleHits([cRule.id, dRule.id]);
   const [hitC] = await query<{ hit_count: number; last_used_at: string | null }>(
-    `SELECT hit_count, last_used_at::text FROM agent_memory_rules WHERE id = $1`, [cRule.id],
+    `SELECT hit_count, last_used_at FROM agent_memory_rules WHERE id = $1`, [cRule.id],
   );
   ok(hitC.hit_count >= 1, `compliance rule hit_count incremented (${hitC.hit_count})`);
   ok(!!hitC.last_used_at, 'compliance rule last_used_at populated');

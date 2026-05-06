@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 const { query, tx } = await import('@ch/db');
 const { getQueue, QUEUE_NAMES } = await import('@ch/agents');
+const { randomUUID } = await import('node:crypto');
 
 const N = Number(process.env.STRESS_N ?? 500);
 
@@ -32,11 +33,15 @@ async function getOrCreateSource(): Promise<string> {
   );
   if (existing[0]) return existing[0].id;
 
+  const newId = randomUUID();
+  await query(
+    `INSERT INTO sources (id, platform, external_id, name, url, status)
+     VALUES ($1, 'stress-test', 'stress-001', 'Stress Test Source', 'http://localhost', 'active')
+     ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+    [newId],
+  );
   const rows = await query<{ id: string }>(
-    `INSERT INTO sources (platform, external_id, name, url, status)
-     VALUES ('stress-test', 'stress-001', 'Stress Test Source', 'http://localhost', 'active')
-     ON CONFLICT (platform, external_id) DO UPDATE SET name = EXCLUDED.name
-     RETURNING id`,
+    `SELECT id FROM sources WHERE platform = 'stress-test' AND external_id = 'stress-001'`,
   );
   return rows[0].id;
 }
@@ -49,11 +54,12 @@ async function insertBatch(sourceId: string, batchStart: number, batchSize: numb
       const dedupeKey = `stress__${i}__${Date.now()}`;
       const content = `这是第 ${i + 1} 篇压测文章的正文内容。包含足够长的文本用于测试分类、标题生成和合规审查流程。压测编号: ${i + 1}，时间戳: ${Date.now()}。本文讨论了人工智能在内容自动化领域的应用，以及多智能体系统的协作机制。通过自动化管线，我们能够高效处理大量内容并保证质量。`;
 
-      const rawRows = await q(
-        `INSERT INTO raw_items (source_id, url, raw_payload, content_hash, dedupe_key)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id`,
+      const rawItemId = randomUUID();
+      await q(
+        `INSERT INTO raw_items (id, source_id, url, raw_payload, content_hash, dedupe_key)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
+          rawItemId,
           sourceId,
           `http://stress-test.local/article/${i}`,
           JSON.stringify({ title: `压测文章 ${i + 1}`, stress: true }),
@@ -61,13 +67,13 @@ async function insertBatch(sourceId: string, batchStart: number, batchSize: numb
           dedupeKey,
         ],
       );
-      const rawItemId = rawRows[0].id;
 
-      const itemRows = await q(
-        `INSERT INTO items (raw_item_id, source_id, status, title, summary, content, content_html)
-         VALUES ($1, $2, 'INGESTED', $3, $4, $5, $6)
-         RETURNING id`,
+      const itemId = randomUUID();
+      await q(
+        `INSERT INTO items (id, raw_item_id, source_id, status, title, summary, content, content_html)
+         VALUES ($1, $2, $3, 'INGESTED', $4, $5, $6, $7)`,
         [
+          itemId,
           rawItemId,
           sourceId,
           `压测文章 ${i + 1}：AI 内容自动化探索`,
@@ -76,7 +82,7 @@ async function insertBatch(sourceId: string, batchStart: number, batchSize: numb
           `<p>${content}</p>`,
         ],
       );
-      itemIds.push(itemRows[0].id);
+      itemIds.push(itemId);
     }
   });
 

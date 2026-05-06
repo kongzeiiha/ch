@@ -45,7 +45,7 @@ async function loadArticle(slug: string): Promise<Article | null> {
     `SELECT i.id, i.slug, i.title, i.summary, i.content, i.content_html,
             i.category, i.tags, i.keywords, i.cover_url, i.cover_sizes,
             i.published_at, s.name AS source, r.url,
-            COALESCE(r.media_urls, '{}') AS media_urls
+            r.media_urls
      FROM items i
      JOIN sources s ON s.id = i.source_id
      JOIN raw_items r ON r.id = i.raw_item_id

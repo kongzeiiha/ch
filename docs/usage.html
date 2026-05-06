@@ -112,7 +112,7 @@ node --version && pnpm --version && docker --version</code></pre>
 
 <div class="step">
   <span class="num">3</span><strong>起基础设施 + 装依赖 + 跑迁移</strong>
-  <pre><code><span class="cmd">pnpm</span> infra:up      <span class="cmt"># Postgres + Redis + MinIO</span>
+  <pre><code><span class="cmd">pnpm</span> infra:up      <span class="cmt"># MySQL + Redis + MinIO</span>
 <span class="cmd">pnpm</span> install
 <span class="cmd">pnpm</span> migrate</code></pre>
 </div>
@@ -132,7 +132,7 @@ node --version && pnpm --version && docker --version</code></pre>
 </div>
 
 <div class="callout">
-  <strong>端口</strong>：Postgres 在宿主 <code>5433</code>，Redis 在 <code>6381</code>，MinIO 在 <code>9002/9003</code>（避开 macOS 上的常见占用）。<code>.env</code> 里的连接串用这套端口。
+  <strong>端口</strong>：MySQL 在宿主 <code>3306</code>，Redis 在 <code>6381</code>，MinIO 在 <code>9002/9003</code>。<code>.env</code> 里的连接串用这套端口。
 </div>
 
 <h2>2. 日常使用</h2>

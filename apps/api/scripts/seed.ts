@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 })();
 
 const { query } = await import('@ch/db');
+const { randomUUID } = await import('node:crypto');
 
 const SEEDS: Array<{
   platform: string;
@@ -68,18 +69,18 @@ const SEEDS: Array<{
 async function main() {
   for (const s of SEEDS) {
     await query(
-      `INSERT INTO sources (platform, external_id, name, url, config, status)
-       VALUES ($1, $2, $3, $4, $5, 'active')
-       ON CONFLICT (platform, external_id) DO UPDATE SET
-         name   = EXCLUDED.name,
-         url    = EXCLUDED.url,
-         config = EXCLUDED.config,
+      `INSERT INTO sources (id, platform, external_id, name, url, config, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'active')
+       ON DUPLICATE KEY UPDATE
+         name   = VALUES(name),
+         url    = VALUES(url),
+         config = VALUES(config),
          status = 'active'`,
-      [s.platform, s.external_id, s.name, s.url, s.config],
+      [randomUUID(), s.platform, s.external_id, s.name, s.url, JSON.stringify(s.config)],
     );
     console.log(`+ ${s.platform}:${s.external_id}  ${s.name}`);
   }
-  const rows = await query<{ count: string }>(`SELECT COUNT(*)::int AS count FROM sources`);
+  const rows = await query<{ count: string }>(`SELECT COUNT(*) AS count FROM sources`);
   console.log(`done. sources=${rows[0].count}`);
   process.exit(0);
 }

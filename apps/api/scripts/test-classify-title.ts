@@ -21,6 +21,7 @@ loadEnv({ path: path.resolve(here, '..', '..', '..', '.env') });
 
 const { query } = await import('@ch/db');
 const { getQueue, QUEUE_NAMES } = await import('@ch/agents');
+const { randomUUID } = await import('node:crypto');
 
 const { classifyTitleOne, startClassifyTitleWorker } =
   await import('../src/workers/classify-title/index.js');
@@ -48,38 +49,38 @@ function assert(cond: unknown, msg: string) {
 
 async function setup() {
   console.log('\n[setup] inserting disposable source + raw_item + item');
-  const [src] = await query<{ id: string }>(
-    `INSERT INTO sources (platform, external_id, name, url, status, config)
-     VALUES ('html', $1, $1, 'https://example.test/feed', 'active', '{}'::jsonb)
-     RETURNING id`,
-    [TEST_TAG],
+  sourceId = randomUUID();
+  await query(
+    `INSERT INTO sources (id, platform, external_id, name, url, status, config)
+     VALUES ($1, 'html', $2, $2, 'https://example.test/feed', 'active', '{}')`,
+    [sourceId, TEST_TAG],
   );
-  sourceId = src.id;
 
-  const [raw] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/article-1', $2, $3, NOW(),
-             $4::jsonb, ARRAY[]::text[])
-     RETURNING id`,
+  rawItemId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/article-1', $3, $4, NOW(),
+             $5, JSON_ARRAY())`,
     [
+      rawItemId,
       sourceId,
       `${TEST_TAG}_dedupe`,
       `${TEST_TAG}_hash`,
       JSON.stringify({ title: 'OpenAI 发布全新 GPT-5 大语言模型，性能远超 Claude' }),
     ],
   );
-  rawItemId = raw.id;
 
   const content = '人工智能领域迎来里程碑：OpenAI 今日正式发布 GPT-5，' +
     '该模型在多项基准测试上超越了上一代产品。神经网络规模翻倍，机器学习社区反响热烈。' +
     'OpenAI 表示开发者可通过 API 立即接入。Anthropic 的 Claude 此前是该领域强有力的竞争对手。' +
     '业界普遍认为大模型竞争已进入新阶段。'.repeat(2);
 
-  const [it] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, content, content_html)
-     VALUES ($1, $2, 'INGESTED', $3, $4, $5)
-     RETURNING id`,
+  itemId = randomUUID();
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, content, content_html)
+     VALUES ($1, $2, $3, 'INGESTED', $4, $5, $6)`,
     [
+      itemId,
       rawItemId,
       sourceId,
       'OpenAI 发布全新 GPT-5 大语言模型，性能远超 Claude',
@@ -87,7 +88,6 @@ async function setup() {
       `<p>${content}</p>`,
     ],
   );
-  itemId = it.id;
   console.log(`  source=${sourceId.slice(0, 8)}…  raw=${rawItemId.slice(0, 8)}…  item=${itemId.slice(0, 8)}…`);
 }
 
@@ -148,9 +148,9 @@ async function testResumePath() {
   // Roll item back to CLASSIFIED with a *fixed* category to verify it survives
   await query(
     `UPDATE items SET status='CLASSIFIED', title=NULL, summary=NULL, slug=NULL,
-                      category='硬件', tags=ARRAY['芯片','GPU']::text[], keywords=ARRAY['硬件']::text[]
+                      category='硬件', tags=$2, keywords=$3
      WHERE id=$1`,
-    [itemId],
+    [itemId, ['芯片', 'GPU'], ['硬件']],
   );
   const out = await classifyTitleOne(itemId) as AgentOut;
   const [after] = await query<{ status: string; category: string; tags: string[]; title: string }>(
@@ -167,30 +167,30 @@ async function testResumePath() {
 async function testTooShortContent() {
   console.log('\n[test 4] item with too-short content throws');
   // Insert second item with content under the rule-based 10-char floor
-  const [shortRaw] = await query<{ id: string }>(
-    `INSERT INTO raw_items (source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
-     VALUES ($1, 'https://example.test/short', $2, $3, NOW(), '{}'::jsonb, ARRAY[]::text[])
-     RETURNING id`,
-    [sourceId, `${TEST_TAG}_short`, `${TEST_TAG}_short_hash`],
+  const shortRawId = randomUUID();
+  await query(
+    `INSERT INTO raw_items (id, source_id, url, dedupe_key, content_hash, fetched_at, raw_payload, media_urls)
+     VALUES ($1, $2, 'https://example.test/short', $3, $4, NOW(), '{}', JSON_ARRAY())`,
+    [shortRawId, sourceId, `${TEST_TAG}_short`, `${TEST_TAG}_short_hash`],
   );
-  const [shortItem] = await query<{ id: string }>(
-    `INSERT INTO items (raw_item_id, source_id, status, title, content)
-     VALUES ($1, $2, 'INGESTED', '短', 'abc')
-     RETURNING id`,
-    [shortRaw.id, sourceId],
+  const shortItemId = randomUUID();
+  await query(
+    `INSERT INTO items (id, raw_item_id, source_id, status, title, content)
+     VALUES ($1, $2, $3, 'INGESTED', '短', 'abc')`,
+    [shortItemId, shortRawId, sourceId],
   );
 
   let threw = false;
   let errMsg = '';
   try {
-    await classifyTitleOne(shortItem.id);
+    await classifyTitleOne(shortItemId);
   } catch (e: any) {
     errMsg = e?.message ?? String(e);
     threw = /content too short/.test(errMsg);
   }
   assert(threw, `too-short content rejected with content too short error (got: "${errMsg}")`);
-  await query(`DELETE FROM items WHERE id=$1`, [shortItem.id]);
-  await query(`DELETE FROM raw_items WHERE id=$1`, [shortRaw.id]);
+  await query(`DELETE FROM items WHERE id=$1`, [shortItemId]);
+  await query(`DELETE FROM raw_items WHERE id=$1`, [shortRawId]);
 }
 
 async function testWrongStatusSkip() {
@@ -233,8 +233,8 @@ async function testRealWorkerThroughBullMQ() {
   console.log('\n[test 7] real worker via BullMQ end-to-end');
   // Reset to INGESTED
   await query(
-    `UPDATE items SET status='INGESTED', category=NULL, tags=ARRAY[]::text[],
-       keywords=ARRAY[]::text[], title='OpenAI 发布全新 GPT-5 大语言模型，性能远超 Claude',
+    `UPDATE items SET status='INGESTED', category=NULL, tags=JSON_ARRAY(),
+       keywords=JSON_ARRAY(), title='OpenAI 发布全新 GPT-5 大语言模型，性能远超 Claude',
        summary=NULL, slug=NULL, title_version=0
      WHERE id=$1`,
     [itemId],
@@ -283,7 +283,7 @@ async function testRealWorkerThroughBullMQ() {
   assert(!!after.title && !!after.slug, `BullMQ run populated title+slug`);
 
   const [run] = await query<{ status: string; agent: string; cost_usd: string | null }>(
-    `SELECT status, agent, cost_usd::text FROM agent_runs
+    `SELECT status, agent, CAST(cost_usd AS CHAR) AS cost_usd FROM agent_runs
      WHERE item_id=$1 AND agent='classify-title'
      ORDER BY started_at DESC LIMIT 1`,
     [itemId],

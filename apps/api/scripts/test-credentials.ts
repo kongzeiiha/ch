@@ -147,7 +147,7 @@ async function testInactiveCredentialFallback() {
   // Mark it expired, plant an inline cookie in source.config to verify fallback
   await api('PATCH', `/admin/credentials/${credId}`, { status: 'expired' });
   await query(
-    `UPDATE sources SET config = config || '{"cookie":"INLINE_FALLBACK; ct0=x"}'::jsonb
+    `UPDATE sources SET config = JSON_MERGE_PATCH(config, '{"cookie":"INLINE_FALLBACK; ct0=x"}')
      WHERE platform='x' AND external_id=$1`,
     [`${TAG}_h1`],
   );
@@ -179,15 +179,15 @@ async function testCannotMixPlatforms() {
 async function testDeleteCredentialDetachesSources() {
   console.log('\n[test 9] delete credential → ON DELETE SET NULL on sources');
   const before = await query<{ cnt: number }>(
-    `SELECT COUNT(*)::int AS cnt FROM sources WHERE credential_id=$1`,
+    `SELECT COUNT(*) AS cnt FROM sources WHERE credential_id=$1`,
     [credId],
   );
   aok(before[0].cnt > 0, `sources reference credential before delete`);
   const r = await api('DELETE', `/admin/credentials/${credId}`);
   aok(r.status === 200, `deleted (got ${r.status})`);
   const after = await query<{ cnt: number; null_cnt: number }>(
-    `SELECT COUNT(*)::int AS cnt,
-            COUNT(*) FILTER (WHERE credential_id IS NULL)::int AS null_cnt
+    `SELECT COUNT(*) AS cnt,
+            SUM(CASE WHEN credential_id IS NULL THEN 1 ELSE 0 END) AS null_cnt
      FROM sources WHERE platform='x' AND external_id LIKE $1`,
     [`${TAG}%`],
   );

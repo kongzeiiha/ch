@@ -4,28 +4,28 @@ import { getQueue, QUEUE_NAMES } from '@ch/agents';
 
 export async function registerCoverCompliance(app: FastifyInstance): Promise<void> {
   app.get('/admin/cover-compliance/stats', async () => {
-    const [total] = await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM items`);
+    const [total] = await query<{ count: number }>(`SELECT COUNT(*) AS count FROM items`);
     const byStatus = await query<{ status: string; count: number }>(
-      `SELECT status, COUNT(*)::int AS count FROM items GROUP BY status ORDER BY status`,
+      `SELECT status, COUNT(*) AS count FROM items GROUP BY status ORDER BY status`,
     );
     const [covered] = await query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM items WHERE cover_url IS NOT NULL`,
+      `SELECT COUNT(*) AS count FROM items WHERE cover_url IS NOT NULL`,
     );
     const complianceBreakdown = await query<{ trigger: string; count: number }>(
-      `SELECT (compliance_reasons->>'trigger') AS trigger, COUNT(*)::int AS count
+      `SELECT JSON_UNQUOTE(JSON_EXTRACT(compliance_reasons, '$.trigger')) AS \`trigger\`, COUNT(*) AS count
        FROM items WHERE compliance_reasons IS NOT NULL
-       GROUP BY trigger ORDER BY count DESC`,
+       GROUP BY \`trigger\` ORDER BY count DESC`,
     );
     const runs = await query(
       `SELECT id, agent, status, latency_ms, cost_usd, started_at,
-              CASE WHEN length(error) > 180 THEN left(error, 180) || '…' ELSE error END AS error
+              CASE WHEN length(error) > 180 THEN CONCAT(left(error, 180), '…') ELSE error END AS error
        FROM agent_runs
        WHERE agent IN ('cover', 'compliance')
        ORDER BY started_at DESC LIMIT 20`,
     );
     const [cost] = await query<{ sum: string | null }>(
-      `SELECT SUM(cost_usd)::text AS sum FROM agent_runs
-       WHERE started_at > NOW() - interval '1 day'
+      `SELECT CAST(SUM(cost_usd) AS CHAR) AS sum FROM agent_runs
+       WHERE started_at > NOW() - INTERVAL 1 DAY
          AND agent IN ('cover', 'compliance')`,
     );
     return {

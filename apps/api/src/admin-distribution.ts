@@ -20,7 +20,7 @@ export async function registerDistribution(app: FastifyInstance) {
       title: string;
       slug: string | null;
     }>(
-      `SELECT dt.id, dt.item_id, dt.channel, dt.copy, dt.status, dt.created_at::text,
+      `SELECT dt.id, dt.item_id, dt.channel, dt.copy, dt.status, dt.created_at,
               i.title, i.slug
        FROM distribution_tasks dt
        JOIN items i ON i.id = dt.item_id
@@ -35,13 +35,13 @@ export async function registerDistribution(app: FastifyInstance) {
   app.get('/admin/distribution/distribution-stats', async () => {
     const [byStatus, byChannel, pending] = await Promise.all([
       query<{ status: string; cnt: number }>(
-        `SELECT status, COUNT(*)::int AS cnt FROM distribution_tasks GROUP BY status`,
+        `SELECT status, COUNT(*) AS cnt FROM distribution_tasks GROUP BY status`,
       ),
       query<{ channel: string; cnt: number }>(
-        `SELECT channel, COUNT(*)::int AS cnt FROM distribution_tasks GROUP BY channel`,
+        `SELECT channel, COUNT(*) AS cnt FROM distribution_tasks GROUP BY channel`,
       ),
       query<{ cnt: number }>(
-        `SELECT COUNT(*)::int AS cnt FROM items
+        `SELECT COUNT(*) AS cnt FROM items
          WHERE status = $1
            AND id NOT IN (SELECT DISTINCT item_id FROM distribution_tasks WHERE channel = 'twitter')`,
         [IS.PUBLISHED],
@@ -125,9 +125,13 @@ export async function registerDistribution(app: FastifyInstance) {
       if (before[0].status !== 'pending') {
         return reply.status(409).send({ error: `task is ${before[0].status}, only pending copy is editable` });
       }
-      const after = await query<{ id: string; copy: string }>(
-        `UPDATE distribution_tasks SET copy = $2 WHERE id = $1 RETURNING id, copy`,
+      await query(
+        `UPDATE distribution_tasks SET copy = $2 WHERE id = $1`,
         [taskId, copy],
+      );
+      const after = await query<{ id: string; copy: string }>(
+        `SELECT id, copy FROM distribution_tasks WHERE id = $1`,
+        [taskId],
       );
       await logOperation(req, {
         operation: 'distribution.edit-copy',
@@ -150,27 +154,27 @@ export async function registerDistribution(app: FastifyInstance) {
   app.get('/admin/distribution/analytics', async () => {
     const [daily, topItems, summary] = await Promise.all([
       query<{ date: string; pv: number; uv: number; revenue: number }>(
-        `SELECT date::text, SUM(pv)::int AS pv, SUM(uv)::int AS uv,
-                SUM(revenue)::float AS revenue
+        `SELECT date, SUM(pv) AS pv, SUM(uv) AS uv,
+                SUM(revenue) AS revenue
          FROM analytics_daily
-         WHERE date >= CURRENT_DATE - 7
+         WHERE date >= CURRENT_DATE - INTERVAL 7 DAY
          GROUP BY date ORDER BY date DESC`,
       ),
       query<{ title: string; slug: string | null; pv: number; uv: number; revenue: number }>(
         `SELECT i.title, i.slug,
-                SUM(a.pv)::int AS pv, SUM(a.uv)::int AS uv,
-                SUM(a.revenue)::float AS revenue
+                SUM(a.pv) AS pv, SUM(a.uv) AS uv,
+                SUM(a.revenue) AS revenue
          FROM analytics_daily a
          JOIN items i ON i.id = a.item_id
-         WHERE a.date >= CURRENT_DATE - 7
+         WHERE a.date >= CURRENT_DATE - INTERVAL 7 DAY
          GROUP BY i.id, i.title, i.slug
          ORDER BY pv DESC LIMIT 10`,
       ),
       query<{ total_pv: number; total_uv: number; total_revenue: number }>(
-        `SELECT COALESCE(SUM(pv),0)::int AS total_pv,
-                COALESCE(SUM(uv),0)::int AS total_uv,
-                COALESCE(SUM(revenue),0)::float AS total_revenue
-         FROM analytics_daily WHERE date >= CURRENT_DATE - 7`,
+        `SELECT COALESCE(SUM(pv),0) AS total_pv,
+                COALESCE(SUM(uv),0) AS total_uv,
+                COALESCE(SUM(revenue),0) AS total_revenue
+         FROM analytics_daily WHERE date >= CURRENT_DATE - INTERVAL 7 DAY`,
       ),
     ]);
     return { daily, topItems, summary: summary[0] ?? { total_pv: 0, total_uv: 0, total_revenue: 0 } };

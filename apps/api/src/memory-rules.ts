@@ -10,7 +10,8 @@
  * recent active rules (by updated_at). Hit_count is bumped per call to give
  * us "regular hit but never moves the needle" candidates for pruning.
  */
-import { query } from '@ch/db';
+import { randomUUID } from 'node:crypto';
+import { query, execute } from '@ch/db';
 
 export const MAX_RULES_PER_DOMAIN = 20;
 
@@ -37,9 +38,9 @@ export async function listRules(opts: { domain?: string; status?: string } = {})
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   return query<MemoryRule>(
     `SELECT id, domain, scope, rule, origin, status, hit_count,
-            last_used_at::text AS last_used_at,
+            last_used_at,
             created_by, notes,
-            created_at::text AS created_at, updated_at::text AS updated_at
+            created_at, updated_at
      FROM agent_memory_rules ${whereSql}
      ORDER BY status ASC, updated_at DESC`,
     params,
@@ -58,9 +59,9 @@ export async function listRules(opts: { domain?: string; status?: string } = {})
 export async function getActiveRules(domain: string, scope?: string | null): Promise<MemoryRule[]> {
   return query<MemoryRule>(
     `SELECT id, domain, scope, rule, origin, status, hit_count,
-            last_used_at::text AS last_used_at,
+            last_used_at,
             created_by, notes,
-            created_at::text AS created_at, updated_at::text AS updated_at
+            created_at, updated_at
      FROM agent_memory_rules
      WHERE domain = $1
        AND status = 'active'
@@ -120,14 +121,13 @@ export interface CreateRuleInput {
 }
 
 export async function createRule(input: CreateRuleInput): Promise<MemoryRule> {
-  const rows = await query<MemoryRule>(
+  const id = randomUUID();
+  await query(
     `INSERT INTO agent_memory_rules
-       (domain, scope, rule, origin, derived_from, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, domain, scope, rule, origin, status, hit_count,
-               last_used_at::text AS last_used_at, created_by, notes,
-               created_at::text AS created_at, updated_at::text AS updated_at`,
+       (id, domain, scope, rule, origin, derived_from, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
+      id,
       input.domain,
       input.scope ?? null,
       input.rule.trim(),
@@ -136,6 +136,12 @@ export async function createRule(input: CreateRuleInput): Promise<MemoryRule> {
       input.notes ?? null,
       input.created_by ?? null,
     ],
+  );
+  const rows = await query<MemoryRule>(
+    `SELECT id, domain, scope, rule, origin, status, hit_count,
+            last_used_at, created_by, notes, created_at, updated_at
+     FROM agent_memory_rules WHERE id = $1`,
+    [id],
   );
   return rows[0];
 }
@@ -148,25 +154,29 @@ export interface UpdateRuleInput {
 }
 
 export async function updateRule(id: string, input: UpdateRuleInput): Promise<MemoryRule | null> {
-  const rows = await query<MemoryRule>(
+  const r = await execute(
     `UPDATE agent_memory_rules
        SET scope  = COALESCE($2, scope),
            rule   = COALESCE($3, rule),
            status = COALESCE($4, status),
            notes  = COALESCE($5, notes)
-     WHERE id = $1
-     RETURNING id, domain, scope, rule, origin, status, hit_count,
-               last_used_at::text AS last_used_at, created_by, notes,
-               created_at::text AS created_at, updated_at::text AS updated_at`,
+     WHERE id = $1`,
     [id, input.scope ?? null, input.rule ?? null, input.status ?? null, input.notes ?? null],
+  );
+  if (r.affectedRows === 0) return null;
+  const rows = await query<MemoryRule>(
+    `SELECT id, domain, scope, rule, origin, status, hit_count,
+            last_used_at, created_by, notes, created_at, updated_at
+     FROM agent_memory_rules WHERE id = $1`,
+    [id],
   );
   return rows[0] ?? null;
 }
 
 export async function deleteRule(id: string): Promise<boolean> {
-  const rows = await query<{ id: string }>(
-    `DELETE FROM agent_memory_rules WHERE id = $1 RETURNING id`,
+  const r = await execute(
+    `DELETE FROM agent_memory_rules WHERE id = $1`,
     [id],
   );
-  return rows.length > 0;
+  return r.affectedRows > 0;
 }

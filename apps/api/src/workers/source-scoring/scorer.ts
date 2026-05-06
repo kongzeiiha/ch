@@ -31,20 +31,20 @@ export async function scoreAllSources(): Promise<{
           SELECT
             source_id,
             COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE status = '${IS.PUBLISHED}')         AS published,
-            COUNT(*) FILTER (WHERE status = '${IS.COMPLIANCE_FAIL}')   AS compliance_fail,
-            COUNT(*) FILTER (WHERE status = '${IS.COMPLIANCE_REVIEW}') AS compliance_review,
-            COUNT(*) FILTER (WHERE created_at > NOW() - interval '7 days') AS recent_ingested
+            SUM(CASE WHEN status = '${IS.PUBLISHED}' THEN 1 ELSE 0 END)         AS published,
+            SUM(CASE WHEN status = '${IS.COMPLIANCE_FAIL}' THEN 1 ELSE 0 END)   AS compliance_fail,
+            SUM(CASE WHEN status = '${IS.COMPLIANCE_REVIEW}' THEN 1 ELSE 0 END) AS compliance_review,
+            SUM(CASE WHEN created_at > NOW() - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS recent_ingested
           FROM items
           GROUP BY source_id
         ) c ON c.source_id = s.id
         LEFT JOIN (
           SELECT i.source_id,
-                 SUM(ad.pv)::int           AS week_pv,
-                 SUM(ad.revenue)::numeric   AS week_revenue
+                 SUM(ad.pv)        AS week_pv,
+                 SUM(ad.revenue)   AS week_revenue
           FROM analytics_daily ad
           JOIN items i ON i.id = ad.item_id
-          WHERE ad.date >= CURRENT_DATE - 7
+          WHERE ad.date >= CURRENT_DATE - INTERVAL 7 DAY
           GROUP BY i.source_id
         ) a ON a.source_id = s.id
       )

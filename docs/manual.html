@@ -305,7 +305,7 @@
   <div class="badges">
     <span class="badge">Node ≥ 20.10</span>
     <span class="badge">pnpm 9</span>
-    <span class="badge">Postgres 15 · Redis 6 · MinIO</span>
+    <span class="badge">MySQL 8 · Redis 6 · MinIO</span>
     <span class="badge">Fastify + Next.js</span>
     <span class="badge">BullMQ</span>
     <span class="badge ok">8 agents · 87 assertions passing</span>
@@ -341,8 +341,8 @@
 │   └── web/                    Next.js 前端（站内 + admin UI）
 ├── packages/
 │   ├── agents/                 队列/Groq SDK/runner 公共包
-│   └── db/                     pg client + migrations
-├── docker-compose.yml          Postgres + Redis + MinIO
+│   └── db/                     mysql2 client + migrations
+├── docker-compose.yml          MySQL + Redis + MinIO
 └── .env / .env.example</code></pre>
 </section>
 
@@ -385,7 +385,7 @@
    └── scheduler (cron)
         │
         ▼
-Postgres (5433) · Redis (6381) · MinIO (9002/9003)</code></pre>
+MySQL (3306) · Redis (6381) · MinIO (9002/9003)</code></pre>
 </section>
 
 <!-- ============ 3. Agent 详解 ============ -->
@@ -617,7 +617,7 @@ compliance · publishing · distribution · analytics</code></pre>
 <span class="cmd">cp</span> .env.example .env
 <span class="comment">#    填 GROQ_API_KEY（或留空用 SKIP_LLM 模式）</span>
 
-<span class="comment"># 2) 起基础设施（Postgres / Redis / MinIO）</span>
+<span class="comment"># 2) 起基础设施（MySQL / Redis / MinIO）</span>
 <span class="cmd">pnpm</span> infra:up
 
 <span class="comment"># 3) 安装依赖</span>
@@ -644,7 +644,7 @@ compliance · publishing · distribution · analytics</code></pre>
 <span class="cmd">open</span> http://localhost:9003           <span class="comment"># MinIO console (minioadmin/minioadmin)</span></code></pre>
 
 <div class="callout warn">
-  <strong>注意</strong>：docker-compose 里 Postgres 映射到宿主 <code>5433</code>、Redis 到 <code>6381</code>、MinIO 到 <code>9002/9003</code>（避开 macOS 上常见的端口冲突）。.env 必须用这套端口。
+  <strong>注意</strong>：docker-compose 里 MySQL 映射到宿主 <code>3306</code>、Redis 到 <code>6381</code>、MinIO 到 <code>9002/9003</code>。.env 必须用这套端口。
 </div>
 </section>
 
@@ -668,7 +668,7 @@ compliance · publishing · distribution · analytics</code></pre>
 <h3>基础设施</h3>
 <table>
   <tbody>
-    <tr><td><code>pnpm infra:up</code></td><td>起 Postgres + Redis + MinIO（detached）</td></tr>
+    <tr><td><code>pnpm infra:up</code></td><td>起 MySQL + Redis + MinIO（detached）</td></tr>
     <tr><td><code>pnpm infra:down</code></td><td>关掉容器（数据卷保留）</td></tr>
     <tr><td><code>pnpm infra:logs</code></td><td>tail 容器日志</td></tr>
   </tbody>
@@ -805,7 +805,7 @@ compliance · publishing · distribution · analytics</code></pre>
 <table>
   <thead><tr><th>变量</th><th>说明</th><th>默认 / 示例</th></tr></thead>
   <tbody>
-    <tr><td><code>DATABASE_URL</code></td><td>Postgres 连接</td><td><code>postgresql://ch:ch@localhost:5433/ch</code></td></tr>
+    <tr><td><code>DATABASE_URL</code></td><td>MySQL 连接</td><td><code>mysql://ch:ch@localhost:3306/ch</code></td></tr>
     <tr><td><code>REDIS_URL</code></td><td>Redis 连接（BullMQ）</td><td><code>redis://localhost:6381</code></td></tr>
     <tr><td><code>S3_ENDPOINT</code></td><td>对象存储</td><td><code>http://localhost:9002</code></td></tr>
     <tr><td><code>S3_BUCKET</code></td><td>存储桶名</td><td><code>ch-media</code></td></tr>
