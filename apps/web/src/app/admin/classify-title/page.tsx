@@ -73,29 +73,53 @@ export default function Day3Page() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [loadingItems, setLoadingItems] = useState(false);
+  // Items the user just kicked back via reclassify/retitle. We keep them
+  // hidden from the list until the filter changes — otherwise the 4s
+  // background poll would re-pull the row (its new status may still match
+  // the active filter) and surprise the user with "didn't I just remove
+  // that?".
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
-  const refresh = useCallback(async () => {
+  // Filter changes are an explicit "show me current state" signal — drop
+  // the hide-list so the user can see what's there now.
+  useEffect(() => {
+    setHiddenIds(new Set());
+  }, [filter, categoryFilter]);
+
+  const refresh = useCallback(async (silent = false) => {
     try {
-      const q = filter ? `?status=${encodeURIComponent(filter)}&limit=30` : '?limit=30';
+      if (!silent) setLoadingItems(true);
+      const itemQs = new URLSearchParams({ limit: '30' });
+      if (filter) itemQs.set('status', filter);
+      if (categoryFilter) itemQs.set('category', categoryFilter);
+      // Stats endpoint scopes total + by_status to the active category so the
+      // status filter buttons can display accurate counts under that category.
+      const statsQs = categoryFilter ? `?category=${encodeURIComponent(categoryFilter)}` : '';
       const [s, it] = await Promise.all([
-        getJSON<Stats>('/api/admin/classify-title/stats'),
-        getJSON<{ items: Item[] }>(`/api/admin/classify-title/items${q}`),
+        getJSON<Stats>(`/api/admin/classify-title/stats${statsQs}`),
+        getJSON<{ items: Item[] }>(`/api/admin/classify-title/items?${itemQs.toString()}`),
       ]);
       setStats(s);
       setItems(it.items);
       setErr(null);
     } catch (e: any) {
       setErr(e.message);
+    } finally {
+      setLoadingItems(false);
     }
-  }, [filter]);
+  }, [filter, categoryFilter]);
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 4_000);
+    // Background polls don't show the loading spinner — only explicit
+    // user-initiated filter changes do.
+    const t = setInterval(() => refresh(true), 4_000);
     return () => clearInterval(t);
   }, [refresh]);
 
@@ -105,7 +129,7 @@ export default function Day3Page() {
       const r = await getJSON<{ enqueued: number }>(`/api/admin/classify-title/${path}`, { method: 'POST' });
       setToast(`${label}:已入队 ${r.enqueued} 条`);
       setTimeout(() => setToast(null), 3000);
-      await refresh();
+      await refresh(true);
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -113,22 +137,51 @@ export default function Day3Page() {
     }
   }
 
-  async function retrigger(kind: 'reclassify' | 'retitle', id: string) {
-    setBusyId((b) => ({ ...b, [id]: true }));
+  async function retrigger(kind: 'reclassify' | 'retitle', it: Item) {
+    // Items already past TITLED have downstream fields (cover / compliance /
+    // published_url) that the reset will wipe. Confirm before nuking them.
+    const downstream = ['COVERED', 'COMPLIANCE_PASS', 'COMPLIANCE_FAIL', 'COMPLIANCE_REVIEW', 'PUBLISHED', 'DISTRIBUTED'];
+    if (downstream.includes(it.status)) {
+      const verb = kind === 'reclassify' ? '重新分类' : '重新标题';
+      const extra = it.status === 'PUBLISHED' || it.status === 'DISTRIBUTED'
+        ? '\n\n⚠ 该文章已上线，会立即从站点下线，须重新走完合规 + 人工批准发布才会再次显示。'
+        : '\n\n会清空封面 / 合规 / 发布相关字段。';
+      if (!window.confirm(`${verb}「${it.title ?? it.id.slice(0, 8)}」？${extra}`)) return;
+    }
+    setBusyId((b) => ({ ...b, [it.id]: true }));
     try {
-      await getJSON<{ ok: true }>(`/api/admin/classify-title/${kind}/${id}`, { method: 'POST' });
-      setToast(`已重新入队 ${kind}`);
-      setTimeout(() => setToast(null), 2000);
+      const r = await fetch(`/api/admin/classify-title/${kind}/${it.id}`, { method: 'POST' });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.error ?? `${r.status} ${r.statusText}`);
+      // Hide this id from now on. Background polls will re-fetch but our
+      // render filter will drop it. Cleared when user switches filter.
+      setHiddenIds((s) => { const n = new Set(s); n.add(it.id); return n; });
+      setItems((prev) => prev.filter((x) => x.id !== it.id));
+      setToast(kind === 'reclassify' ? '已重跑分类（status → INGESTED）' : '已重跑标题（status → CLASSIFIED）');
+      setTimeout(() => setToast(null), 2500);
+      // Pull fresh stats so the tile counts reflect the rollback.
+      refresh(true);
     } catch (e: any) {
       setErr(e.message);
+      setTimeout(() => setErr(null), 4000);
     } finally {
-      setBusyId((b) => ({ ...b, [id]: false }));
+      setBusyId((b) => ({ ...b, [it.id]: false }));
     }
   }
 
+  // Items currently visible after applying the local "hide just-rerun rows"
+  // mask. Background polls overwrite `items` on every tick — without this
+  // the hidden ids would re-appear on the next refresh.
+  const visibleItems = items.filter((x) => !hiddenIds.has(x.id));
+
   const countByStatus = Object.fromEntries((stats?.by_status ?? []).map((s) => [s.status, s.count]));
-  const classifiedTotal = (countByStatus.CLASSIFIED ?? 0) + (countByStatus.TITLED ?? 0) + (countByStatus.COVERED ?? 0) + (countByStatus.COMPLIANCE_PASS ?? 0) + (countByStatus.PUBLISHED ?? 0);
-  const titledTotal = (countByStatus.TITLED ?? 0) + (countByStatus.COVERED ?? 0) + (countByStatus.COMPLIANCE_PASS ?? 0) + (countByStatus.PUBLISHED ?? 0);
+  // Cumulative coverage: anything past INGESTED has been classified;
+  // anything past CLASSIFIED has been titled. Computing by subtraction
+  // catches all downstream statuses (incl. DISTRIBUTED / COMPLIANCE_FAIL /
+  // COMPLIANCE_REVIEW) without listing them by name.
+  const total = stats?.total ?? 0;
+  const classifiedTotal = total - (countByStatus.INGESTED ?? 0);
+  const titledTotal = classifiedTotal - (countByStatus.CLASSIFIED ?? 0);
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
@@ -158,28 +211,79 @@ export default function Day3Page() {
           <Tile label="待处理队列" value={(countByStatus.INGESTED ?? 0) + (countByStatus.CLASSIFIED ?? 0)} accent="#fbbf24" hint="INGESTED + CLASSIFIED" />
         </section>
 
-        {/* Category distribution */}
+        {/* Category distribution — pills are filter chips */}
         {stats && stats.by_category.length > 0 && (
           <section style={{ ...card, marginBottom: 16 }}>
-            <h3 style={{ margin: '0 0 10px', fontSize: 13, color: '#cbd5e1', fontWeight: 600 }}>分类分布</h3>
+            <h3 style={{ margin: '0 0 10px', fontSize: 13, color: '#cbd5e1', fontWeight: 600 }}>
+              分类分布 <span style={{ color: '#475569', fontWeight: 400, fontSize: 11 }}>· 点击切换筛选</span>
+            </h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {stats.by_category.map((c) => (
-                <Pill key={c.category} color="#1e3a8a" fg="#93c5fd">{c.category} · {c.count}</Pill>
-              ))}
+              {stats.by_category.map((c) => {
+                const active = categoryFilter === c.category;
+                return (
+                  <button
+                    key={c.category}
+                    onClick={() => setCategoryFilter(active ? '' : c.category)}
+                    style={{
+                      fontSize: 11, padding: '3px 10px', borderRadius: 10, fontWeight: 500,
+                      cursor: 'pointer', border: '1px solid',
+                      background: active ? '#6366f1' : '#1e3a8a',
+                      borderColor: active ? '#818cf8' : '#1e3a8a',
+                      color: active ? '#ffffff' : '#93c5fd',
+                    }}>
+                    {c.category} · {c.count}
+                  </button>
+                );
+              })}
+              {categoryFilter && (
+                <button
+                  onClick={() => setCategoryFilter('')}
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 10, background: 'transparent', border: '1px solid #475569', color: '#94a3b8', cursor: 'pointer' }}>
+                  清除分类筛选 ✕
+                </button>
+              )}
             </div>
           </section>
         )}
 
-        {/* Status filter */}
+        {/* Status filter — counts come from stats.by_status which is now
+            category-scoped when categoryFilter is set, so the badges reflect
+            "how many in THIS category". Covers the full pipeline so users
+            whose data has already moved past TITLED can still find it. */}
         <div style={{ marginBottom: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: '#64748b' }}>状态筛选:</span>
-          {['', 'INGESTED', 'CLASSIFIED', 'TITLED'].map((s) => (
-            <button key={s || 'all'}
-              style={{ ...btn, ...(filter === s ? { background: '#6366f1', color: '#fff', borderColor: '#6366f1' } : {}) }}
-              onClick={() => setFilter(s)}>
-              {s === '' ? '全部' : STATUS_LABEL[s] ?? s}
-            </button>
-          ))}
+          {['', 'INGESTED', 'CLASSIFIED', 'TITLED', 'COVERED', 'COMPLIANCE_PASS', 'PUBLISHED', 'DISTRIBUTED'].map((s) => {
+            const count = s === '' ? (stats?.total ?? 0) : (countByStatus[s] ?? 0);
+            const active = filter === s;
+            // INGESTED items have category=NULL by definition, so the
+            // (category + INGESTED) intersection is always empty. Disable.
+            const disabled = !!categoryFilter && s === 'INGESTED';
+            return (
+              <button
+                key={s || 'all'}
+                disabled={disabled}
+                title={disabled ? 'INGESTED 状态尚未分类，无法按分类过滤' : undefined}
+                style={{
+                  ...btn,
+                  ...(active ? { background: '#6366f1', color: '#fff', borderColor: '#6366f1' } : {}),
+                  ...(disabled ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+                }}
+                onClick={() => !disabled && setFilter(s)}>
+                {s === '' ? '全部' : STATUS_LABEL[s] ?? s}
+                <span style={{
+                  marginLeft: 6, fontSize: 10, color: active ? '#e0e7ff' : count > 0 ? '#a5b4fc' : '#475569',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>{count}</span>
+              </button>
+            );
+          })}
+          {(filter || categoryFilter) && (
+            <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>
+              {loadingItems ? '加载中…' : `命中 ${visibleItems.length} 条`}
+              {hiddenIds.size > 0 && <span style={{ color: '#475569' }}> · 已隐藏 {hiddenIds.size} 条重跑中</span>}
+              {categoryFilter && <> · 分类 <code style={{ color: '#93c5fd' }}>{categoryFilter}</code></>}
+            </span>
+          )}
         </div>
 
         {/* Items */}
@@ -195,7 +299,7 @@ export default function Day3Page() {
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
+              {visibleItems.map((it) => (
                 <tr key={it.id}>
                   <td style={{ ...td, maxWidth: 380 }}>
                     <div style={{ fontWeight: 500, marginBottom: 2 }}>
@@ -220,13 +324,33 @@ export default function Day3Page() {
                     </code>
                   </td>
                   <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                    <button style={btn} disabled={!!busyId[it.id]} onClick={() => retrigger('reclassify', it.id)}>{busyId[it.id] ? '…' : '重新分类'}</button>{' '}
-                    <button style={btn} disabled={!!busyId[it.id]} onClick={() => retrigger('retitle', it.id)}>{busyId[it.id] ? '…' : '重起标题'}</button>
+                    <button
+                      style={btn}
+                      disabled={!!busyId[it.id]}
+                      title="清空分类 + 下游所有字段，从 INGESTED 重跑（PUBLISHED 会触发 ISR 失效）"
+                      onClick={() => retrigger('reclassify', it)}>
+                      {busyId[it.id] ? '…' : '重新分类'}
+                    </button>{' '}
+                    <button
+                      style={btn}
+                      disabled={!!busyId[it.id]}
+                      title="保留分类，重跑标题 + 下游（cover/compliance/published 会清空重做）"
+                      onClick={() => retrigger('retitle', it)}>
+                      {busyId[it.id] ? '…' : '重新标题'}
+                    </button>
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && (
-                <tr><td style={{ ...td, color: '#64748b' }} colSpan={5}>暂无条目</td></tr>
+              {visibleItems.length === 0 && (
+                <tr>
+                  <td style={{ ...td, color: '#64748b' }} colSpan={5}>
+                    {loadingItems
+                      ? '加载中…'
+                      : (filter || categoryFilter)
+                        ? `命中 0 条 · 当前筛选：${[filter && (STATUS_LABEL[filter] ?? filter), categoryFilter && `分类=${categoryFilter}`].filter(Boolean).join(' · ')}`
+                        : '暂无条目'}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

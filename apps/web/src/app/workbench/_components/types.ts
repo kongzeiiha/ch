@@ -44,9 +44,52 @@ export interface ItemHistory {
   runs: Array<{ id: string; agent: string; status: string; latency_ms: number | null; cost_usd: number | null; error: string | null; output: unknown; started_at: string; finished_at: string | null }>;
 }
 
+/** Audit-log row for a human-approved compliance decision (override or approve-review). */
+export interface PassedItem {
+  id: string;
+  item_id: string | null;
+  title: string | null;
+  source: string | null;
+  /** 'override' = FAIL→PASS (推翻拒绝); 'approve' = REVIEW→PASS (审核批准) */
+  kind: 'override' | 'approve';
+  operator: string | null;
+  reason: string | null;
+  risk_tags: string[] | string | null;
+  finished_at: string;
+}
+
+/** Compliance-rejected items shown in the workbench compliance step's "已拦截" panel. */
+export interface BlockedItem {
+  id: string;
+  title: string;
+  category: string | null;
+  /** Either string[] (mysql2 parsed JSON) or a JSON string fallback. */
+  risk_tags: string[] | string | null;
+  /** Object with { trigger, maxScore, blacklist[], scores, reasons }. */
+  compliance_reasons: Record<string, any> | string | null;
+  summary: string | null;
+  source: string;
+  updated_at: string;
+}
+
 export interface LiveJobs {
   active: Record<string, Array<{ itemId: string | null; label: string; since: string | null }>>;
-  recent: Record<string, Array<{ agent: string; item_id: string | null; title: string | null; finished_at: string; latency_ms: number | null; status: string }>>;
+  recent: Record<string, Array<{
+    agent: string;
+    item_id: string | null;
+    title: string | null;
+    /** items.category — what classify-title decided. NULL for items not yet classified. */
+    category: string | null;
+    /** items.tags — first few shown as tooltip on the category chip. */
+    tags: string[] | null;
+    finished_at: string;
+    latency_ms: number | null;
+    status: string;
+    /** Server-side aggregated description (e.g. source-scoring "更新 6 个源 · 平均 +3.2"). */
+    summary?: string;
+    /** Top 3 sources whose score changed the most (source-scoring only). */
+    movers?: Array<{ name: string; before: number; after: number }>;
+  }>>;
 }
 
 export interface Source {
@@ -57,6 +100,8 @@ export interface Source {
   url: string;
   status: string;
   score: number | null;
+  risk_level: 'low' | 'medium' | 'high' | null;
+  stability: number | null;
   last_fetch_at: string | null;
   config: Record<string, unknown>;
   credential_id: string | null;

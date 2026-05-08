@@ -1439,12 +1439,35 @@ export function SourcesPanel({
                   {(src.config?.feed_url as string) ?? src.url}
                 </div>
               </div>
-              {src.score !== null && (
-                <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b' }}>{Number(src.score).toFixed(1)}</div>
-                  <div style={{ fontSize: 10, color: '#64748b' }}>评分</div>
-                </div>
-              )}
+              {src.score !== null && (() => {
+                const score = Number(src.score);
+                const scoreColor = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#f87171';
+                const risk = src.risk_level ?? 'low';
+                const riskColor = risk === 'high' ? '#f87171' : risk === 'medium' ? '#fbbf24' : '#34d399';
+                const riskLabel = risk === 'high' ? '高风险' : risk === 'medium' ? '中风险' : '低风险';
+                return (
+                  <div style={{
+                    flexShrink: 0, display: 'flex', gap: 14, alignItems: 'center',
+                    padding: '4px 14px', borderRadius: 8, background: '#0f172a',
+                    border: '1px solid #1e293b',
+                  }}>
+                    <div style={{ textAlign: 'center', minWidth: 36 }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor, lineHeight: 1.1 }}>{score.toFixed(0)}</div>
+                      <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>评分</div>
+                    </div>
+                    <div style={{ textAlign: 'center', minWidth: 38 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: riskColor, lineHeight: 1.1, padding: '2px 0' }}>{riskLabel}</div>
+                      <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>风险</div>
+                    </div>
+                    {src.stability !== null && (
+                      <div style={{ textAlign: 'center', minWidth: 32 }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#a5b4fc', lineHeight: 1.1 }}>{Number(src.stability).toFixed(0)}</div>
+                        <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>稳定</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 <button onClick={() => onToggleStatus(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: src.status === 'active' ? '#14532d' : '#1e293b', color: src.status === 'active' ? '#86efac' : '#475569', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
                   {src.status === 'active' ? '活跃' : '停用'}

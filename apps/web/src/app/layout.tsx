@@ -20,7 +20,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
       </head>
-      <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif' }}>{children}</body>
+      <body style={{
+        margin: 0,
+        background: '#0f172a',
+        color: '#e2e8f0',
+        fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif',
+      }}>{children}</body>
     </html>
   );
 }

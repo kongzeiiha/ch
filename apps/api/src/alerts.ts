@@ -39,8 +39,8 @@ async function checkQueueBacklog(): Promise<AlertResult[]> {
 
 async function checkLlmFailRate(): Promise<AlertResult[]> {
   const rows = await query<{ total: number; failed: number }>(
-    `SELECT COUNT(*) AS total,
-            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+    `SELECT CAST(COUNT(*) AS SIGNED) AS total,
+            CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS SIGNED) AS failed
      FROM agent_runs
      WHERE started_at >= (NOW() - INTERVAL $1 MINUTE)
        AND agent NOT IN ('ingestion:fanout', 'source-scoring')`,
@@ -82,11 +82,11 @@ export async function agentRunsSummary() {
     total_cost_usd: number;
   }>(
     `SELECT agent,
-            COUNT(*)                                                  AS total,
-            SUM(CASE WHEN status='success' THEN 1 ELSE 0 END)         AS success,
-            SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END)          AS failed,
-            ROUND(AVG(latency_ms))                                    AS avg_latency_ms,
-            ROUND(SUM(cost_usd), 4)                                   AS total_cost_usd
+            CAST(COUNT(*) AS SIGNED)                                          AS total,
+            CAST(SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS SIGNED) AS success,
+            CAST(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS SIGNED)  AS failed,
+            CAST(ROUND(AVG(latency_ms)) AS SIGNED)                            AS avg_latency_ms,
+            CAST(ROUND(SUM(cost_usd), 4) AS DOUBLE)                           AS total_cost_usd
      FROM agent_runs
      WHERE started_at >= NOW() - INTERVAL 24 HOUR
      GROUP BY agent

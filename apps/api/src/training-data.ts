@@ -405,3 +405,26 @@ export async function feedbackStats(): Promise<FeedbackStats> {
     recentlyHarvested: recent,
   };
 }
+
+// ─── Catch-all harvest poller ────────────────────────────────────────────────
+// Runs every HARVEST_INTERVAL_MS (default 5 min) to ensure any op_log rows
+// that weren't captured by the inline fire-and-forget triggers are converted.
+// Idempotent — UNIQUE on op_log_id means double-runs are harmless.
+
+export function startHarvestPoller(): NodeJS.Timeout {
+  const intervalMs = Number(process.env.HARVEST_INTERVAL_MS ?? 5 * 60_000);
+  return setInterval(async () => {
+    try {
+      const [c, d] = await Promise.all([
+        harvestComplianceFeedback(),
+        harvestDistributionFeedback(),
+      ]);
+      const inserted = c.inserted + d.inserted;
+      if (inserted > 0) {
+        console.info(`[harvest] poller: +${c.inserted} compliance, +${d.inserted} distribution`);
+      }
+    } catch (e: any) {
+      console.warn('[harvest] poller error:', e?.message ?? e);
+    }
+  }, intervalMs);
+}

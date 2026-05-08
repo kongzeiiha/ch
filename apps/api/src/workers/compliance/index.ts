@@ -65,7 +65,7 @@ export async function complianceOne(itemId: string) {
   if (skipLlm && blacklistHits.length === 0 && !risk) {
     risk = {
       scores: {
-        '政治敏感': 0, '色情低俗': 0, '暴力恐怖': 0,
+        '政治敏感': 0, '暴力恐怖': 0,
         '版权争议': 0, '医疗夸大': 0, '金融诱导': 0,
       },
       reasons: {},

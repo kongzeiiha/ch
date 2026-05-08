@@ -13,6 +13,7 @@ import { query, execute, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { logOperation } from './op-log.js';
 import { revalidatePaths } from './workers/publishing/revalidate.js';
+import { harvestComplianceFeedback } from './training-data.js';
 
 // ── In-memory automation state (single-process MVP) ───────────────────────
 // Key = agent key (see AGENT_KEYS below), value = true/false
@@ -32,14 +33,20 @@ export let globalStop = false;
 
 export function setGlobalStop(v: boolean) { globalStop = v; }
 
-// Status → agent that processes it next
+// Status → agent that processes it next when /rerun is invoked.
+// Terminal-ish states (FAIL/REVIEW/DISTRIBUTED) re-enter the same agent that
+// last touched them so a manual rerun does the right thing after rule edits
+// or a transient LLM failure (instead of erroring out as "no agent mapped").
 const STATUS_TO_AGENT: Record<string, string> = {
-  [IS.INGESTED]:         'classify-title',
-  [IS.CLASSIFIED]:       'classify-title', // legacy backlog — picked up to finish title step
-  [IS.TITLED]:           'cover',
-  [IS.COVERED]:          'compliance',
-  [IS.COMPLIANCE_PASS]:  'publishing',
-  [IS.PUBLISHED]:        'distribution',
+  [IS.INGESTED]:           'classify-title',
+  [IS.CLASSIFIED]:         'classify-title', // legacy backlog — picked up to finish title step
+  [IS.TITLED]:             'cover',
+  [IS.COVERED]:            'compliance',
+  [IS.COMPLIANCE_PASS]:    'publishing',
+  [IS.COMPLIANCE_REVIEW]:  'compliance',     // re-score after rule edits
+  [IS.COMPLIANCE_FAIL]:    'compliance',     // give it another shot post-fix
+  [IS.PUBLISHED]:          'distribution',
+  [IS.DISTRIBUTED]:        'distribution',   // re-generate copy / re-post
 };
 
 // Agent → queue action
@@ -242,6 +249,27 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     return { items };
   });
 
+  // Recently blocked items (COMPLIANCE_FAIL). Read-only audit surface so the
+  // workbench can show *what* the compliance gate is rejecting + *why* without
+  // forcing the operator into the dedicated /admin/cover-compliance page.
+  app.get('/admin/pipeline/blocked-queue', async () => {
+    const items = await query<{
+      id: string; title: string; category: string | null;
+      risk_tags: any; compliance_reasons: any;
+      summary: string | null; source: string; updated_at: string;
+    }>(
+      `SELECT i.id, i.title, i.category, i.risk_tags, i.compliance_reasons,
+              i.summary, s.name AS source, i.updated_at
+       FROM items i
+       JOIN sources s ON s.id = i.source_id
+       WHERE i.status = $1
+       ORDER BY i.updated_at DESC
+       LIMIT 50`,
+      [IS.COMPLIANCE_FAIL],
+    );
+    return { items };
+  });
+
   // Approve compliance review → COMPLIANCE_PASS + optionally queue for publishing
   app.post('/admin/pipeline/approve-review/:itemId', async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
@@ -262,6 +290,9 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       targetId: itemId,
       payload: { decision: 'approve' },
     });
+    void harvestComplianceFeedback().catch((e) =>
+      console.warn('[harvest] compliance approve:', e?.message ?? e),
+    );
     return { approved: itemId };
   });
 
@@ -286,7 +317,79 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       targetId: itemId,
       payload: { decision: 'reject', reason: reason ?? null },
     });
+    void harvestComplianceFeedback().catch((e) =>
+      console.warn('[harvest] compliance reject:', e?.message ?? e),
+    );
     return { rejected: itemId };
+  });
+
+  // Audit trail of human-approved items (last 50). Combines two sources:
+  //   - approve-review:  COMPLIANCE_REVIEW → COMPLIANCE_PASS  (mild override)
+  //   - override-block:  COMPLIANCE_FAIL   → COMPLIANCE_PASS  (hard override)
+  // Each carries the operator name (from op_logs) and the original risk_tags.
+  app.get('/admin/pipeline/passed-queue', async () => {
+    const items = await query<{
+      id: string;
+      item_id: string | null;
+      title: string | null;
+      source: string | null;
+      kind: 'approve' | 'override';
+      operator: string | null;
+      reason: string | null;
+      risk_tags: any;
+      finished_at: string;
+    }>(
+      `SELECT ar.id, ar.item_id, i.title, s.name AS source,
+              CASE WHEN ar.agent = 'human:override' THEN 'override' ELSE 'approve' END AS kind,
+              ol.operator, ar.error AS reason, i.risk_tags,
+              ar.finished_at
+       FROM agent_runs ar
+       LEFT JOIN items i ON i.id = ar.item_id
+       LEFT JOIN sources s ON s.id = i.source_id
+       LEFT JOIN operation_logs ol
+         ON ol.target_id = ar.item_id
+        AND ol.operation IN ('compliance.approve','compliance.override')
+        AND ABS(TIMESTAMPDIFF(SECOND, ol.occurred_at, ar.finished_at)) < 5
+       WHERE ar.agent IN ('human:override','human:review')
+         AND ar.finished_at > NOW() - INTERVAL 7 DAY
+         AND (
+           ar.agent = 'human:override'
+           OR JSON_UNQUOTE(JSON_EXTRACT(ar.output, '$.decision')) = 'approve'
+         )
+       ORDER BY ar.finished_at DESC
+       LIMIT 50`,
+    );
+    return { items };
+  });
+
+  // Manual override on a blocked item: FAIL → PASS. Used when the operator
+  // disagrees with the gate (false positive on blacklist regex, or LLM was
+  // wrong, or rules changed but the item didn't go through rerun).
+  // Writes a feedback signal to training_examples so the rule can be tuned.
+  app.post('/admin/pipeline/override-block/:itemId', async (req, reply) => {
+    const { itemId } = req.params as { itemId: string };
+    const { reason } = (req.body as { reason?: string }) ?? {};
+    const r = await execute(
+      `UPDATE items SET status=$2, compliance_status='manual_pass'
+       WHERE id=$1 AND status=$3`,
+      [itemId, IS.COMPLIANCE_PASS, IS.COMPLIANCE_FAIL],
+    );
+    if (r.affectedRows === 0) return reply.status(409).send({ error: 'item not in compliance_fail state' });
+    await query(
+      `INSERT INTO agent_runs (agent, item_id, status, output, error, finished_at)
+       VALUES ('human:override', $1, 'success', '{"decision":"override"}', $2, NOW())`,
+      [itemId, reason ?? null],
+    );
+    await logOperation(req, {
+      operation: 'compliance.override',
+      targetType: 'item',
+      targetId: itemId,
+      payload: { decision: 'override', reason: reason ?? null },
+    });
+    void harvestComplianceFeedback().catch((e) =>
+      console.warn('[harvest] compliance override:', e?.message ?? e),
+    );
+    return { overridden: itemId };
   });
 
   // Items waiting for publish approval (COMPLIANCE_PASS, not yet published)
@@ -396,7 +499,13 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     const rb = ROLLBACK_MAP[item.status];
     if (!rb) return reply.status(400).send({ error: `no rollback defined for status=${item.status}` });
 
-    const clearSet = rb.clearFields?.map((f) => `"${f}"=NULL`).join(', ');
+    // tags / keywords / risk_tags are `json NOT NULL DEFAULT (json_array())`
+    // — resetting them to NULL violates the constraint, so they get reset to
+    // an empty JSON array. All other clearable fields are nullable.
+    const NOT_NULL_JSON_ARRAY = new Set(['tags', 'keywords', 'risk_tags']);
+    const clearSet = rb.clearFields
+      ?.map((f) => `\`${f}\`=${NOT_NULL_JSON_ARRAY.has(f) ? 'JSON_ARRAY()' : 'NULL'}`)
+      .join(', ');
     const sql = `UPDATE items SET status=$2${clearSet ? `, ${clearSet}` : ''} WHERE id=$1`;
     await query(sql, [itemId, rb.toStatus]);
 
@@ -587,25 +696,127 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       });
     }
 
-    // Recent completed (last 3 per agent from agent_runs)
-    const recent = await query<{ agent: string; item_id: string | null; title: string | null; finished_at: string; latency_ms: number | null; status: string }>(
-      `SELECT ar.agent, ar.item_id, i.title,
-              ar.finished_at AS finished_at, ar.latency_ms, ar.status
+    // Recent completed (last 8 per agent from agent_runs).
+    // Output is included so per-agent summarizers (e.g. source-scoring's score
+    // deltas) can render meaningful text without an extra round-trip.
+    const recent = await query<{
+      agent: string; item_id: string | null; input_hash: string | null; title: string | null;
+      category: string | null; tags: any;
+      finished_at: string; latency_ms: number | null; status: string;
+      output: any;
+    }>(
+      `SELECT ar.agent, ar.item_id, ar.input_hash, i.title, i.category, i.tags,
+              ar.finished_at AS finished_at, ar.latency_ms, ar.status, ar.output
        FROM (
-         SELECT agent, item_id, finished_at, latency_ms, status,
+         SELECT agent, item_id, input_hash, finished_at, latency_ms, status, output,
                 ROW_NUMBER() OVER (PARTITION BY agent ORDER BY finished_at DESC) AS rn
          FROM agent_runs WHERE finished_at IS NOT NULL
        ) ar
        LEFT JOIN items i ON i.id = ar.item_id
        WHERE ar.rn <= 8`,
     );
-    const recentByAgent: Record<string, typeof recent> = {};
+
+    // Ingestion runs key on source_id via input_hash. Batch-resolve names so
+    // each "最近完成" entry can show "源名 · 候选 N · 入库 K …" instead of a uuid.
+    const ingestionSourceIds = new Set<string>();
     for (const r of recent) {
-      const bucket = r.agent.split(':')[0]; // strip "human:..." prefixes
+      if (r.agent === 'ingestion' && r.input_hash) ingestionSourceIds.add(r.input_hash);
+    }
+    const recentSourceMap = new Map<string, string>();
+    if (ingestionSourceIds.size > 0) {
+      const rows = await query<{ id: string; name: string }>(
+        `SELECT id, name FROM sources WHERE id = ANY($1::uuid[])`,
+        [Array.from(ingestionSourceIds)],
+      );
+      for (const r of rows) recentSourceMap.set(r.id, r.name);
+    }
+
+    type RecentRow = {
+      agent: string; item_id: string | null; title: string | null;
+      category: string | null; tags: string[] | null;
+      finished_at: string; latency_ms: number | null; status: string;
+      summary?: string; movers?: Array<{ name: string; before: number; after: number }>;
+    };
+
+    // mysql2 returns JSON columns as parsed objects/arrays. Be defensive:
+    // older rows or string-typed payloads should still cleanly become arrays.
+    const parseTags = (raw: any): string[] | null => {
+      if (Array.isArray(raw)) return raw as string[];
+      if (typeof raw === 'string') {
+        try { const v = JSON.parse(raw); return Array.isArray(v) ? v : null; } catch { return null; }
+      }
+      return null;
+    };
+
+    const recentByAgent: Record<string, RecentRow[]> = {};
+    for (const r of recent) {
+      const bucket = r.agent.split(':')[0];
+      const out: RecentRow = {
+        agent: r.agent,
+        item_id: r.item_id,
+        title: r.title,
+        category: r.category,
+        tags: parseTags(r.tags),
+        finished_at: r.finished_at,
+        latency_ms: r.latency_ms,
+        status: r.status,
+      };
+      // Summarize ingestion output: source name + candidate→ingest funnel.
+      // Two flavors: 'ingestion' (single source) and 'ingestion:fanout' (enqueue dispatch).
+      if (bucket === 'ingestion' && r.output) {
+        const o = typeof r.output === 'string' ? safeJsonParse(r.output) : r.output;
+        if (r.agent === 'ingestion:fanout' && o) {
+          const enq = Number(o.enqueued ?? 0);
+          const skip = Number(o.skipped ?? 0);
+          out.summary = `全量 fanout · 入队 ${enq}${skip > 0 ? ` · 跳过 ${skip}` : ''}`;
+        } else if (r.agent === 'ingestion' && o) {
+          const srcName = (r.input_hash && recentSourceMap.get(r.input_hash))
+            ?? (r.input_hash ? r.input_hash.slice(0, 8) : '未知源');
+          const candidates = Number(o.candidates ?? 0);
+          const ingested = Number(o.ingested ?? 0);
+          const dup = Number(o.dupUrl ?? 0) + Number(o.dupContent ?? 0);
+          const fail = Number(o.cleanFail ?? 0) + Number(o.errors ?? 0);
+          const parts: string[] = [srcName];
+          if (o.authFail) parts.push(`🔒 鉴权失败${o.authStatus ? ` ${o.authStatus}` : ''}`);
+          parts.push(`候选 ${candidates}`);
+          parts.push(`↑入库 ${ingested}`);
+          if (dup > 0) parts.push(`重复 ${dup}`);
+          if (fail > 0) parts.push(`失败 ${fail}`);
+          out.summary = parts.join(' · ');
+        }
+      }
+      // Summarize source-scoring output: count + paused + avg delta + top movers.
+      if (bucket === 'source-scoring' && r.status === 'success' && r.output) {
+        const o = typeof r.output === 'string' ? safeJsonParse(r.output) : r.output;
+        const samples: Array<{ name: string; before: number; after: number; status: string }> =
+          Array.isArray(o?.samples) ? o.samples : [];
+        if (samples.length > 0) {
+          const deltas = samples.map((s) => s.after - s.before);
+          const avgDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+          const paused = samples.filter((s) => s.status === 'paused').length;
+          const blacklist = samples.filter((s) => s.status === 'blacklist').length;
+          const movers = [...samples]
+            .sort((a, b) => Math.abs(b.after - b.before) - Math.abs(a.after - a.before))
+            .slice(0, 3)
+            .map((s) => ({ name: s.name, before: s.before, after: s.after }));
+          const parts: string[] = [`更新 ${samples.length} 个源`];
+          parts.push(`平均 ${avgDelta >= 0 ? '+' : ''}${avgDelta.toFixed(1)}`);
+          if (paused > 0) parts.push(`${paused} 个被暂停`);
+          if (blacklist > 0) parts.push(`${blacklist} 个进黑名单`);
+          out.summary = parts.join(' · ');
+          out.movers = movers;
+        } else if (typeof o?.updated === 'number') {
+          out.summary = `更新 ${o.updated} 个源`;
+        }
+      }
       if (!recentByAgent[bucket]) recentByAgent[bucket] = [];
-      recentByAgent[bucket].push(r);
+      recentByAgent[bucket].push(out);
     }
 
     return { active, recent: recentByAgent };
   });
+}
+
+function safeJsonParse(s: string): any {
+  try { return JSON.parse(s); } catch { return null; }
 }

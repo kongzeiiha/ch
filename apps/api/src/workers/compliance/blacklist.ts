@@ -23,20 +23,20 @@ const LISTS: { category: BlacklistHit['category']; patterns: RegExp[] }[] = [
     category: 'nsfw_explicit',
     patterns: [
       /\b(hardcore\s+porn|xxx\s+adult)\b/i,
-      /(露骨色情|赤裸性交)/,
+      // /(露骨色情|赤裸性交)/,
       // ── Chinese soft-NSFW gallery markers commonly seen on
       //    pic-aggregator sites (knit.bid / 2ksg / aizuyun family).
       //    Tune carefully — false positives here block legitimate posts.
-      /(调教|淫荡|裸体|露点|私拍|偷拍|走光|无圣光|无码|福利图|擦边)/,
+      // /(调教|淫荡|裸体|露点|私拍|偷拍|走光|无圣光|无码|福利图|擦边)/,
       // "[写真] ... 80P" gallery + photo-count pattern. The brackets +
       // the "NN P" suffix together is the strongest signal; either alone
       // is fine (e.g. a regular tech article might mention "80P video").
-      /\[写真\][\s\S]{0,80}\d+\s*P\b/,
+      // /\[写真\][\s\S]{0,80}\d+\s*P\b/,
       // Soft body / fetish phrases. Combined with the gallery context above
       // these are reliable; in plain prose they can be metaphorical, so we
       // require the "NN P" suffix elsewhere in the text.
-      /(低胸|美胸|美腿|大尺度|嫩模|蕾丝|睡袍|内衣|丝袜)[\s\S]{0,60}\d+\s*P\b/,
-      /(粉色妹子|清纯小妹|嫩妹)[\s\S]{0,60}\d+\s*P\b/,
+      // /(低胸|美胸|美腿|大尺度|嫩模|蕾丝|睡袍|内衣|丝袜)[\s\S]{0,60}\d+\s*P\b/,
+      // /(粉色妹子|清纯小妹|嫩妹)[\s\S]{0,60}\d+\s*P\b/,
     ],
   },
   {

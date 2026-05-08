@@ -116,7 +116,8 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
   // appear to have no auth at all (their config carries no cookie by design).
   app.get('/admin/sources', async () => {
     const rows = await query(
-      `SELECT s.id, s.platform, s.external_id, s.name, s.url, s.status, s.score,
+      `SELECT s.id, s.platform, s.external_id, s.name, s.url, s.status,
+              s.score, s.risk_level, s.stability,
               s.last_fetch_at, s.config, s.credential_id,
               c.name AS credential_name, c.status AS credential_status
        FROM sources s

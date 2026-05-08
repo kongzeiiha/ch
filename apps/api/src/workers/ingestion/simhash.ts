@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 /**
- * 63-bit simhash. 63 (not 64) so the result fits into Postgres BIGINT's
+ * 63-bit simhash. 63 (not 64) so the result fits into MySQL BIGINT's
  * signed range without extra encoding. Entropy cost is negligible for dedupe.
  */
 

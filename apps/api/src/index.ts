@@ -33,6 +33,9 @@ const { registerPipelineAdmin } = await import('./admin-pipeline.js');
 const { startAutoPipeline, stopAutoPipeline } = await import('./auto-pipeline.js');
 const { registerOpLogHook, registerOpLogAdmin } = await import('./op-log.js');
 const { registerFeedbackAdmin } = await import('./admin-feedback.js');
+const { registerAnalyticsAdmin } = await import('./admin-analytics.js');
+const { startHarvestPoller } = await import('./training-data.js');
+const { deriveRulesFromExamples } = await import('./derive-rules.js');
 const { registerAdminAuth } = await import('./admin-auth.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
@@ -90,6 +93,7 @@ async function main(): Promise<void> {
   await registerOps(app);
   await registerPipelineAdmin(app);
   await registerFeedbackAdmin(app);
+  await registerAnalyticsAdmin(app);
 
   // In production, run workers in a separate process via `start:worker`.
   // Set DISABLE_WORKERS=1 to decouple HTTP from queue processing.
@@ -97,6 +101,30 @@ async function main(): Promise<void> {
   if (workers.length) app.log.info(`workers started: ${workers.length}`);
 
   const alertTimer = startAlertPoller();
+  const harvestTimer = startHarvestPoller();
+
+  // Weekly derive-rules: waits 1h after boot so the first run doesn't compete
+  // with startup traffic, then fires every DERIVE_RULES_INTERVAL_MS (7 days).
+  if (process.env.DISABLE_DERIVE_RULES !== '1') {
+    const deriveInterval = Number(process.env.DERIVE_RULES_INTERVAL_MS ?? 7 * 24 * 3600_000);
+    let deriveTimer: NodeJS.Timeout;
+    const runDerive = async () => {
+      for (const domain of ['compliance', 'distribution'] as const) {
+        try {
+          const r = await deriveRulesFromExamples(domain);
+          if (r.rulesCreated > 0) {
+            console.info(`[derive-rules] ${domain}: +${r.rulesCreated} rules from ${r.examplesRead} examples`);
+          }
+        } catch (e: any) {
+          console.warn(`[derive-rules] ${domain}:`, e?.message ?? e);
+        }
+      }
+      deriveTimer = setTimeout(runDerive, deriveInterval);
+    };
+    setTimeout(runDerive, Math.min(3600_000, deriveInterval));
+    app.addHook('onClose', async () => clearTimeout(deriveTimer));
+  }
+
   if (process.env.DISABLE_AUTO_PIPELINE !== '1') startAutoPipeline();
 
   if (process.env.DISABLE_SCHEDULER !== '1') {
@@ -110,6 +138,7 @@ async function main(): Promise<void> {
     app.log.info('shutting down...');
     stopAutoPipeline();
     clearInterval(alertTimer);
+    clearInterval(harvestTimer);
     await app.close();
     await Promise.all(workers.map((w) => w.close()));
     await closeAll();

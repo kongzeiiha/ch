@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import type { PipelineState, AgentMeta, QueueStat, AgentRunRow, LiveJobs, ReviewItem, PublishItem, DistTask } from './types';
+import type { PipelineState, AgentMeta, QueueStat, AgentRunRow, LiveJobs, ReviewItem, PublishItem, DistTask, BlockedItem, PassedItem } from './types';
 import { AGENTS } from './constants';
 import { riskBadge } from './utils';
 import { LiveStrip } from './LiveStrip';
 import { CopyBtn } from './CopyBtn';
+import { AnalyticsPanel } from './AnalyticsPanel';
 
 interface PipelineTabProps {
   loading: boolean;
@@ -18,6 +19,8 @@ interface PipelineTabProps {
   reviewItems: ReviewItem[];
   publishItems: PublishItem[];
   distTasks: DistTask[];
+  blockedItems: BlockedItem[];
+  passedItems: PassedItem[];
   selectedAgent: string | null;
   setSelectedAgent: (key: string) => void;
   busyAgent: string | null;
@@ -34,6 +37,7 @@ interface PipelineTabProps {
   confirmDist: (taskId: string) => void;
   rollback: (itemId: string, title: string) => void;
   rerun: (itemId: string) => void;
+  overrideBlock: (itemId: string, title: string) => void;
   showHistory: (itemId: string) => void;
 }
 
@@ -48,6 +52,8 @@ export function PipelineTab({
   reviewItems,
   publishItems,
   distTasks,
+  blockedItems,
+  passedItems,
   selectedAgent,
   setSelectedAgent,
   busyAgent,
@@ -64,6 +70,7 @@ export function PipelineTab({
   confirmDist,
   rollback,
   rerun,
+  overrideBlock,
   showHistory,
 }: PipelineTabProps) {
   const summaryMap = new Map(agentSummary.map(r => [r.agent, r]));
@@ -374,6 +381,158 @@ export function PipelineTab({
               onClickItem={(id) => showHistory(id)}
             />
 
+            {/* ── COMPLIANCE BLOCKED list (read-only audit) ──
+                Items the gate auto-rejected: blacklist hits or LLM score ≥ 3.
+                No buttons — they're already terminal. Click 追踪 to see the
+                full reason payload (which regex / which dimension scored). */}
+            {agent.key === 'compliance' && blockedItems.length > 0 && (() => {
+              const parseReasons = (raw: any): { trigger?: string; maxScore?: number; blacklist?: Array<{ category: string; pattern: string }>; scores?: Record<string, number>; reasons?: Record<string, string> } => {
+                if (!raw) return {};
+                if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return {}; } }
+                return raw;
+              };
+              const parseTags = (raw: any): string[] => {
+                if (Array.isArray(raw)) return raw;
+                if (typeof raw === 'string') { try { const v = JSON.parse(raw); return Array.isArray(v) ? v : []; } catch { return []; } }
+                return [];
+              };
+              return (
+                <div style={{ marginTop: 14, borderTop: '1px solid #7f1d1d', paddingTop: 12 }}>
+                  <div style={{ fontSize: 12, color: '#f87171', marginBottom: 8, fontWeight: 600 }}>
+                    🛑 已拦截 · 最近 {blockedItems.length} 条（黑名单或 LLM 评分≥3 直接拒绝）
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 240, overflowY: 'auto' }}>
+                    {blockedItems.map(item => {
+                      const reasons = parseReasons(item.compliance_reasons);
+                      const tags = parseTags(item.risk_tags);
+                      const isBlacklist = reasons.trigger === 'blacklist';
+                      const triggerLabel = isBlacklist
+                        ? '黑名单'
+                        : reasons.trigger === 'llm_reject'
+                        ? `LLM 评分 ${reasons.maxScore}`
+                        : reasons.trigger ?? '—';
+                      // Reason rows: blacklist hits → list each (category + pattern);
+                      //              llm_reject → list each scored dimension that triggered (≥2)
+                      const reasonRows: Array<{ label: string; text: string }> = [];
+                      if (isBlacklist && Array.isArray(reasons.blacklist)) {
+                        for (const h of reasons.blacklist) {
+                          reasonRows.push({ label: h.category, text: h.pattern });
+                        }
+                      } else if (reasons.scores) {
+                        for (const [dim, score] of Object.entries(reasons.scores) as Array<[string, number]>) {
+                          if (score >= 2) {
+                            const why = reasons.reasons?.[dim];
+                            reasonRows.push({ label: `${dim}: ${score}/3`, text: why ?? '—' });
+                          }
+                        }
+                      }
+                      return (
+                        <div key={item.id} style={{ background: '#0f172a', border: '1px solid #450a0a', borderRadius: 8, padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div onClick={() => showHistory(item.id)} style={{ fontSize: 12, fontWeight: 600, color: '#fca5a5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="点击查看完整内容">
+                              {item.title || `item ${item.id.slice(0, 8)}`}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 10, color: '#64748b' }}>{item.source}</span>
+                              {tags.map(t => (
+                                <span key={t} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#7f1d1d', color: '#fecaca' }}>{t}</span>
+                              ))}
+                              <span style={{ fontSize: 10, color: '#94a3b8' }}>· {triggerLabel}</span>
+                            </div>
+                            {reasonRows.length > 0 && (
+                              <div style={{ marginTop: 5, paddingLeft: 8, borderLeft: '2px solid #7f1d1d', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {reasonRows.map((rr, idx) => (
+                                  <div key={idx} style={{ fontSize: 10.5, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <span style={{ color: '#f87171', fontWeight: 600 }}>{rr.label}</span>
+                                    <span style={{ color: '#475569' }}> · </span>
+                                    <span style={{ color: '#94a3b8', fontFamily: isBlacklist ? '"JetBrains Mono", Menlo, monospace' : 'inherit' }}>{rr.text}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+                            <button
+                              onClick={() => overrideBlock(item.id, item.title)}
+                              title="人工放行(写入反馈环路:用作 training_examples,可能影响后续规则)"
+                              style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: '#14532d', color: '#86efac', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+                              ✓ 放行
+                            </button>
+                            <button onClick={() => showHistory(item.id)} style={{ padding: '4px 12px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── COMPLIANCE PASSED audit list (read-only) ──
+                Items a human cleared through the gate, last 7 days. Two
+                kinds: "审核批准"(REVIEW→PASS) and "强制放行"(FAIL→PASS, i.e.
+                推翻机器拒绝). Both feed the slow-loop training_examples table. */}
+            {agent.key === 'compliance' && passedItems.length > 0 && (() => {
+              const parseTags = (raw: any): string[] => {
+                if (Array.isArray(raw)) return raw;
+                if (typeof raw === 'string') { try { const v = JSON.parse(raw); return Array.isArray(v) ? v : []; } catch { return []; } }
+                return [];
+              };
+              const fmtAgo = (iso: string) => {
+                const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+                if (sec < 60) return `${sec}s 前`;
+                if (sec < 3600) return `${Math.floor(sec / 60)}m 前`;
+                if (sec < 86400) return `${Math.floor(sec / 3600)}h 前`;
+                return `${Math.floor(sec / 86400)}d 前`;
+              };
+              return (
+                <div style={{ marginTop: 14, borderTop: '1px solid #14532d', paddingTop: 12 }}>
+                  <div style={{ fontSize: 12, color: '#34d399', marginBottom: 8, fontWeight: 600 }}>
+                    ✅ 已放行 · 最近 {passedItems.length} 条（人工通过的合规决策,7 天内）
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 220, overflowY: 'auto' }}>
+                    {passedItems.map(p => {
+                      const tags = parseTags(p.risk_tags);
+                      const isOverride = p.kind === 'override';
+                      const kindLabel = isOverride ? '强制放行' : '审核批准';
+                      const kindBg = isOverride ? '#7c2d12' : '#14532d';
+                      const kindFg = isOverride ? '#fed7aa' : '#86efac';
+                      return (
+                        <div key={p.id} style={{ background: '#0f172a', border: '1px solid #14532d', borderRadius: 8, padding: '8px 12px', display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <span style={{ flexShrink: 0, fontSize: 10, padding: '1px 8px', borderRadius: 10, background: kindBg, color: kindFg, fontWeight: 600 }}>
+                            {kindLabel}
+                          </span>
+                          <div
+                            style={{ flex: 1, minWidth: 0, cursor: p.item_id ? 'pointer' : 'default' }}
+                            onClick={() => p.item_id && showHistory(p.item_id)}
+                            title={p.item_id ? '点击查看完整内容' : ''}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#a7f3d0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.title || (p.item_id ? `item ${p.item_id.slice(0, 8)}` : '—')}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
+                              {p.source && <span style={{ fontSize: 10, color: '#64748b' }}>{p.source}</span>}
+                              {tags.map(t => (
+                                <span key={t} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#374151', color: '#9ca3af' }}>
+                                  原标签: {t}
+                                </span>
+                              ))}
+                              <span style={{ fontSize: 10, color: '#94a3b8' }}>· 操作人 <strong style={{ color: '#cbd5e1' }}>{p.operator ?? 'anonymous'}</strong></span>
+                              <span style={{ fontSize: 10, color: '#64748b' }}>· {fmtAgo(p.finished_at)}</span>
+                            </div>
+                            {p.reason && (
+                              <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 3, paddingLeft: 8, borderLeft: '2px solid #14532d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                理由: {p.reason}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── COMPLIANCE REVIEW human gate (inline) ── */}
             {agent.key === 'compliance' && reviewItems.length > 0 && (
               <div style={{ marginTop: 14, borderTop: '1px solid #334155', paddingTop: 12 }}>
@@ -479,6 +638,13 @@ export function PipelineTab({
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── ANALYTICS panel (read-only, GA4 + reports) ── */}
+            {agent.key === 'analytics' && (
+              <div style={{ marginTop: 14, borderTop: '1px solid #115e59', paddingTop: 12 }}>
+                <AnalyticsPanel />
               </div>
             )}
           </div>

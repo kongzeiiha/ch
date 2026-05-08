@@ -20,9 +20,9 @@ export async function generateWeeklyReport(): Promise<string> {
   const [topItems, dailySummary, totals] = await Promise.all([
     query<ReportRow>(`
       SELECT i.slug, i.title, i.category,
-             SUM(a.pv)      AS total_pv,
-             SUM(a.uv)      AS total_uv,
-             SUM(a.revenue) AS total_revenue
+             CAST(SUM(a.pv) AS SIGNED)      AS total_pv,
+             CAST(SUM(a.uv) AS SIGNED)      AS total_uv,
+             CAST(SUM(a.revenue) AS DOUBLE) AS total_revenue
       FROM analytics_daily a
       JOIN items i ON i.id = a.item_id
       WHERE a.date >= CURRENT_DATE - INTERVAL 6 DAY
@@ -33,18 +33,18 @@ export async function generateWeeklyReport(): Promise<string> {
     `),
     query<DailySummary>(`
       SELECT date,
-             SUM(pv)        AS pv,
-             SUM(uv)        AS uv,
-             SUM(revenue)   AS revenue
+             CAST(SUM(pv) AS SIGNED)        AS pv,
+             CAST(SUM(uv) AS SIGNED)        AS uv,
+             CAST(SUM(revenue) AS DOUBLE)   AS revenue
       FROM analytics_daily
       WHERE date >= CURRENT_DATE - INTERVAL 6 DAY AND channel = 'site'
       GROUP BY date
       ORDER BY date
     `),
     query<{ total_pv: number; total_uv: number; total_revenue: number }>(`
-      SELECT SUM(pv)        AS total_pv,
-             SUM(uv)        AS total_uv,
-             SUM(revenue)   AS total_revenue
+      SELECT CAST(SUM(pv) AS SIGNED)        AS total_pv,
+             CAST(SUM(uv) AS SIGNED)        AS total_uv,
+             CAST(SUM(revenue) AS DOUBLE)   AS total_revenue
       FROM analytics_daily
       WHERE date >= CURRENT_DATE - INTERVAL 6 DAY AND channel = 'site'
     `),

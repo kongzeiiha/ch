@@ -30,18 +30,18 @@ export async function scoreAllSources(): Promise<{
         LEFT JOIN (
           SELECT
             source_id,
-            COUNT(*) AS total,
-            SUM(CASE WHEN status = '${IS.PUBLISHED}' THEN 1 ELSE 0 END)         AS published,
-            SUM(CASE WHEN status = '${IS.COMPLIANCE_FAIL}' THEN 1 ELSE 0 END)   AS compliance_fail,
-            SUM(CASE WHEN status = '${IS.COMPLIANCE_REVIEW}' THEN 1 ELSE 0 END) AS compliance_review,
-            SUM(CASE WHEN created_at > NOW() - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS recent_ingested
+            CAST(COUNT(*) AS SIGNED) AS total,
+            CAST(SUM(CASE WHEN status = '${IS.PUBLISHED}' THEN 1 ELSE 0 END) AS SIGNED)         AS published,
+            CAST(SUM(CASE WHEN status = '${IS.COMPLIANCE_FAIL}' THEN 1 ELSE 0 END) AS SIGNED)   AS compliance_fail,
+            CAST(SUM(CASE WHEN status = '${IS.COMPLIANCE_REVIEW}' THEN 1 ELSE 0 END) AS SIGNED) AS compliance_review,
+            CAST(SUM(CASE WHEN created_at > NOW() - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS SIGNED) AS recent_ingested
           FROM items
           GROUP BY source_id
         ) c ON c.source_id = s.id
         LEFT JOIN (
           SELECT i.source_id,
-                 SUM(ad.pv)        AS week_pv,
-                 SUM(ad.revenue)   AS week_revenue
+                 CAST(SUM(ad.pv) AS SIGNED)        AS week_pv,
+                 CAST(SUM(ad.revenue) AS DOUBLE)   AS week_revenue
           FROM analytics_daily ad
           JOIN items i ON i.id = ad.item_id
           WHERE ad.date >= CURRENT_DATE - INTERVAL 7 DAY

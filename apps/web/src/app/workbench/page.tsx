@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getSprintStart, computeDayLabel, todayISO } from '../../lib/sprint';
 
-import type { PipelineState, ReviewItem, PublishItem, DistTask, AgentRunRow, QueueStat, ItemHistory, LiveJobs, Source, CredentialRow, RawItem, AuthSuspect } from './_components/types';
+import type { PipelineState, ReviewItem, PublishItem, DistTask, AgentRunRow, QueueStat, ItemHistory, LiveJobs, Source, CredentialRow, RawItem, AuthSuspect, BlockedItem, PassedItem } from './_components/types';
 import { API, POLL, AGENTS } from './_components/constants';
 import { PipelineTab } from './_components/PipelineTab';
 import { SourcesPanel } from './_components/SourcesPanel';
@@ -31,6 +31,8 @@ export default function WorkbenchPage() {
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [publishItems, setPublishItems] = useState<PublishItem[]>([]);
   const [distTasks, setDistTasks] = useState<DistTask[]>([]);
+  const [blockedItems, setBlockedItems] = useState<BlockedItem[]>([]);
+  const [passedItems, setPassedItems] = useState<PassedItem[]>([]);
   const [agentSummary, setAgentSummary] = useState<AgentRunRow[]>([]);
   const [queues, setQueues] = useState<QueueStat[]>([]);
   const [liveJobs, setLiveJobs] = useState<LiveJobs>({ active: {}, recent: {} });
@@ -111,7 +113,7 @@ export default function WorkbenchPage() {
   // ── Data loading ──
   const load = useCallback(async () => {
     try {
-      const [s, rv, pv, dv, ar, qv, sv, lv, asv] = await Promise.allSettled([
+      const [s, rv, pv, dv, ar, qv, sv, lv, asv, bv, psv] = await Promise.allSettled([
         fetch(`${API}/admin/pipeline/state`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/review-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/publish-queue`, { cache: 'no-store' }).then(r => r.json()),
@@ -121,6 +123,8 @@ export default function WorkbenchPage() {
         fetch(`${API}/admin/sources`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/live-jobs`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/sources/auth-status`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/pipeline/blocked-queue`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/pipeline/passed-queue`, { cache: 'no-store' }).then(r => r.json()),
       ]);
       if (s.status === 'fulfilled') setState(s.value);
       if (rv.status === 'fulfilled') setReviewItems(rv.value.items ?? []);
@@ -131,6 +135,8 @@ export default function WorkbenchPage() {
       if (sv.status === 'fulfilled') setSources(sv.value.sources ?? []);
       if (lv.status === 'fulfilled') setLiveJobs({ active: lv.value.active ?? {}, recent: lv.value.recent ?? {} });
       if (asv.status === 'fulfilled') setAuthSuspect(asv.value.suspect ?? []);
+      if (bv.status === 'fulfilled') setBlockedItems(bv.value.items ?? []);
+      if (psv.status === 'fulfilled') setPassedItems(psv.value.items ?? []);
     } finally {
       setLoading(false);
     }
@@ -234,6 +240,13 @@ export default function WorkbenchPage() {
     flash('已拒绝 → COMPLIANCE_FAIL');
     await load();
   };
+  const overrideBlock = async (itemId: string, title: string) => {
+    if (!confirm(`人工放行《${title.slice(0, 40)}…》？\n\n会推翻机器拒绝结论(black list/LLM)并写入反馈环路,影响后续规则归纳。`)) return;
+    const reason = prompt('放行理由（用于反馈环路,推荐填写）') ?? '';
+    await call(`/admin/pipeline/override-block/${itemId}`, 'POST', { reason });
+    flash('已放行 → COMPLIANCE_PASS');
+    await load();
+  };
 
   // ── Publish gate ──
   const approvePublish = async (ids?: string[]) => {
@@ -252,11 +265,31 @@ export default function WorkbenchPage() {
   };
 
   // ── Rollback / Re-run ──
+  // Both actions invalidate any "最近完成" entry for the item: rollback moves
+  // it back a stage, rerun re-queues it. The agent_runs audit row stays in
+  // DB (we don't delete history), so the next /live-jobs poll would still
+  // surface the stale entry until 8 newer runs push it out of the window.
+  // Pull it out of the local recent list optimistically and close the
+  // history modal so the operator gets immediate feedback.
+  const dropFromRecent = (itemId: string) => {
+    setLiveJobs((prev) => ({
+      ...prev,
+      recent: Object.fromEntries(
+        Object.entries(prev.recent).map(([agent, list]) => [
+          agent,
+          list.filter((r) => r.item_id !== itemId),
+        ]),
+      ),
+    }));
+  };
+
   const rollback = async (itemId: string, title: string) => {
     if (!confirm(`回滚「${title}」到上一阶段？`)) return;
     try {
       const d: any = await call(`/admin/pipeline/rollback/${itemId}`);
       flash(`已回滚: ${d.from} → ${d.to}`);
+      dropFromRecent(itemId);
+      setHistoryModal(null);
       await load();
     } catch (e) { flash(`回滚失败: ${e}`, false); }
   };
@@ -265,6 +298,8 @@ export default function WorkbenchPage() {
     try {
       const d: any = await call(`/admin/pipeline/rerun/${itemId}`);
       flash(`已重跑: ${d.agentKey}`);
+      dropFromRecent(itemId);
+      setHistoryModal(null);
       await load();
     } catch (e) { flash(`重跑失败: ${e}`, false); }
   };
@@ -547,7 +582,7 @@ export default function WorkbenchPage() {
           <span style={{ fontSize: 12, color: '#475569' }}>队列 <strong style={{ color: queueBusy > 0 ? '#fbbf24' : '#64748b' }}>{queueBusy}</strong></span>
           <span style={{ fontSize: 12, color: '#475569' }}>成本 <strong style={{ color: '#a78bfa' }}>${totalCost.toFixed(4)}</strong></span>
           <Link href="/admin" style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none', padding: '4px 10px', border: '1px solid #334155', borderRadius: 6 }} title="按 Day 分页的验收后台">Admin →</Link>
-          <Link href="/" style={{ fontSize: 12, color: '#475569', textDecoration: 'none' }}>站点 →</Link>
+          <Link href="/" style={{ fontSize: 12, color: '#94a3b8', textDecoration: 'none', padding: '4px 10px', border: '1px solid #334155', borderRadius: 6 }}>站点 →</Link>
           <button
             onClick={async () => {
               await fetch('/api/auth/logout', { method: 'POST' });
@@ -639,6 +674,8 @@ export default function WorkbenchPage() {
             reviewItems={reviewItems}
             publishItems={publishItems}
             distTasks={distTasks}
+            blockedItems={blockedItems}
+            passedItems={passedItems}
             selectedAgent={selectedAgent}
             setSelectedAgent={setSelectedAgent}
             busyAgent={busyAgent}
@@ -651,6 +688,7 @@ export default function WorkbenchPage() {
             runAgent={runAgent}
             approveReview={approveReview}
             rejectReview={rejectReview}
+            overrideBlock={overrideBlock}
             approvePublish={approvePublish}
             confirmDist={confirmDist}
             rollback={rollback}

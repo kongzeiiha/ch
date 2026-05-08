@@ -19,6 +19,7 @@ import {
   updateRule,
   deleteRule,
 } from './memory-rules.js';
+import { deriveRulesFromExamples } from './derive-rules.js';
 
 export async function registerFeedbackAdmin(app: FastifyInstance): Promise<void> {
 
@@ -128,6 +129,27 @@ export async function registerFeedbackAdmin(app: FastifyInstance): Promise<void>
   app.get('/admin/feedback-stats', async () => {
     return feedbackStats();
   });
+
+  // LLM-based rule derivation — reads accumulated training examples for a
+  // domain and synthesises new agent_memory_rules with origin='derived'.
+  // Safe to call repeatedly; already-consumed examples are skipped.
+  app.post<{ Querystring: { domain?: string } }>(
+    '/admin/training-data/derive-rules',
+    async (req, reply) => {
+      const domain = (req.query.domain ?? 'compliance') as 'compliance' | 'distribution';
+      if (domain !== 'compliance' && domain !== 'distribution') {
+        return reply.code(400).send({ error: 'domain must be compliance or distribution' });
+      }
+      const result = await deriveRulesFromExamples(domain);
+      await logOperation(req, {
+        operation: 'training-data.derive-rules',
+        targetType: 'system',
+        targetId: null,
+        payload: result as unknown as Record<string, unknown>,
+      });
+      return result;
+    },
+  );
 
   // ── Memory rules ─────────────────────────────────────────────────────────
 

@@ -50,7 +50,7 @@ const btnPrimary: React.CSSProperties = { ...btn, background: '#6366f1', color: 
 
 const STATUS_LABEL: Record<string, string> = {
   INGESTED: '已采集', CLASSIFIED: '已分类', TITLED: '已生成标题', COVERED: '已选封面',
-  COMPLIANCE_PASS: '合规通过', COMPLIANCE_REVIEW: '待人工复核', COMPLIANCE_FAIL: '合规拒绝', PUBLISHED: '已发布',
+  COMPLIANCE_PASS: '合规通过', COMPLIANCE_REVIEW: '待人工复核', COMPLIANCE_FAIL: '合规拒绝', PUBLISHED: '已发布', DISTRIBUTED: '已分发',
 };
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -186,13 +186,26 @@ export default function Day4Page() {
 
         <div style={{ marginBottom: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: '#64748b' }}>状态筛选:</span>
-          {['', 'TITLED', 'COVERED', 'COMPLIANCE_PASS', 'COMPLIANCE_REVIEW', 'COMPLIANCE_FAIL'].map((s) => (
-            <button key={s || 'all'}
-              style={{ ...btn, ...(filter === s ? { background: '#6366f1', color: '#fff', borderColor: '#6366f1' } : {}) }}
-              onClick={() => setFilter(s)}>
-              {s === '' ? '全部' : STATUS_LABEL[s] ?? s}
-            </button>
-          ))}
+          {['', 'TITLED', 'COVERED', 'COMPLIANCE_PASS', 'COMPLIANCE_REVIEW', 'COMPLIANCE_FAIL', 'PUBLISHED', 'DISTRIBUTED'].map((s) => {
+            const count = s === '' ? (stats?.total ?? 0) : (countByStatus[s] ?? 0);
+            const active = filter === s;
+            return (
+              <button key={s || 'all'}
+                style={{ ...btn, ...(active ? { background: '#6366f1', color: '#fff', borderColor: '#6366f1' } : {}) }}
+                onClick={() => setFilter(s)}>
+                {s === '' ? '全部' : STATUS_LABEL[s] ?? s}
+                <span style={{
+                  marginLeft: 6, fontSize: 10, color: active ? '#e0e7ff' : count > 0 ? '#a5b4fc' : '#475569',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>{count}</span>
+              </button>
+            );
+          })}
+          {filter && (
+            <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>
+              命中 {items.length} 条
+            </span>
+          )}
         </div>
 
         <section style={{ ...card, padding: 0, marginBottom: 16, overflow: 'hidden' }}>

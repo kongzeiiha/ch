@@ -5,7 +5,7 @@ export const PROMPT_VERSION = 'v1';
 
 export const DIMENSIONS = [
   '政治敏感',
-  '色情低俗',
+  // '色情低俗',
   '暴力恐怖',
   '版权争议',
   '医疗夸大',

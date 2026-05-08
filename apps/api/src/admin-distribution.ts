@@ -3,6 +3,7 @@ import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { generateWeeklyReport } from './workers/analytics/report.js';
 import { logOperation } from './op-log.js';
+import { harvestDistributionFeedback } from './training-data.js';
 
 export async function registerDistribution(app: FastifyInstance) {
   // ── Distribution ──────────────────────────────────────────
@@ -144,6 +145,9 @@ export async function registerDistribution(app: FastifyInstance) {
           after: copy,
         },
       });
+      void harvestDistributionFeedback().catch((e) =>
+        console.warn('[harvest] distribution edit-copy:', e?.message ?? e),
+      );
       return { task: after[0] };
     },
   );
@@ -154,16 +158,16 @@ export async function registerDistribution(app: FastifyInstance) {
   app.get('/admin/distribution/analytics', async () => {
     const [daily, topItems, summary] = await Promise.all([
       query<{ date: string; pv: number; uv: number; revenue: number }>(
-        `SELECT date, SUM(pv) AS pv, SUM(uv) AS uv,
-                SUM(revenue) AS revenue
+        `SELECT date, CAST(SUM(pv) AS SIGNED) AS pv, CAST(SUM(uv) AS SIGNED) AS uv,
+                CAST(SUM(revenue) AS DOUBLE) AS revenue
          FROM analytics_daily
          WHERE date >= CURRENT_DATE - INTERVAL 7 DAY
          GROUP BY date ORDER BY date DESC`,
       ),
       query<{ title: string; slug: string | null; pv: number; uv: number; revenue: number }>(
         `SELECT i.title, i.slug,
-                SUM(a.pv) AS pv, SUM(a.uv) AS uv,
-                SUM(a.revenue) AS revenue
+                CAST(SUM(a.pv) AS SIGNED) AS pv, CAST(SUM(a.uv) AS SIGNED) AS uv,
+                CAST(SUM(a.revenue) AS DOUBLE) AS revenue
          FROM analytics_daily a
          JOIN items i ON i.id = a.item_id
          WHERE a.date >= CURRENT_DATE - INTERVAL 7 DAY
@@ -171,9 +175,9 @@ export async function registerDistribution(app: FastifyInstance) {
          ORDER BY pv DESC LIMIT 10`,
       ),
       query<{ total_pv: number; total_uv: number; total_revenue: number }>(
-        `SELECT COALESCE(SUM(pv),0) AS total_pv,
-                COALESCE(SUM(uv),0) AS total_uv,
-                COALESCE(SUM(revenue),0) AS total_revenue
+        `SELECT CAST(COALESCE(SUM(pv),0) AS SIGNED) AS total_pv,
+                CAST(COALESCE(SUM(uv),0) AS SIGNED) AS total_uv,
+                CAST(COALESCE(SUM(revenue),0) AS DOUBLE) AS total_revenue
          FROM analytics_daily WHERE date >= CURRENT_DATE - INTERVAL 7 DAY`,
       ),
     ]);

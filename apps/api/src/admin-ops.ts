@@ -90,14 +90,14 @@ export async function registerOps(app: FastifyInstance) {
         `SELECT status, COUNT(*) AS cnt FROM items GROUP BY status ORDER BY cnt DESC`,
       ),
       query<{ total: number; active: number; paused: number; blacklist: number }>(
-        `SELECT COUNT(*) AS total,
-                SUM(CASE WHEN status='active' THEN 1 ELSE 0 END)    AS active,
-                SUM(CASE WHEN status='paused' THEN 1 ELSE 0 END)    AS paused,
-                SUM(CASE WHEN status='blacklist' THEN 1 ELSE 0 END) AS blacklist
+        `SELECT CAST(COUNT(*) AS SIGNED) AS total,
+                CAST(SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) AS SIGNED)    AS active,
+                CAST(SUM(CASE WHEN status='paused' THEN 1 ELSE 0 END) AS SIGNED)    AS paused,
+                CAST(SUM(CASE WHEN status='blacklist' THEN 1 ELSE 0 END) AS SIGNED) AS blacklist
          FROM sources`,
       ),
       query<{ total: number }>(
-        `SELECT COALESCE(SUM(cost_usd),0) AS total FROM agent_runs`,
+        `SELECT CAST(COALESCE(SUM(cost_usd),0) AS DOUBLE) AS total FROM agent_runs`,
       ),
     ]);
     return {
@@ -148,14 +148,14 @@ export async function registerOps(app: FastifyInstance) {
          GROUP BY agent, status`,
       ),
       query<{ agent: string; total: number }>(
-        `SELECT agent, COALESCE(SUM(cost_usd), 0) AS total
+        `SELECT agent, CAST(COALESCE(SUM(cost_usd), 0) AS DOUBLE) AS total
          FROM agent_runs
          WHERE started_at > NOW() - INTERVAL 7 DAY
          GROUP BY agent`,
       ),
       // MySQL 8 has no PERCENTILE_CONT — AVG is acceptable for monitoring.
       query<{ agent: string; p50: number }>(
-        `SELECT agent, AVG(latency_ms) AS p50
+        `SELECT agent, CAST(AVG(latency_ms) AS DOUBLE) AS p50
          FROM agent_runs
          WHERE started_at > NOW() - INTERVAL 7 DAY
            AND latency_ms IS NOT NULL

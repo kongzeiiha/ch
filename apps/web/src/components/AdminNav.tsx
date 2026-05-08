@@ -34,7 +34,8 @@ export type AdminTab =
   | 'cover-compliance'
   | 'publishing'
   | 'distribution'
-  | 'ops';
+  | 'ops'
+  | 'feedback';
 
 export function AdminNav({ current }: { current: AdminTab }) {
   return (
@@ -47,6 +48,7 @@ export function AdminNav({ current }: { current: AdminTab }) {
       <Link href="/admin/publishing"       style={{ ...base, ...(current === 'publishing' ? active : inactive) }}>发布</Link>
       <Link href="/admin/distribution"     style={{ ...base, ...(current === 'distribution' ? active : inactive) }}>分发</Link>
       <Link href="/admin/ops"              style={{ ...base, ...(current === 'ops' ? active : inactive) }}>上线</Link>
+      <Link href="/admin/feedback"         style={{ ...base, ...(current === 'feedback' ? active : inactive) }}>反馈闭环</Link>
     </nav>
   );
 }

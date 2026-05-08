@@ -95,7 +95,7 @@ let _inFlight = false;
 async function tick() {
   if (globalStop) return;
   // Skip if previous tick is still running. A loaded tick walks 8 queues and
-  // hits Postgres several times — under load it can exceed INTERVAL_MS and
+  // hits MySQL several times — under load it can exceed INTERVAL_MS and
   // overlap with itself, double-queuing the same items into BullMQ.
   if (_inFlight) return;
   _inFlight = true;

@@ -12,12 +12,12 @@ type Check = {
 };
 
 type InfraResp = {
-  postgres: Check;
+  database: Check;
   redis: Check;
   minio: Check;
   env: {
-    hasAnthropicKey: boolean;
-    models: { opus: string; sonnet: string; haiku: string };
+    hasLLMKey: boolean;
+    models: { large: string; medium: string; small: string };
     scheduler: string;
   };
 };
@@ -172,7 +172,7 @@ export default function Day1Page() {
     }
   }
 
-  const totalOk = infra && infra.postgres.ok && infra.redis.ok && infra.minio.ok ? true : infra ? false : null;
+  const totalOk = infra && infra.database.ok && infra.redis.ok && infra.minio.ok ? true : infra ? false : null;
   const sectionTitle: React.CSSProperties = { fontSize: 12, color: '#64748b', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 };
 
   return (
@@ -203,7 +203,7 @@ export default function Day1Page() {
         {/* Infra */}
         <h3 style={sectionTitle}>1. 基础设施健康</h3>
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-          <InfraCard title="Postgres · 主库" check={infra?.postgres} />
+          <InfraCard title="MySQL · 主库" check={infra?.database} />
           <InfraCard title="Redis · BullMQ" check={infra?.redis} />
           <InfraCard title="MinIO · 对象存储" check={infra?.minio} />
         </section>
@@ -215,17 +215,17 @@ export default function Day1Page() {
             <section style={{ ...card, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, fontSize: 13 }}>
                 <div>
-                  <div style={{ color: '#64748b', fontSize: 11, marginBottom: 4 }}>ANTHROPIC_API_KEY</div>
-                  {infra.env.hasAnthropicKey ? <Badge ok label="已配置" /> : <Badge ok={false} label="未配置" />}
+                  <div style={{ color: '#64748b', fontSize: 11, marginBottom: 4 }}>GROQ_API_KEY</div>
+                  {infra.env.hasLLMKey ? <Badge ok label="已配置" /> : <Badge ok={false} label="未配置" />}
                 </div>
                 <div>
                   <div style={{ color: '#64748b', fontSize: 11, marginBottom: 4 }}>调度器</div>
                   <Badge ok={infra.env.scheduler === 'enabled'} label={infra.env.scheduler === 'enabled' ? '已启用' : '已停用'} />
                 </div>
                 <div style={{ gridColumn: '1 / -1', color: '#94a3b8', fontSize: 12, lineHeight: 1.7, paddingTop: 4 }}>
-                  模型配置 —— Opus: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.opus}</code>
-                  &nbsp;· Sonnet: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.sonnet}</code>
-                  &nbsp;· Haiku: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.haiku}</code>
+                  模型配置 —— Large: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.large}</code>
+                  &nbsp;· Medium: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.medium}</code>
+                  &nbsp;· Small: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.small}</code>
                 </div>
               </div>
             </section>
@@ -272,11 +272,11 @@ export default function Day1Page() {
         </section>
 
         {/* LLM test */}
-        <h3 style={sectionTitle}>4. Anthropic SDK 封装 · 实调测试</h3>
+        <h3 style={sectionTitle}>4. LLM 封装 · 实调测试</h3>
         <section style={{ ...card, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 16 }}>
             <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6 }}>
-              调用 Haiku 发一条 ping,验证 API key、重试、成本计算、<code style={{ color: '#a5b4fc' }}>agent_runs</code> 审计写入全链路。
+              调用 Groq 小模型发一条 ping,验证 API key、重试、成本计算、<code style={{ color: '#a5b4fc' }}>agent_runs</code> 审计写入全链路。
             </div>
             <button style={btnPrimary} disabled={llmBusy} onClick={testLlm}>
               {llmBusy ? '调用中…' : '测试 LLM 调用'}

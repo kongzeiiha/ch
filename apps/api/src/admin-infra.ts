@@ -55,19 +55,15 @@ export async function registerInfra(app: FastifyInstance): Promise<void> {
       checkMinio(),
     ]);
     return {
-      // `postgres` retained for the existing admin/infra UI; the field now
-      // reflects whatever DATABASE_URL points at (MySQL after the migration).
-      postgres: database,
       database,
       redis,
       minio,
       env: {
         hasLLMKey: !!(process.env.GROQ_API_KEY ?? process.env.ANTHROPIC_API_KEY),
-        hasAnthropicKey: !!(process.env.GROQ_API_KEY ?? process.env.ANTHROPIC_API_KEY),
         models: {
-          opus: process.env.GROQ_MODEL_LARGE ?? process.env.ANTHROPIC_MODEL_OPUS ?? 'llama-3.3-70b-versatile',
-          sonnet: process.env.GROQ_MODEL_MEDIUM ?? process.env.ANTHROPIC_MODEL_SONNET ?? 'llama-3.3-70b-versatile',
-          haiku: process.env.GROQ_MODEL_SMALL ?? process.env.ANTHROPIC_MODEL_HAIKU ?? 'llama-3.1-8b-instant',
+          large: process.env.GROQ_MODEL_LARGE ?? 'llama-3.3-70b-versatile',
+          medium: process.env.GROQ_MODEL_MEDIUM ?? 'llama-3.3-70b-versatile',
+          small: process.env.GROQ_MODEL_SMALL ?? 'llama-3.1-8b-instant',
         },
         scheduler: process.env.DISABLE_SCHEDULER === '1' ? 'disabled' : 'enabled',
       },

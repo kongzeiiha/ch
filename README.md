@@ -15,7 +15,7 @@ Day 1 delivers the skeleton: infra + data model + queue + SDK wrapper. Days 2–
 │   ├── api/          Fastify server + BullMQ worker host
 │   └── web/          Next.js site (article pages, SEO)
 ├── packages/
-│   ├── agents/       Anthropic SDK wrapper, queue helpers, run tracking
+│   ├── agents/       LLM SDK wrapper (Groq), queue helpers, run tracking
 │   └── db/           mysql2 client, migrations, schema
 ├── docker-compose.yml  MySQL + Redis + MinIO
 └── .env.example
@@ -32,10 +32,10 @@ Day 1 delivers the skeleton: infra + data model + queue + SDK wrapper. Days 2–
 ```bash
 # 1. env
 cp .env.example .env
-#  → fill in ANTHROPIC_API_KEY
+#  → fill in GROQ_API_KEY
 
 # 2. infra
-pnpm infra:up        # mysql:3306, redis:6380, minio:9000/9001
+pnpm infra:up        # mysql:3306, redis:6379, minio:9000/9001
 
 # 3. deps
 pnpm install

@@ -41,7 +41,7 @@ export async function registerCoverCompliance(app: FastifyInstance): Promise<voi
   app.get<{ Querystring: { limit?: string; status?: string } }>('/admin/cover-compliance/items', async (req) => {
     const limit = Math.min(Number(req.query.limit ?? 30), 200);
     const status = req.query.status;
-    const COVER_STATUSES = [IS.TITLED, IS.COVERED, IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW, IS.COMPLIANCE_FAIL];
+    const COVER_STATUSES = [IS.TITLED, IS.COVERED, IS.COMPLIANCE_PASS, IS.COMPLIANCE_REVIEW, IS.COMPLIANCE_FAIL, IS.PUBLISHED, IS.DISTRIBUTED];
     // $1 = status array (or single status), $2 = limit
     let where: string;
     let params: unknown[];

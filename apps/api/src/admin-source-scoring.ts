@@ -29,7 +29,7 @@ export async function registerSourceScoring(app: FastifyInstance): Promise<void>
       `SELECT risk_level, COUNT(*) AS cnt FROM sources GROUP BY risk_level`,
     );
     const [scoreStats] = await query<{ avg: number | null; min: number | null; max: number | null; cnt: number }>(
-      `SELECT AVG(score) AS avg, MIN(score) AS min, MAX(score) AS max,
+      `SELECT CAST(AVG(score) AS DOUBLE) AS avg, MIN(score) AS min, MAX(score) AS max,
               COUNT(score) AS cnt FROM sources WHERE score IS NOT NULL`,
     );
     const [lastRun] = await query<{
