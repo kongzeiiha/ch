@@ -1,93 +1,224 @@
 import Link from 'next/link';
-import { query } from '../lib/db';
+import type { Metadata } from 'next';
+import { getHot, getLatest, getFiltered, type LengthBucket, type DateBucket } from '../lib/feed';
+import { SITE_NAME, SITE_URL } from '../lib/db';
+import { ROBOTS_INDEXABLE, ogImages } from '../lib/seo';
+import { THEMES } from './_data/topics';
 import { SiteHeader } from './_components/SiteHeader';
 import { CategoryNav } from './_components/CategoryNav';
+import { ArticleCard } from './_components/ArticleCard';
+import { FilterBar } from './_components/FilterBar';
+import { Pagination } from './_components/Pagination';
+import { CTAModule } from './_components/CTAModule';
+import { SiteFooter } from './_components/SiteFooter';
 
-export const revalidate = 600;
+// 站点列表页全部走 force-dynamic:每次请求直接查 MySQL,publishing
+// 把 items.status 翻成 PUBLISHED 那一刻起,刷新页面就能看到。
+export const dynamic = 'force-dynamic';
 
-interface FeedRow {
-  id: string;
-  slug: string;
-  title: string;
-  summary: string | null;
-  cover_url: string | null;
-  cover_sizes: Record<string, string> | null;
-  category: string | null;
-  published_at: string | null;
-  first_media: string | null;
+const SITE_DESC = '聚合多源精选内容,涵盖热门精选、最新更新、主题专区、标签导航,长尾关键词全方位覆盖。基于多 Agent 自动化流水线持续更新。';
+
+export const metadata: Metadata = {
+  // Home gets the bare brand title — layout's template.suffix doesn't apply
+  // to the default title to avoid duplicating the site name in the SERP.
+  title: { absolute: SITE_NAME },
+  description: SITE_DESC,
+  alternates: { canonical: `${SITE_URL}/` },
+  robots: ROBOTS_INDEXABLE,
+  openGraph: {
+    title: SITE_NAME,
+    description: SITE_DESC,
+    url: `${SITE_URL}/`,
+    siteName: SITE_NAME,
+    type: 'website',
+    locale: 'zh_CN',
+    images: ogImages(),
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_NAME,
+    description: SITE_DESC,
+  },
+};
+
+interface SearchParams {
+  tag?: string;
+  length?: LengthBucket;
+  date?: DateBucket;
+  sort?: 'latest' | 'hot';
+  page?: string;
+  [key: string]: string | undefined;
 }
 
-export default async function Home() {
-  const latest = await query<FeedRow>(
-    `SELECT i.id, i.slug, i.title, i.summary, i.cover_url, i.cover_sizes,
-            i.category, i.published_at,
-            r.media_urls->>'$[0]' AS first_media
-     FROM items i
-     JOIN raw_items r ON r.id = i.raw_item_id
-     WHERE i.status = 'PUBLISHED'
-     ORDER BY i.published_at DESC LIMIT 24`,
-  );
+const PAGE_SIZE = 24;
+
+function hasActiveFilter(p: SearchParams): boolean {
+  return !!(p.tag || p.length || (p.date && p.date !== 'all') || p.sort === 'hot' || p.page);
+}
+
+export default async function Home(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
+  const filtered = hasActiveFilter(searchParams);
+
+  if (filtered) {
+    return <FilteredView searchParams={searchParams} />;
+  }
+  return <LandingView />;
+}
+
+async function LandingView() {
+  const [hot, latest, taggedLatest] = await Promise.all([
+    getHot({ limit: 6, days: 7 }),
+    getLatest({ limit: 12 }),
+    getLatest({ limit: 12 }),
+  ]);
+  // Articles with at least one tag — falls back to plain latest if every
+  // article in this corpus is untagged.
+  const tagSectionItems = taggedLatest.filter((a) => a.tags && a.tags.length > 0);
+  const tagItems = tagSectionItems.length > 0 ? tagSectionItems : taggedLatest;
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
-      <SiteHeader />
+      <SiteHeader activeTab="latest" />
 
-      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px' }}>
-        <header style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, color: '#e2e8f0' }}>内容中台</h1>
-          <p style={{ color: '#94a3b8', marginTop: 6, fontSize: 14 }}>9 个 Agent 的自动化内容流水线</p>
+      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px 60px' }}>
+        {/* SEO-only h1 — visible block hidden per request, keep heading for crawlers/AT */}
+        <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
+          {SITE_NAME}
+        </h1>
+
+        <CategoryNav />
+
+        {/* 1. 热门精选 */}
+        {hot.length > 0 && (
+          <Section id="hot" title="热门精选" hint="近 7 天" more={{ href: '/?sort=hot', label: '查看更多 →' }}>
+            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {hot.map((a) => <ArticleCard key={a.id} a={a} />)}
+            </div>
+          </Section>
+        )}
+
+        {/* 2. 最新更新 */}
+        <Section id="latest" title="最新更新" more={{ href: '/?sort=latest', label: '查看更多 →' }}>
+          {latest.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', background: '#1e293b', border: '1px dashed #334155', borderRadius: 8, color: '#94a3b8' }}>
+              暂无已发布内容
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {latest.map((a) => <ArticleCard key={a.id} a={a} />)}
+            </div>
+          )}
+        </Section>
+
+        {/* 3. 主题专区 */}
+        <Section id="topics" title="主题专区" hint="精选话题">
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+            {THEMES.map((t) => (
+              <Link key={t.slug} href={`/topic/${t.slug}`} style={{
+                display: 'block',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: 16,
+                color: '#e2e8f0',
+                textDecoration: 'none',
+              }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#a5b4fc', marginBottom: 4 }}>{t.title}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>{t.description}</div>
+              </Link>
+            ))}
+          </div>
+        </Section>
+
+        {/* 4. 标签导航 — same article card grid as 最新更新 */}
+        <Section id="tags" title="标签导航" hint="热门标签" more={{ href: '/tag', label: '查看全部标签 →' }}>
+          {tagItems.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', background: '#1e293b', border: '1px dashed #334155', borderRadius: 8, color: '#94a3b8' }}>
+              暂无已发布内容
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {tagItems.map((a) => <ArticleCard key={a.id} a={a} />)}
+            </div>
+          )}
+        </Section>
+
+        <div style={{ marginTop: 32 }}>
+          <CTAModule />
+        </div>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
+
+async function FilteredView({ searchParams }: { searchParams: SearchParams }) {
+  const page = Math.max(1, Number(searchParams.page ?? 1) || 1);
+  const { items, total } = await getFiltered({
+    tag: searchParams.tag,
+    length: searchParams.length,
+    date: searchParams.date,
+    sort: searchParams.sort,
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
+  });
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
+      <SiteHeader crumb="全部内容" activeTab={searchParams.sort === 'hot' ? 'hot' : 'latest'} />
+
+      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px 60px' }}>
+        <header style={{ marginBottom: 20 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>
+            {searchParams.sort === 'hot' ? '热门精选' : '全部内容'}
+          </h1>
+          <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>共 {total} 篇 · 已应用筛选</p>
         </header>
 
         <CategoryNav />
 
-        {latest.length === 0 ? (
-          <div style={{
-            padding: 40,
-            textAlign: 'center',
-            background: '#1e293b',
-            border: '1px dashed #334155',
-            borderRadius: 8,
-            color: '#94a3b8',
-          }}>
-            暂无已发布内容 · 去 <Link href="/admin" style={{ color: '#a5b4fc' }}>后台</Link> 启动采集流水线
-          </div>
+        <FilterBar basePath="/" current={searchParams} />
+
+        {items.length === 0 ? (
+          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#1e293b', borderRadius: 8 }}>
+            没有匹配的文章 · 试试调整筛选条件,或<Link href="/" style={{ color: '#a5b4fc' }}> 返回首页</Link>
+          </p>
         ) : (
-          <section style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-            {latest.map((a) => {
-              const thumb = a.cover_sizes?.card ?? a.cover_url ?? a.first_media;
-              return (
-                <Link key={a.id} href={`/a/${a.slug}`} style={{
-                  display: 'block',
-                  color: '#e2e8f0',
-                  textDecoration: 'none',
-                  border: '1px solid #334155',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  background: '#1e293b',
-                }}>
-                  {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt="" style={{ width: '100%', aspectRatio: '3/2', objectFit: 'cover', background: '#0f172a', display: 'block' }} />
-                  ) : (
-                    <div style={{ width: '100%', aspectRatio: '3/2', background: '#0f172a' }} />
-                  )}
-                  <div style={{ padding: 14 }}>
-                    {a.category && (
-                      <span style={{ fontSize: 11, color: '#a5b4fc', marginBottom: 6, display: 'inline-block' }}>{a.category}</span>
-                    )}
-                    <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 6px', lineHeight: 1.4, color: '#e2e8f0' }}>{a.title}</h2>
-                    {a.summary && (
-                      <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {a.summary}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
-          </section>
+          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+            {items.map((a) => <ArticleCard key={a.id} a={a} />)}
+          </div>
         )}
+
+        <Pagination basePath="/" searchParams={searchParams} page={page} total={total} pageSize={PAGE_SIZE} />
       </main>
+      <SiteFooter />
     </div>
+  );
+}
+
+function Section({
+  id, title, hint, more, children, minHeight,
+}: {
+  id?: string;
+  title: string;
+  hint?: string;
+  more?: { href: string; label: string };
+  children: React.ReactNode;
+  minHeight?: string | number;
+}) {
+  return (
+    <section id={id} style={{ marginTop: 32, scrollMarginTop: 110, minHeight }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 14, gap: 12 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{title}</h2>
+        {hint && <span style={{ fontSize: 12, color: '#64748b' }}>{hint}</span>}
+        {more && (
+          <Link href={more.href} style={{ marginLeft: 'auto', fontSize: 12, color: '#a5b4fc', textDecoration: 'none' }}>
+            {more.label}
+          </Link>
+        )}
+      </div>
+      {children}
+    </section>
   );
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { tx, ITEM_STATUS as IS } from '@ch/db';
+import { tx, query, ITEM_STATUS as IS } from '@ch/db';
+import { uploadVideoFromUrl } from '../cover/storage.js';
 
 export interface PersistInput {
   sourceId: string;
@@ -7,6 +8,8 @@ export interface PersistInput {
   fetchedAt: Date;
   rawPayload: unknown;
   mediaUrls: string[];
+  /** Source video URLs (e.g. X CDN mp4). Downloaded async after persist. */
+  videoSourceUrls?: string[];
   contentHash: string;
   dedupeKey: string;
   simhash: bigint;
@@ -65,5 +68,33 @@ export async function persistIngested(input: PersistInput): Promise<PersistResul
     );
 
     return { rawItemId, itemId };
+  }).then(async (result) => {
+    // Mirror videos to MinIO outside the transaction. Best-effort: failures
+    // here don't reverse the persist (raw_payload still holds the source URL).
+    const sources = input.videoSourceUrls ?? [];
+    if (sources.length > 0) {
+      const ourUrls: string[] = [];
+      for (let i = 0; i < sources.length; i++) {
+        const ext = pickExt(sources[i]!);
+        const url = await uploadVideoFromUrl(sources[i]!, `videos/${result.rawItemId}/${i}${ext}`);
+        if (url) ourUrls.push(url);
+      }
+      if (ourUrls.length > 0) {
+        await query(
+          `UPDATE raw_items SET video_urls = $2 WHERE id = $1`,
+          [result.rawItemId, JSON.stringify(ourUrls)],
+        );
+      }
+    }
+    return result;
   });
+}
+
+function pickExt(url: string): string {
+  // Strip query string before checking extension
+  const path = url.split('?')[0]!.toLowerCase();
+  if (path.endsWith('.webm')) return '.webm';
+  if (path.endsWith('.mov'))  return '.mov';
+  if (path.endsWith('.m3u8')) return '.m3u8';  // HLS playlist (won't actually stream, but stored)
+  return '.mp4';
 }

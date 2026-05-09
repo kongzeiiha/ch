@@ -17,6 +17,10 @@ interface ItemRow {
   category: string | null;
   tags: string[];
   keywords: string[];
+  /** Original RSS / source title from raw_items.raw_payload — used as the
+   *  classification + title-generation input when items.title has been
+   *  cleared by a TITLED→INGESTED rollback. */
+  raw_title: string | null;
 }
 
 interface ClassifyOutput {
@@ -37,8 +41,10 @@ interface ClassifyOutput {
  */
 export async function classifyTitleOne(itemId: string) {
   const rows = await query<ItemRow>(
-    `SELECT id, status, title, content, category, tags, keywords
-     FROM items WHERE id = $1`,
+    `SELECT i.id, i.status, i.title, i.content, i.category, i.tags, i.keywords,
+            JSON_UNQUOTE(JSON_EXTRACT(r.raw_payload, '$.title')) AS raw_title
+     FROM items i JOIN raw_items r ON r.id = i.raw_item_id
+     WHERE i.id = $1`,
     [itemId],
   );
   const item = rows[0];
@@ -46,6 +52,11 @@ export async function classifyTitleOne(itemId: string) {
   if (![IS.INGESTED, IS.CLASSIFIED].includes(item.status as any)) {
     return { skipped: true, status: item.status };
   }
+  // Fall back to raw_items.raw_payload.title when items.title has been
+  // cleared (e.g. by a rollback). Without this, a re-classify after rollback
+  // sees title=null and downstream tokenization plus generateTitleByRules
+  // both end up with "未命名".
+  const sourceTitle = item.title ?? item.raw_title ?? null;
 
   const skipClassifyLlm = process.env.CLASSIFICATION_SKIP_LLM === '1';
   const skipTitleLlm = process.env.TITLE_SKIP_LLM === '1';
@@ -63,11 +74,11 @@ export async function classifyTitleOne(itemId: string) {
   let classified: ClassifyOutput;
   if (item.status === IS.INGESTED) {
     if (skipClassifyLlm) {
-      classified = classifyByRules({ title: item.title, content: item.content });
+      classified = classifyByRules({ title: sourceTitle, content: item.content });
       modelsUsed.push('rule:keyword');
     } else {
       const modelName = (process.env.CLASSIFICATION_MODEL as Model) ?? 'haiku';
-      const r = await classify({ title: item.title, content: item.content }, { model: modelName });
+      const r = await classify({ title: sourceTitle, content: item.content }, { model: modelName });
       classified = r.result;
       totalCost += r.cost;
       usageAgg.input_tokens += r.usage.input_tokens;
@@ -93,13 +104,13 @@ export async function classifyTitleOne(itemId: string) {
   // ── Step 2: title ─────────────────────────────────────────────────────
   let titleOut: { candidates: string[]; best_index: number; summary: string };
   if (skipTitleLlm) {
-    titleOut = generateTitleByRules({ originalTitle: item.title, content: item.content });
+    titleOut = generateTitleByRules({ originalTitle: sourceTitle, content: item.content });
     modelsUsed.push('rule:original-title');
   } else {
     const modelName = (process.env.TITLE_MODEL as Model) ?? 'sonnet';
     const r = await generateTitle(
       {
-        originalTitle: item.title,
+        originalTitle: sourceTitle,
         category: classified.category,
         tags: classified.tags,
         content: item.content,
@@ -127,11 +138,14 @@ export async function classifyTitleOne(itemId: string) {
     [itemId, best, titleOut.summary, slug, IS.TITLED],
   );
 
-  // Hand off to the Cover Agent. jobId dedupes concurrent retries.
+  // Hand off to the Cover Agent. jobId dedupes concurrent retries while in
+  // queue; `removeOnComplete: true` releases the id on success so a later
+  // pipeline rerun isn't silently dropped by the dedup against the old
+  // completed job (BullMQ checks waiting+active+completed sets).
   await getQueue(QUEUE_NAMES.cover).add(
     'render',
     { itemId },
-    { jobId: `cover__${itemId}` },
+    { jobId: `cover__${itemId}`, removeOnComplete: true },
   );
 
   return {

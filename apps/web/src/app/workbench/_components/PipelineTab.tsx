@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { PipelineState, AgentMeta, QueueStat, AgentRunRow, LiveJobs, ReviewItem, PublishItem, DistTask, BlockedItem, PassedItem } from './types';
+import type { PipelineState, AgentMeta, QueueStat, AgentRunRow, LiveJobs, ReviewItem, PublishItem, PublishedItem, DistTask, BlockedItem, PassedItem } from './types';
 import { AGENTS } from './constants';
 import { riskBadge } from './utils';
 import { LiveStrip } from './LiveStrip';
@@ -18,6 +18,7 @@ interface PipelineTabProps {
   liveJobs: LiveJobs;
   reviewItems: ReviewItem[];
   publishItems: PublishItem[];
+  publishedItems: PublishedItem[];
   distTasks: DistTask[];
   blockedItems: BlockedItem[];
   passedItems: PassedItem[];
@@ -51,6 +52,7 @@ export function PipelineTab({
   liveJobs,
   reviewItems,
   publishItems,
+  publishedItems,
   distTasks,
   blockedItems,
   passedItems,
@@ -74,6 +76,19 @@ export function PipelineTab({
   showHistory,
 }: PipelineTabProps) {
   const summaryMap = new Map(agentSummary.map(r => [r.agent, r]));
+
+  // Format published_at as relative time when recent (≤24h), otherwise short
+  // calendar date. Server returns ISO strings; convert into local time.
+  const fmtPublishedAt = (iso: string): string => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
+    if (diffMin < 1)    return '刚刚';
+    if (diffMin < 60)   return `${diffMin} 分钟前`;
+    if (diffMin < 1440) return `${Math.floor(diffMin / 60)} 小时前`;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
 
   // Per-stage computed status, shared between the flow strip and the detail panel.
   const stageMeta = (key: string) => {
@@ -612,6 +627,45 @@ export function PipelineTab({
                     ))}
                   </div>
                 )}
+
+                {/* ── Already published (read-only audit) ── */}
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed #1e293b' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, color: '#86efac', fontWeight: 600 }}>
+                      ✅ 已上站 {publishedItems.length} 篇
+                    </span>
+                    <span style={{ fontSize: 10, color: '#475569' }}>近 50 条 · 含已分发</span>
+                  </div>
+                  {publishedItems.length === 0 ? (
+                    <div style={{ fontSize: 12, color: '#334155', padding: '6px 0' }}>暂无已上站的文章</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                      {publishedItems.map(item => (
+                        <div key={item.id} style={{ background: '#0f172a', border: '1px solid #14532d44', borderRadius: 7, padding: '8px 12px', display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: item.status === 'DISTRIBUTED' ? '#0ea5e933' : '#16a34a33', color: item.status === 'DISTRIBUTED' ? '#7dd3fc' : '#86efac', fontWeight: 700, flexShrink: 0 }}>
+                            {item.status === 'DISTRIBUTED' ? '已分发' : '已上站'}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                            <div style={{ fontSize: 11, color: '#475569' }}>
+                              {item.category ?? '—'} · {item.source} · {fmtPublishedAt(item.published_at)}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {item.slug && (
+                              <a href={`/a/${item.slug}`} target="_blank" rel="noreferrer"
+                                style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid #14532d', background: 'transparent', color: '#86efac', fontSize: 11, textDecoration: 'none' }}>
+                                ↗ 查看
+                              </a>
+                            )}
+                            <button onClick={() => showHistory(item.id)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
+                            <button onClick={() => rollback(item.id, item.title)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>下线</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

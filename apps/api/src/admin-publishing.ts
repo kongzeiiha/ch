@@ -56,7 +56,7 @@ export async function registerPublishing(app: FastifyInstance) {
     if (!rows.length) return reply.status(404).send({ error: 'not found' });
 
     const q = getQueue(QUEUE_NAMES.publishing);
-    await q.add('publish', { itemId: id, force: true }, { jobId: `publish__force__${id}` });
+    await q.add('publish', { itemId: id, force: true }, { jobId: `publish__force__${id}`, removeOnComplete: true });
     await logOperation(req, {
       operation: 'publish.force',
       targetType: 'item',
@@ -80,7 +80,7 @@ export async function registerPublishing(app: FastifyInstance) {
     let queued = 0;
     const queuedIds: string[] = [];
     for (const { id } of candidates) {
-      await q.add('publish', { itemId: id }, { jobId: `publish__${id}` });
+      await q.add('publish', { itemId: id }, { jobId: `publish__${id}`, removeOnComplete: true });
       queuedIds.push(id);
       queued++;
     }

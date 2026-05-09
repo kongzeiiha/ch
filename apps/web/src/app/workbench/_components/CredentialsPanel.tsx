@@ -5,13 +5,14 @@ import type { CredentialRow } from './types';
 import { API } from './constants';
 
 export function CredentialsPanel({
-  credentials, refreshingCredId, reload, onRefreshOne, flash,
+  credentials, refreshingCredId, reload, onRefreshOne, flash, confirmAsync,
 }: {
   credentials: CredentialRow[];
   refreshingCredId: string | null;
   reload: () => Promise<void>;
   onRefreshOne: (id: string) => Promise<void>;
   flash: (msg: string, ok?: boolean) => void;
+  confirmAsync: (opts: { title: string; body: React.ReactNode; danger?: boolean; confirmLabel?: string; cancelLabel?: string }) => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState<CredentialRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -95,7 +96,13 @@ export function CredentialsPanel({
 
   const remove = async () => {
     if (!editing) return;
-    if (!confirm(`确认删除凭证 "${editing.name}"？挂在它上面的 ${editing.source_count} 个源会回到无凭证状态(运行时会报缺 cookie)。`)) return;
+    const ok = await confirmAsync({
+      title: '删除凭证',
+      body: `凭证「${editing.name}」将被删除。挂在它上面的 ${editing.source_count} 个源会回到无凭证状态（运行时会报缺 cookie）。`,
+      danger: true,
+      confirmLabel: '删除凭证',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const r = await fetch(`${API}/admin/credentials/${editing.id}`, { method: 'DELETE' });
@@ -108,7 +115,13 @@ export function CredentialsPanel({
 
   const removeSecret = async () => {
     if (!editing) return;
-    if (!confirm('确认移除自动刷新账密？此后 cookie 过期需要手动粘贴。')) return;
+    const ok = await confirmAsync({
+      title: '移除自动刷新账密',
+      body: '凭证保留，但绑定的用户名/密码会被清除。此后 cookie 过期需要手动粘贴新值。',
+      danger: true,
+      confirmLabel: '移除 secret',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const r = await fetch(`${API}/admin/credentials/${editing.id}/secret`, { method: 'DELETE' });

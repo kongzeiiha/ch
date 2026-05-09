@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getSprintStart, computeDayLabel, todayISO } from '../../lib/sprint';
 
-import type { PipelineState, ReviewItem, PublishItem, DistTask, AgentRunRow, QueueStat, ItemHistory, LiveJobs, Source, CredentialRow, RawItem, AuthSuspect, BlockedItem, PassedItem } from './_components/types';
+import type { PipelineState, ReviewItem, PublishItem, PublishedItem, DistTask, AgentRunRow, QueueStat, ItemHistory, LiveJobs, Source, CredentialRow, RawItem, AuthSuspect, BlockedItem, PassedItem } from './_components/types';
 import { API, POLL, AGENTS } from './_components/constants';
 import { PipelineTab } from './_components/PipelineTab';
 import { SourcesPanel } from './_components/SourcesPanel';
@@ -12,6 +12,7 @@ import { CrawlPreviewPanel } from './_components/CrawlPreviewPanel';
 import { CredentialsPanel } from './_components/CredentialsPanel';
 import { QueueRunsPanel } from './_components/QueueRunsPanel';
 import { OpLogsPanel } from './_components/OpLogsPanel';
+import { ConfirmModal, type ConfirmRequest } from './_components/ConfirmModal';
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -23,13 +24,13 @@ export default function WorkbenchPage() {
   function handleSprintChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value;
     setSprintStart(v);
-    // persist to localStorage so AdminNav picks it up too
     if (typeof window !== 'undefined') localStorage.setItem('sprintStart', v);
   }
 
   const [state, setState] = useState<PipelineState | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [publishItems, setPublishItems] = useState<PublishItem[]>([]);
+  const [publishedItems, setPublishedItems] = useState<PublishedItem[]>([]);
   const [distTasks, setDistTasks] = useState<DistTask[]>([]);
   const [blockedItems, setBlockedItems] = useState<BlockedItem[]>([]);
   const [passedItems, setPassedItems] = useState<PassedItem[]>([]);
@@ -39,6 +40,18 @@ export default function WorkbenchPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [historyModal, setHistoryModal] = useState<ItemHistory | null>(null);
+  // Custom confirm modal — replaces the harsh native window.confirm() so the
+  // dark theme stays consistent across destructive actions (delete source,
+  // emergency stop, rollback, etc.).
+  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
+  const confirmAsync = useCallback((opts: Omit<ConfirmRequest, 'resolve'>): Promise<boolean> =>
+    new Promise<boolean>(resolve => {
+      setConfirmReq({
+        ...opts,
+        resolve: (ok) => { setConfirmReq(null); resolve(ok); },
+      });
+    }),
+  []);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAgent, setBusyAgent] = useState<string | null>(null);
@@ -113,7 +126,7 @@ export default function WorkbenchPage() {
   // ── Data loading ──
   const load = useCallback(async () => {
     try {
-      const [s, rv, pv, dv, ar, qv, sv, lv, asv, bv, psv] = await Promise.allSettled([
+      const [s, rv, pv, dv, ar, qv, sv, lv, asv, bv, psv, pubv] = await Promise.allSettled([
         fetch(`${API}/admin/pipeline/state`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/review-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/publish-queue`, { cache: 'no-store' }).then(r => r.json()),
@@ -125,6 +138,7 @@ export default function WorkbenchPage() {
         fetch(`${API}/admin/sources/auth-status`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/blocked-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/passed-queue`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/pipeline/published-queue`, { cache: 'no-store' }).then(r => r.json()),
       ]);
       if (s.status === 'fulfilled') setState(s.value);
       if (rv.status === 'fulfilled') setReviewItems(rv.value.items ?? []);
@@ -137,6 +151,7 @@ export default function WorkbenchPage() {
       if (asv.status === 'fulfilled') setAuthSuspect(asv.value.suspect ?? []);
       if (bv.status === 'fulfilled') setBlockedItems(bv.value.items ?? []);
       if (psv.status === 'fulfilled') setPassedItems(psv.value.items ?? []);
+      if (pubv.status === 'fulfilled') setPublishedItems(pubv.value.items ?? []);
     } finally {
       setLoading(false);
     }
@@ -217,7 +232,13 @@ export default function WorkbenchPage() {
 
   // ── Emergency stop ──
   const emergencyStop = async () => {
-    if (!confirm('确认触发紧急停止？将暂停所有自动化流程。')) return;
+    const ok = await confirmAsync({
+      title: '紧急停止',
+      body: '将暂停所有自动化流程。已在队列中的 job 仍会跑完，但 auto-pipeline / 调度器不再下发新任务。',
+      danger: true,
+      confirmLabel: '🛑 触发紧急停止',
+    });
+    if (!ok) return;
     await call('/admin/pipeline/emergency-stop');
     flash('🛑 紧急停止已触发', false);
     await load();
@@ -241,7 +262,13 @@ export default function WorkbenchPage() {
     await load();
   };
   const overrideBlock = async (itemId: string, title: string) => {
-    if (!confirm(`人工放行《${title.slice(0, 40)}…》？\n\n会推翻机器拒绝结论(black list/LLM)并写入反馈环路,影响后续规则归纳。`)) return;
+    const ok = await confirmAsync({
+      title: '人工放行',
+      body: `《${title.slice(0, 60)}${title.length > 60 ? '…' : ''}》\n\n会推翻机器拒绝结论（黑名单 / LLM 评分）并写入反馈环路，影响后续规则归纳。`,
+      danger: true,
+      confirmLabel: '强制放行',
+    });
+    if (!ok) return;
     const reason = prompt('放行理由（用于反馈环路,推荐填写）') ?? '';
     await call(`/admin/pipeline/override-block/${itemId}`, 'POST', { reason });
     flash('已放行 → COMPLIANCE_PASS');
@@ -284,7 +311,13 @@ export default function WorkbenchPage() {
   };
 
   const rollback = async (itemId: string, title: string) => {
-    if (!confirm(`回滚「${title}」到上一阶段？`)) return;
+    const ok = await confirmAsync({
+      title: '回滚到上一阶段',
+      body: `「${title}」\n\n状态会退回上一档（已发布会下线）。`,
+      danger: true,
+      confirmLabel: '确认回滚',
+    });
+    if (!ok) return;
     try {
       const d: any = await call(`/admin/pipeline/rollback/${itemId}`);
       flash(`已回滚: ${d.from} → ${d.to}`);
@@ -341,12 +374,24 @@ export default function WorkbenchPage() {
   };
 
   const deleteSource = async (src: Source) => {
-    if (!confirm(`删除「${src.name}」？`)) return;
+    const ok = await confirmAsync({
+      title: '删除采集源',
+      body: `「${src.name}」（${src.platform}）将被删除。已采集的文章（如有）保留，下面会提示是否级联清理。`,
+      danger: true,
+      confirmLabel: '删除',
+    });
+    if (!ok) return;
     try {
       const r = await fetch(`${API}/admin/sources/${src.id}`, { method: 'DELETE' });
       if (r.status === 409) {
         const d = await r.json();
-        if (!confirm(`${d.message}\n\n确认连同 ${d.itemCount} 篇文章一起删除？`)) return;
+        const cascade = await confirmAsync({
+          title: '级联删除文章',
+          body: `${d.message}\n\n连同 ${d.itemCount} 篇关联文章一起删除？此操作不可撤销。`,
+          danger: true,
+          confirmLabel: `删除源 + ${d.itemCount} 篇文章`,
+        });
+        if (!cascade) return;
         await call(`/admin/sources/${src.id}?cascade=1`, 'DELETE');
         flash(`已级联删除（含 ${d.itemCount} 篇文章）`);
       } else if (!r.ok) {
@@ -415,6 +460,9 @@ export default function WorkbenchPage() {
           {toast.msg}
         </div>
       )}
+
+      {/* Themed confirm modal — replaces native window.confirm() globally. */}
+      <ConfirmModal req={confirmReq} />
 
       {/* Refresh-failure screenshot modal — shows what X actually presented */}
       {refreshFailModal && (
@@ -561,15 +609,13 @@ export default function WorkbenchPage() {
         <Link href="/" style={{ color: '#e2e8f0', textDecoration: 'none', fontSize: 16, fontWeight: 800 }}>内容中台</Link>
         <span style={{ color: '#334155' }}>/</span>
         <span style={{ fontSize: 13, color: '#64748b' }}>流水线工作台</span>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
-          冲刺开始
-          <input
-            type="date"
-            value={sprintStart}
-            onChange={handleSprintChange}
-            style={{ fontSize: 12, background: '#1e293b', border: '1px solid #334155', borderRadius: 4, padding: '2px 6px', color: '#94a3b8', colorScheme: 'dark' }}
-          />
-        </label>
+        <input
+          type="date"
+          value={sprintStart}
+          onChange={handleSprintChange}
+          aria-label="冲刺开始日期"
+          style={{ fontSize: 12, background: '#1e293b', border: '1px solid #334155', borderRadius: 4, padding: '2px 6px', color: '#94a3b8', colorScheme: 'dark' }}
+        />
 
         {state?.globalStop && (
           <span style={{ padding: '2px 10px', borderRadius: 12, background: '#7f1d1d', color: '#fca5a5', fontSize: 12, fontWeight: 700, animation: 'pulse 1s infinite' }}>
@@ -673,6 +719,7 @@ export default function WorkbenchPage() {
             liveJobs={liveJobs}
             reviewItems={reviewItems}
             publishItems={publishItems}
+            publishedItems={publishedItems}
             distTasks={distTasks}
             blockedItems={blockedItems}
             passedItems={passedItems}
@@ -744,6 +791,7 @@ export default function WorkbenchPage() {
             reload={reloadCredentials}
             onRefreshOne={refreshCredential}
             flash={flash}
+            confirmAsync={confirmAsync}
           />
         )}
 

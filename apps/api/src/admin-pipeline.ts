@@ -14,6 +14,7 @@ import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { logOperation } from './op-log.js';
 import { revalidatePaths } from './workers/publishing/revalidate.js';
 import { harvestComplianceFeedback } from './training-data.js';
+import { deleteObjects, collectCoverKeys } from './workers/cover/storage.js';
 
 // ── In-memory automation state (single-process MVP) ───────────────────────
 // Key = agent key (see AGENT_KEYS below), value = true/false
@@ -49,7 +50,14 @@ const STATUS_TO_AGENT: Record<string, string> = {
   [IS.DISTRIBUTED]:        'distribution',   // re-generate copy / re-post
 };
 
-// Agent → queue action
+// Agent → queue action.
+// Every handoff sets `removeOnComplete: true` on the per-item job opts so the
+// deterministic jobId is freed once the job runs. Without that, BullMQ dedupes
+// the new add() against the historical completed job (kept for 7 days by the
+// queue default), and the rerun is silently dropped — which is how the
+// rollback → re-cover → re-comply → re-publish chain got stuck pre-fix.
+const HANDOFF_OPTS = { removeOnComplete: true } as const;
+
 const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
   'classify-title': async () => {
     const items = await query<{ id: string }>(
@@ -58,7 +66,7 @@ const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
     );
     if (items.length === 0) return { queued: 0 };
     await getQueue(QUEUE_NAMES.classifyTitle).addBulk(
-      items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}` } })),
+      items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}`, ...HANDOFF_OPTS } })),
     );
     return { queued: items.length };
   },
@@ -66,7 +74,7 @@ const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
     const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.TITLED]);
     if (items.length === 0) return { queued: 0 };
     await getQueue(QUEUE_NAMES.cover).addBulk(
-      items.map(({ id }) => ({ name: 'cover', data: { itemId: id }, opts: { jobId: `cover__${id}` } })),
+      items.map(({ id }) => ({ name: 'cover', data: { itemId: id }, opts: { jobId: `cover__${id}`, ...HANDOFF_OPTS } })),
     );
     return { queued: items.length };
   },
@@ -74,7 +82,7 @@ const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
     const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.COVERED]);
     if (items.length === 0) return { queued: 0 };
     await getQueue(QUEUE_NAMES.compliance).addBulk(
-      items.map(({ id }) => ({ name: 'compliance', data: { itemId: id }, opts: { jobId: `compliance__${id}` } })),
+      items.map(({ id }) => ({ name: 'compliance', data: { itemId: id }, opts: { jobId: `compliance__${id}`, ...HANDOFF_OPTS } })),
     );
     return { queued: items.length };
   },
@@ -85,7 +93,7 @@ const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
     );
     if (items.length === 0) return { queued: 0 };
     await getQueue(QUEUE_NAMES.publishing).addBulk(
-      items.map(({ id }) => ({ name: 'publish', data: { itemId: id }, opts: { jobId: `publish__${id}` } })),
+      items.map(({ id }) => ({ name: 'publish', data: { itemId: id }, opts: { jobId: `publish__${id}`, ...HANDOFF_OPTS } })),
     );
     return { queued: items.length };
   },
@@ -98,7 +106,7 @@ const AGENT_QUEUE_ACTION: Record<string, () => Promise<{ queued: number }>> = {
     );
     if (items.length === 0) return { queued: 0 };
     await getQueue(QUEUE_NAMES.distribution).addBulk(
-      items.map(({ id }) => ({ name: 'distribute', data: { itemId: id, channel: 'twitter' }, opts: { jobId: `dist__twitter__${id}` } })),
+      items.map(({ id }) => ({ name: 'distribute', data: { itemId: id, channel: 'twitter' }, opts: { jobId: `dist__twitter__${id}`, ...HANDOFF_OPTS } })),
     );
     return { queued: items.length };
   },
@@ -408,18 +416,44 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
     return { items };
   });
 
+  // Recently published items (PUBLISHED + DISTRIBUTED). Drives the "已上站"
+  // strip on the publishing agent card so the operator can see what just
+  // went live without leaving the workbench.
+  app.get('/admin/pipeline/published-queue', async () => {
+    const items = await query<{
+      id: string; title: string; category: string | null; slug: string | null;
+      source: string; published_at: string; status: string;
+    }>(
+      `SELECT i.id, i.title, i.category, i.slug, s.name AS source,
+              i.published_at, i.status
+       FROM items i JOIN sources s ON s.id = i.source_id
+       WHERE i.status IN ($1, $2) AND i.published_at IS NOT NULL
+       ORDER BY i.published_at DESC
+       LIMIT 50`,
+      [IS.PUBLISHED, IS.DISTRIBUTED],
+    );
+    return { items };
+  });
+
   // Approve items for publishing (batch or single)
   app.post('/admin/pipeline/approve-publish', async (req) => {
     const { itemIds } = req.body as { itemIds?: string[] };
     const candidates = itemIds
-      ? await query<{ id: string }>(`SELECT id FROM items WHERE id=ANY($1) AND status=$2`, [itemIds, IS.COMPLIANCE_PASS])
+      ? await query<{ id: string }>(`SELECT id FROM items WHERE id = ANY($1) AND status = $2`, [itemIds, IS.COMPLIANCE_PASS])
       : await query<{ id: string }>(`SELECT id FROM items WHERE status=$1 LIMIT 200`, [IS.COMPLIANCE_PASS]);
 
     if (candidates.length === 0) return { queued: 0 };
     const ids = candidates.map((c) => c.id);
 
+    // See HANDOFF_OPTS — removeOnComplete frees the deterministic jobId on
+    // success so a re-publish (after rollback / unpublish) isn't silently
+    // dropped by dedup against the historical `publish__<id>` in `completed`.
     await getQueue(QUEUE_NAMES.publishing).addBulk(
-      ids.map((id) => ({ name: 'publish', data: { itemId: id }, opts: { jobId: `publish__${id}` } })),
+      ids.map((id) => ({
+        name: 'publish',
+        data: { itemId: id },
+        opts: { jobId: `publish__${id}`, ...HANDOFF_OPTS },
+      })),
     );
     // Single multi-row INSERT — one round-trip regardless of batch size.
     const valueRows = ids.map((_, i) => `('human:publish-gate', $${i + 1}, 'success', '{"decision":"approve"}', NOW())`).join(', ');
@@ -489,8 +523,11 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
 
   app.post('/admin/pipeline/rollback/:itemId', async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
-    const rows = await query<{ id: string; status: string; slug: string | null; category: string | null }>(
-      `SELECT id, status, slug, category FROM items WHERE id=$1`,
+    const rows = await query<{
+      id: string; status: string; slug: string | null; category: string | null;
+      cover_url: string | null; cover_sizes: any;
+    }>(
+      `SELECT id, status, slug, category, cover_url, cover_sizes FROM items WHERE id=$1`,
       [itemId],
     );
     const item = rows[0];
@@ -498,6 +535,16 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
 
     const rb = ROLLBACK_MAP[item.status];
     if (!rb) return reply.status(400).send({ error: `no rollback defined for status=${item.status}` });
+
+    // If this rollback nulls out cover_url / cover_sizes, snapshot the keys
+    // BEFORE the UPDATE so we can purge MinIO afterwards. Without this, every
+    // rollback (or repeated re-cover with a different gallery size) leaves
+    // dead objects accumulating in the bucket.
+    const willClearCover =
+      (rb.clearFields ?? []).some((f) => f === 'cover_url' || f === 'cover_sizes');
+    const coverKeysToPurge = willClearCover
+      ? collectCoverKeys(item.cover_url, item.cover_sizes)
+      : [];
 
     // tags / keywords / risk_tags are `json NOT NULL DEFAULT (json_array())`
     // — resetting them to NULL violates the constraint, so they get reset to
@@ -508,6 +555,18 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
       .join(', ');
     const sql = `UPDATE items SET status=$2${clearSet ? `, ${clearSet}` : ''} WHERE id=$1`;
     await query(sql, [itemId, rb.toStatus]);
+
+    // Best-effort S3 purge after the DB update. Never block the rollback on
+    // MinIO availability — an orphan object is recoverable, but a half-rolled-
+    // back item where the DB cleared and S3 didn't is also fine because the
+    // re-cover step will overwrite the same keys on the next pass.
+    let purgedS3 = 0;
+    if (coverKeysToPurge.length > 0) {
+      purgedS3 = await deleteObjects(coverKeysToPurge).catch((e) => {
+        req.log?.warn({ err: e }, 'cover S3 purge failed during rollback');
+        return 0;
+      });
+    }
 
     await query(
       `INSERT INTO agent_runs (agent, item_id, status, output, finished_at)
@@ -533,9 +592,10 @@ export async function registerPipelineAdmin(app: FastifyInstance) {
         from: item.status,
         to: rb.toStatus,
         clearedFields: rb.clearFields ?? [],
+        purgedS3Keys: purgedS3,
       },
     });
-    return { itemId, from: item.status, to: rb.toStatus };
+    return { itemId, from: item.status, to: rb.toStatus, purgedS3Keys: purgedS3 };
   });
 
   app.post('/admin/pipeline/rerun/:itemId', async (req, reply) => {

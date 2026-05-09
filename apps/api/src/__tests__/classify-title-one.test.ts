@@ -94,7 +94,7 @@ describe('classifyTitleOne', () => {
     expect(addSpy).toHaveBeenCalledWith(
       'render',
       { itemId: 'item-1' },
-      { jobId: 'cover__item-1' },
+      { jobId: 'cover__item-1', removeOnComplete: true },
     );
   });
 

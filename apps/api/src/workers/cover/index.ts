@@ -113,11 +113,16 @@ export async function coverOne(itemId: string) {
     [itemId, coverUrl, coverSizes ? JSON.stringify(coverSizes) : null, coverCopy, IS.COVERED],
   );
 
-  // Hand off to Compliance.
+  // Hand off to Compliance. `removeOnComplete: true` is load-bearing on
+  // every chained handoff: BullMQ dedupes by jobId across waiting/active
+  // AND completed sets, so without removal the second run of an item gets
+  // silently dropped here (the first compliance__<id> job from the original
+  // pipeline pass still lives in `completed` and blocks the re-add). The
+  // dedup window we actually want is "while in queue", so trim on success.
   await getQueue(QUEUE_NAMES.compliance).add(
     'check',
     { itemId },
-    { jobId: `compliance__${itemId}` },
+    { jobId: `compliance__${itemId}`, removeOnComplete: true },
   );
 
   const best = picks[0] ?? null;

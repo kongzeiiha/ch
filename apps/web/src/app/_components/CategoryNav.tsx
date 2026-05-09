@@ -9,7 +9,7 @@ interface CatRow {
 export async function CategoryNav({ active }: { active?: string }) {
   const categories = await query<CatRow>(
     `SELECT category, COUNT(*)::int AS count FROM items
-     WHERE status = 'PUBLISHED' AND category IS NOT NULL
+     WHERE status IN ('PUBLISHED','DISTRIBUTED') AND category IS NOT NULL
      GROUP BY category ORDER BY count DESC`,
   );
 

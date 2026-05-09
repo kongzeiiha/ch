@@ -90,7 +90,7 @@ export async function registerClassifyTitle(app: FastifyInstance): Promise<void>
     );
     const q = getQueue(QUEUE_NAMES.classifyTitle);
     for (const r of rows) {
-      await q.add('classify-title', { itemId: r.id }, { jobId: `classify-title__${r.id}` });
+      await q.add('classify-title', { itemId: r.id }, { jobId: `classify-title__${r.id}`, removeOnComplete: true });
     }
     return { enqueued: rows.length };
   });
@@ -104,7 +104,7 @@ export async function registerClassifyTitle(app: FastifyInstance): Promise<void>
     );
     const q = getQueue(QUEUE_NAMES.classifyTitle);
     for (const r of rows) {
-      await q.add('classify-title', { itemId: r.id }, { jobId: `classify-title__${r.id}` });
+      await q.add('classify-title', { itemId: r.id }, { jobId: `classify-title__${r.id}`, removeOnComplete: true });
     }
     return { enqueued: rows.length };
   });

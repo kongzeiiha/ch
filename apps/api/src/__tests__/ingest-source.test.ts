@@ -126,7 +126,7 @@ describe('ingestSource', () => {
     expect(queueAddSpy).toHaveBeenCalledWith(
       'classify-title',
       { itemId: 'item-1' },
-      { jobId: 'classify-title__item-1' },
+      { jobId: 'classify-title__item-1', removeOnComplete: true },
     );
   });
 

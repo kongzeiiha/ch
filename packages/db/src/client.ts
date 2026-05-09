@@ -35,15 +35,20 @@ export function rebuild(text: string, params: unknown[]): { text: string; params
 
   while (i < n) {
     // = ANY($N[::type[]])  →  IN (?, ?, ...)
+    // The original `=ANY()` was glued to the preceding column name with no
+    // intervening whitespace (e.g. `id=ANY($1)`), so a bare `IN (...)` would
+    // produce `idIN (...)` and MySQL would interpret it as a function call.
+    // Force a leading space when needed.
     const anyMatch = text.slice(i).match(/^=\s*ANY\s*\(\s*\$(\d+)(?:::\w+\[\])?\s*\)/i);
     if (anyMatch) {
       const idx = parseInt(anyMatch[1]!, 10) - 1;
       const v = params[idx];
+      const sep = result.length > 0 && /\S/.test(result[result.length - 1]!) ? ' ' : '';
       if (Array.isArray(v)) {
         if (v.length === 0) {
-          result += 'IN (NULL)';
+          result += `${sep}IN (NULL)`;
         } else {
-          result += `IN (${v.map(() => '?').join(', ')})`;
+          result += `${sep}IN (${v.map(() => '?').join(', ')})`;
           for (const el of v) out.push(el);
         }
       } else {

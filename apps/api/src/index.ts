@@ -37,6 +37,7 @@ const { registerAnalyticsAdmin } = await import('./admin-analytics.js');
 const { startHarvestPoller } = await import('./training-data.js');
 const { deriveRulesFromExamples } = await import('./derive-rules.js');
 const { registerAdminAuth } = await import('./admin-auth.js');
+const { registerMediaProxy } = await import('./media-proxy.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
 
@@ -80,8 +81,10 @@ async function main(): Promise<void> {
   registerOpLogHook(app);
   await registerOpLogAdmin(app);
 
-  // Auth MUST come before all admin route registrations.
+  // Auth MUST come before all admin route registrations. Public media proxies
+  // sit outside /admin/* so the auth hook ignores them.
   registerAdminAuth(app);
+  await registerMediaProxy(app);
 
   await registerAdmin(app);
   await registerInfra(app);

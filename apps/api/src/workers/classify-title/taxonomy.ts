@@ -30,6 +30,11 @@ export const CATEGORIES = [
   'SM',
   '剧情',
   '网曝门',
+  '美乳',
+  '内射',
+  '口射',
+  '巨乳',
+  '反差',
   '其他',
 ] as const;
 

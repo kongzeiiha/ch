@@ -65,7 +65,7 @@ export async function registerDistribution(app: FastifyInstance) {
     );
     if (!rows.length) return reply.status(404).send({ error: 'item not found or not published' });
     const q = getQueue(QUEUE_NAMES.distribution);
-    await q.add('distribute', { itemId: id, channel }, { jobId: `dist__${channel}__${id}` });
+    await q.add('distribute', { itemId: id, channel }, { jobId: `dist__${channel}__${id}`, removeOnComplete: true });
     await logOperation(req, {
       operation: 'distribution.queue',
       targetType: 'item',
@@ -89,7 +89,7 @@ export async function registerDistribution(app: FastifyInstance) {
     let queued = 0;
     const queuedIds: string[] = [];
     for (const { id } of candidates) {
-      await q.add('distribute', { itemId: id, channel: 'twitter' }, { jobId: `dist__twitter__${id}` });
+      await q.add('distribute', { itemId: id, channel: 'twitter' }, { jobId: `dist__twitter__${id}`, removeOnComplete: true });
       queuedIds.push(id);
       queued++;
     }

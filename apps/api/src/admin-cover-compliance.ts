@@ -68,8 +68,11 @@ export async function registerCoverCompliance(app: FastifyInstance): Promise<voi
   app.post('/admin/cover-compliance/cover-all', async () => {
     const rows = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1`, [IS.TITLED]);
     if (rows.length > 0) {
+      // removeOnComplete frees the deterministic jobId after success — without
+      // it BullMQ dedupes against the historical completed job for 7 days and
+      // silently drops the re-add (see admin-pipeline HANDOFF_OPTS comment).
       await getQueue(QUEUE_NAMES.cover).addBulk(
-        rows.map(({ id }) => ({ name: 'render', data: { itemId: id }, opts: { jobId: `cover__${id}` } })),
+        rows.map(({ id }) => ({ name: 'render', data: { itemId: id }, opts: { jobId: `cover__${id}`, removeOnComplete: true } })),
       );
     }
     return { enqueued: rows.length };
@@ -79,7 +82,7 @@ export async function registerCoverCompliance(app: FastifyInstance): Promise<voi
     const rows = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1`, [IS.COVERED]);
     if (rows.length > 0) {
       await getQueue(QUEUE_NAMES.compliance).addBulk(
-        rows.map(({ id }) => ({ name: 'check', data: { itemId: id }, opts: { jobId: `compliance__${id}` } })),
+        rows.map(({ id }) => ({ name: 'check', data: { itemId: id }, opts: { jobId: `compliance__${id}`, removeOnComplete: true } })),
       );
     }
     return { enqueued: rows.length };

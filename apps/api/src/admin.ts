@@ -13,6 +13,8 @@ import {
   credentialSecretBody,
   batchImportBody,
 } from './admin-validate.js';
+import { proxyImageHandler } from './media-proxy.js';
+import { deleteObjects, collectCoverKeys } from './workers/cover/storage.js';
 
 /**
  * Validate source config against its platform. Returns null when valid, or
@@ -589,19 +591,42 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         // Deactivate first to stop any concurrent ingestion worker from
         // inserting new items for this source between the two DELETEs.
         await query(`UPDATE sources SET status = 'inactive' WHERE id = $1`, [id]);
-        const itemRows = await query<{ count: number }>(
-          `SELECT COUNT(*) AS count FROM items WHERE source_id = $1`,
+
+        // Collect S3 keys to purge BEFORE the DB delete — once items are gone
+        // we have no way to know what cover/gallery objects to remove, and
+        // they'd linger as orphans (the 300+ orphans found in MinIO before
+        // this fix all came from this code path).
+        const items = await query<{ id: string; cover_url: string | null; cover_sizes: any }>(
+          `SELECT id, cover_url, cover_sizes FROM items WHERE source_id = $1`,
           [id],
         );
+        const keys = new Set<string>();
+        for (const it of items) {
+          for (const k of collectCoverKeys(it.cover_url, it.cover_sizes)) keys.add(k);
+        }
+
         await query(`DELETE FROM items WHERE source_id = $1`, [id]);
         await query(`DELETE FROM sources WHERE id = $1`, [id]);
+
+        // Best-effort S3 purge — never block on this. If MinIO is unreachable
+        // we still want the DB delete to stick (and the operator can run a
+        // reconcile job later).
+        const deletedObjects = await deleteObjects([...keys]).catch((e) => {
+          req.log?.warn({ err: e }, 'cover S3 purge failed during source delete');
+          return 0;
+        });
+
         await logOperation(req, {
           operation: 'source.delete',
           targetType: 'source',
           targetId: id,
-          payload: { cascade: true, deletedItemCount: itemRows[0]?.count ?? 0 },
+          payload: {
+            cascade: true,
+            deletedItemCount: items.length,
+            deletedS3Keys: deletedObjects,
+          },
         });
-        return { ok: true, cascade: true };
+        return { ok: true, cascade: true, deletedItemCount: items.length, deletedS3Keys: deletedObjects };
       }
       const rows = await query<{ count: number }>(
         `SELECT COUNT(*) AS count FROM items WHERE source_id = $1`,
@@ -694,99 +719,12 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // Proxy a remote image through this API with the right anti-hotlink headers
-  // for the requesting source. Used by 工作台/采集预览 because pic.ylimg.com
-  // (2ksg) needs a Referer and xx.knit.bid needs cf_clearance — both fail when
-  // the browser fetches them directly.
+  // Workbench preview reuses the public image proxy. Same handler, but the
+  // /admin/* prefix gates it behind admin auth so we don't expose the same
+  // endpoint twice (the public route is /img-proxy registered separately).
   app.get<{ Querystring: { url?: string; source_id?: string } }>(
     '/admin/proxy-image',
-    async (req, reply) => {
-      const remoteUrl = req.query.url;
-      const sourceId = req.query.source_id;
-      if (!remoteUrl || !/^https?:\/\//i.test(remoteUrl)) {
-        return reply.code(400).send({ error: 'bad url' });
-      }
-      // Best-effort source lookup for header customization. Falls back to a
-      // browser UA-only request when no source is known.
-      let platform = '';
-      let cfg: Record<string, unknown> = {};
-      if (sourceId) {
-        const rows = await query<{ platform: string; config: Record<string, unknown> }>(
-          `SELECT platform, config FROM sources WHERE id = $1`,
-          [sourceId],
-        );
-        if (rows[0]) { platform = rows[0].platform; cfg = rows[0].config ?? {}; }
-      }
-      const ua = (cfg.userAgent as string) || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
-      const headers: Record<string, string> = {
-        'User-Agent': ua,
-        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-      };
-
-      // Allowed hostnames per platform for cookie forwarding. Cookies must
-      // never be forwarded to a hostname that doesn't belong to the platform —
-      // that would let an authenticated admin exfiltrate platform credentials.
-      const COOKIE_ALLOWED: Record<string, RegExp> = {
-        knit: /(?:^|\.)knit\.bid$/,
-        x:    /(?:^|\.)(?:twimg\.com|x\.com|twitter\.com)$/,
-      };
-      let remoteHost = '';
-      try { remoteHost = new URL(remoteUrl).hostname; } catch { /* invalid url caught earlier */ }
-
-      if (platform === '2ksg') {
-        headers['Referer'] = (cfg.referer as string) || 'https://uib.2ksg.com/';
-      } else if (platform === 'knit') {
-        headers['Referer'] = 'https://xx.knit.bid/';
-        if (cfg.cookie && COOKIE_ALLOWED.knit.test(remoteHost)) headers['Cookie'] = cfg.cookie as string;
-      } else if (platform === 'x') {
-        headers['Referer'] = 'https://x.com/';
-        if (cfg.cookie && COOKIE_ALLOWED.x.test(remoteHost)) headers['Cookie'] = cfg.cookie as string;
-      }
-
-      try {
-        // Forward client Range header for video seek support.
-        const rangeHeader = req.headers['range'];
-        if (typeof rangeHeader === 'string') headers['Range'] = rangeHeader;
-
-        const upstream = await fetch(remoteUrl, { headers, redirect: 'follow' });
-        if (!upstream.ok && upstream.status !== 206) {
-          return reply.code(upstream.status).send({ error: 'upstream', status: upstream.status });
-        }
-        const ct = upstream.headers.get('content-type') || 'image/jpeg';
-        const cl = upstream.headers.get('content-length');
-        const cr = upstream.headers.get('content-range');
-        const ar = upstream.headers.get('accept-ranges');
-
-        // Detect "200 OK but empty body" hotlink shenanigans up front (only
-        // safe to do when content-length is present — otherwise we'd consume
-        // the body and lose streaming for big videos).
-        if (cl !== null && Number(cl) === 0) {
-          return reply.code(502).send({ error: 'empty body — likely hotlink-blocked' });
-        }
-
-        reply
-          .code(upstream.status)
-          .header('Content-Type', ct)
-          .header('Cache-Control', 'public, max-age=86400');
-        if (cl) reply.header('Content-Length', cl);
-        if (cr) reply.header('Content-Range', cr);
-        if (ar) reply.header('Accept-Ranges', ar);
-
-        // Stream the body through (no buffering) so big videos don't blow up
-        // undici's body-size limit. fastify accepts a Node Readable directly.
-        if (!upstream.body) {
-          return reply.send(Buffer.alloc(0));
-        }
-        // Convert WHATWG ReadableStream → Node Readable for fastify.
-        // Node 18+ has Readable.fromWeb for exactly this.
-        const { Readable } = await import('node:stream');
-        const nodeStream = Readable.fromWeb(upstream.body as any);
-        return reply.send(nodeStream);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        reply.code(502).send({ error: 'fetch fail', detail: msg });
-      }
-    },
+    proxyImageHandler,
   );
 
   // Sources whose latest ingestion run flagged an auth failure (expired
@@ -848,9 +786,12 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
         `SELECT r.id, r.url, r.fetched_at, r.media_urls, r.dedupe_key,
                 s.id AS source_id, s.name AS source_name, s.platform,
                 COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.raw_payload, '$.title')), '') AS title,
-                COALESCE(JSON_EXTRACT(r.raw_payload, '$.extra.videoUrls'), JSON_ARRAY()) AS video_urls
+                COALESCE(JSON_EXTRACT(r.raw_payload, '$.extra.videoUrls'), JSON_ARRAY()) AS video_urls,
+                i.status AS item_status,
+                i.slug   AS item_slug
          FROM raw_items r
          JOIN sources s ON s.id = r.source_id
+         LEFT JOIN items i ON i.raw_item_id = r.id
          ${whereSql}
          ORDER BY r.fetched_at DESC
          LIMIT $${limitIdx} OFFSET $${offsetIdx}`,

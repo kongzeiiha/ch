@@ -33,7 +33,10 @@ const CATEGORY_KEYWORDS: Record<Category, RegExp[]> = {
   '丝袜': [/丝袜|袜子|袜|长筒袜|短筒袜|连裤袜|裤袜|黑丝袜|肉色丝袜|透明丝袜|打底裤|蕾丝丝袜|吊带袜|高筒丝袜|过膝袜/, /丝袜|美腿/],
   '偷拍': [/私拍|偷拍/, /私拍|偷拍/],
   '自拍': [/自拍|低胸|美胸|美腿|大尺度|嫩模|蕾丝|睡袍|内衣|丝袜/,/\b\s\S]{0,60}\d+\s*P\b/, /自拍/],
-  '调教': [/调教|淫荡|裸体|露点||走光|无圣光|无码|福利图|擦边/, /调教/],
+  // NOTE: previously had `露点||走光` — the empty alternation between the two
+  // `|` made the regex match the empty string in *every* text, giving 调教 a
+  // permanent +1 score and silently capturing English / non-CJK articles.
+  '调教': [/调教|淫荡|裸体|露点|走光|无圣光|无码|福利图|擦边/, /调教/],
   '熟女': [/熟女/, /熟女/],
   '自慰': [/自慰/, /自慰/],
   '动漫': [/动漫/, /动漫/],
@@ -41,6 +44,11 @@ const CATEGORY_KEYWORDS: Record<Category, RegExp[]> = {
   'SM': [/SM/, /SM/],
   '剧情': [/剧情/, /剧情/],
   '网曝门': [/网曝门/, /网曝门|网曝/],
+  '美乳': [/美乳/, /美乳/],
+  '内射': [/内射/, /内射/],
+  '口射': [/口射/, /口射/],
+  '巨乳': [/巨乳|乳交/, /巨乳|乳交/],
+  '反差': [/反差/, /反差/],
   '其他': [],
 };
 
@@ -51,11 +59,38 @@ const CATEGORY_KEYWORDS: Record<Category, RegExp[]> = {
  * makes the path segment "/app/" match `\bApp\b` and incorrectly classifies
  * every gallery item as "互联网产品". Same for any keyword that happens to
  * appear in a URL path: "android" / "ios" / "saas" / "ui" etc.
+ *
+ * Also strips bare-host URLs commonly seen in tweets (`t.co/abc`, `bit.ly/x`)
+ * — these don't match the http/www patterns above but still leak path
+ * fragments into downstream tokenization.
  */
 function stripUrls(s: string): string {
   return s
     .replace(/https?:\/\/[^\s]+/gi, ' ')
-    .replace(/www\.[^\s]+/gi, ' ');
+    .replace(/www\.[^\s]+/gi, ' ')
+    .replace(/\b(?:t\.co|bit\.ly|goo\.gl|tinyurl\.com|ow\.ly|buff\.ly)\/[^\s]*/gi, ' ');
+}
+
+// Tokens that look like words but are URL or markup debris. Hit by the
+// title splitter when classifyByRules tokenizes things like "https://t.co/xxx"
+// into ["https", "t", "co", "xxx"]. Lowercased — comparison is case-insensitive.
+const TOKEN_DENYLIST = new Set([
+  'http', 'https', 'www',
+  't', 'co', 'cn', 'com', 'org', 'net', 'io', 'app', 'html', 'htm',
+  'amp', 'utm', 'src', 'ref',
+]);
+
+function isClean(token: string): boolean {
+  const t = token.trim();
+  if (t.length < 2 || t.length > 32) return false;
+  if (TOKEN_DENYLIST.has(t.toLowerCase())) return false;
+  // Anything containing % is almost certainly a URL-encoded fragment that
+  // slipped past stripUrls (e.g. "%E4%BA" from a raw-encoded link).
+  if (t.includes('%')) return false;
+  // Pure alphanumeric tokens of length ≤3 are usually noise (status codes,
+  // tweet-id prefixes, "9q" path slugs). Keep CJK / longer tokens.
+  if (/^[a-z0-9]{1,3}$/i.test(t)) return false;
+  return true;
 }
 
 /**
@@ -63,6 +98,7 @@ function stripUrls(s: string): string {
  * category plus a de-duplicated list of the keyword terms that actually hit.
  */
 export function classifyByRules(input: { title: string | null; content: string }): Classified {
+  const cleanTitle = stripUrls(input.title ?? '');
   const text = stripUrls(`${input.title ?? ''}\n${input.content ?? ''}`);
 
   let bestCategory: Category = '其他';
@@ -89,11 +125,13 @@ export function classifyByRules(input: { title: string | null; content: string }
   }
 
   // Build tags/keywords from the hit terms of the winning category (up to 8),
-  // padded with title-derived nouns if too few.
-  const primary = Array.from(hitsByCategory[bestCategory] ?? []).slice(0, 8);
-  const titleWords = (input.title ?? '')
-    .split(/[\s,，。.:：·\-—、/|]+/)
-    .filter((w) => w.length >= 2 && w.length <= 8);
+  // padded with title-derived nouns if too few. Run the title through the
+  // same URL stripper so tweet-style "https://t.co/xxx" doesn't tokenize into
+  // ["https", "t", "co", "xxx"].
+  const primary = Array.from(hitsByCategory[bestCategory] ?? []).filter(isClean).slice(0, 8);
+  const titleWords = cleanTitle
+    .split(/[\s,，。.:：·\-—、/|?&=#]+/)
+    .filter(isClean);
   const tags = Array.from(new Set([...primary, ...titleWords])).slice(0, 8);
   const keywords = tags.slice(0, 6);
 

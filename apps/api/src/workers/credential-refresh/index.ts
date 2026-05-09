@@ -59,7 +59,11 @@ async function scan(): Promise<{ enqueued: number }> {
     await q.add(
       'refresh-one',
       { kind: 'refresh-one', credentialId: credential_id },
-      { jobId: `refresh__${credential_id}` },
+      // removeOnComplete frees the deterministic jobId on success so the
+      // next scan can re-queue this credential; without it the historical
+      // refresh__<id> stays in `completed` for 7 days and silently blocks
+      // re-adds, freezing future refreshes for that credential.
+      { jobId: `refresh__${credential_id}`, removeOnComplete: true },
     );
     enqueued++;
   }

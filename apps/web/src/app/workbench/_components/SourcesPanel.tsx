@@ -114,9 +114,17 @@ export function SourcesPanel({
         return;
       }
       const d = await r.json();
-      setBatchResult({ created: d.created ?? [], updated: d.updated ?? [], failed: d.failed ?? [] });
-      flash(`导入完成：新建 ${d.created?.length ?? 0} · 更新 ${d.updated?.length ?? 0} · 失败 ${d.failed?.length ?? 0}`);
+      const failed = d.failed ?? [];
+      setBatchResult({ created: d.created ?? [], updated: d.updated ?? [], failed });
+      flash(`导入完成：新建 ${d.created?.length ?? 0} · 更新 ${d.updated?.length ?? 0} · 失败 ${failed.length}`);
       onAfterBatch();
+      // Close the modal automatically on full success — the toast carries the
+      // summary. Keep it open when anything failed so the user can see which
+      // handles to fix.
+      if (failed.length === 0) {
+        setShowBatch(false);
+        setBatchResult(null);
+      }
     } catch (e: any) {
       flash(`导入异常：${e?.message ?? e}`, false);
     } finally {

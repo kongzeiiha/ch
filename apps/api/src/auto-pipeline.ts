@@ -23,12 +23,20 @@ interface StageCheck {
   triggerFn: () => Promise<number>;
 }
 
+// Every auto-pipeline trigger must set removeOnComplete:true on its job opts.
+// The auto loop ticks every INTERVAL_MS and re-queues the same deterministic
+// jobIds (`score__auto`, `fanout__auto`, `cover__<id>`, …); without removal
+// BullMQ keeps completed jobs for 7 days and dedupes the next add() against
+// them, which silently freezes the auto pipeline after the first successful
+// pass. Trim on success → next tick can re-queue freely.
+const HANDOFF_OPTS = { removeOnComplete: true } as const;
+
 const STAGES: StageCheck[] = [
   {
     agent: 'source-scoring',
     countSql: `SELECT COUNT(*) AS cnt FROM sources WHERE status='active'`,
     triggerFn: async () => {
-      await getQueue(QUEUE_NAMES.sourceScoring).add('score', {}, { jobId: 'score__auto' });
+      await getQueue(QUEUE_NAMES.sourceScoring).add('score', {}, { jobId: 'score__auto', ...HANDOFF_OPTS });
       return 1;
     },
   },
@@ -36,7 +44,7 @@ const STAGES: StageCheck[] = [
     agent: 'ingestion',
     countSql: `SELECT COUNT(*) AS cnt FROM sources WHERE status='active'`,
     triggerFn: async () => {
-      await getQueue(QUEUE_NAMES.ingestion).add('fanout', { kind: 'fanout' }, { jobId: 'fanout__auto' });
+      await getQueue(QUEUE_NAMES.ingestion).add('fanout', { kind: 'fanout' }, { jobId: 'fanout__auto', ...HANDOFF_OPTS });
       return 1;
     },
   },
@@ -50,7 +58,7 @@ const STAGES: StageCheck[] = [
       );
       if (items.length === 0) return 0;
       await getQueue(QUEUE_NAMES.classifyTitle).addBulk(
-        items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}` } })),
+        items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}`, ...HANDOFF_OPTS } })),
       );
       return items.length;
     },
@@ -62,7 +70,7 @@ const STAGES: StageCheck[] = [
       const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.TITLED]);
       if (items.length === 0) return 0;
       await getQueue(QUEUE_NAMES.cover).addBulk(
-        items.map(({ id }) => ({ name: 'cover', data: { itemId: id }, opts: { jobId: `cover__${id}` } })),
+        items.map(({ id }) => ({ name: 'cover', data: { itemId: id }, opts: { jobId: `cover__${id}`, ...HANDOFF_OPTS } })),
       );
       return items.length;
     },
@@ -74,7 +82,7 @@ const STAGES: StageCheck[] = [
       const items = await query<{ id: string }>(`SELECT id FROM items WHERE status = $1 LIMIT 200`, [IS.COVERED]);
       if (items.length === 0) return 0;
       await getQueue(QUEUE_NAMES.compliance).addBulk(
-        items.map(({ id }) => ({ name: 'compliance', data: { itemId: id }, opts: { jobId: `compliance__${id}` } })),
+        items.map(({ id }) => ({ name: 'compliance', data: { itemId: id }, opts: { jobId: `compliance__${id}`, ...HANDOFF_OPTS } })),
       );
       return items.length;
     },

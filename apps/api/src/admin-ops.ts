@@ -116,7 +116,7 @@ export async function registerOps(app: FastifyInstance) {
     );
     if (items.length > 0) {
       await getQueue(QUEUE_NAMES.classifyTitle).addBulk(
-        items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}` } })),
+        items.map(({ id }) => ({ name: 'classify-title', data: { itemId: id }, opts: { jobId: `classify-title__${id}`, removeOnComplete: true } })),
       );
     }
     return { enqueued: items.length };

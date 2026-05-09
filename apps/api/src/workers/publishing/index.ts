@@ -39,7 +39,11 @@ export async function publishOne(itemId: string) {
     slug = await makeUniqueSlug(item.title, itemId);
   }
 
-  const publishedUrl = `/a/${slug}`;
+  // CJK slugs (post-2026-05 generator) contain raw Unicode chars. We percent-
+  // encode the slug segment so the URL is RFC-3986 valid for HTTP headers,
+  // distribution copy, and social-platform link shorteners. Leave the path
+  // separator alone so /a/<encoded> still routes correctly.
+  const publishedUrl = `/a/${encodeURIComponent(slug)}`;
   const siteBase = process.env.SITE_URL ?? 'http://localhost:3000';
   const fullUrl = `${siteBase}${publishedUrl}`;
 

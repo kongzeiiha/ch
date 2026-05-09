@@ -24,6 +24,11 @@ export interface PublishItem {
   cover_url: string | null; cover_sizes: unknown; summary: string | null; source: string;
 }
 
+export interface PublishedItem {
+  id: string; title: string; category: string | null; slug: string | null;
+  source: string; published_at: string; status: string;
+}
+
 export interface DistTask {
   item_id: string; title: string; slug: string | null;
   task_id: string; channel: string; copy: string; status: string; created_at: string;
@@ -141,6 +146,9 @@ export interface RawItem {
   source_name: string;
   platform: string;
   title: string;
+  /** Pipeline status of the linked items row, NULL if the raw item never produced an item. */
+  item_status: string | null;
+  item_slug: string | null;
 }
 
 export interface AuthSuspect {

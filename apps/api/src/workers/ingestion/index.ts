@@ -119,12 +119,19 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
         }
       }
 
+      // Adapter-specific video extras (currently only X) live in candidate.extra.videoUrls.
+      // Pass them through so persist can mirror to MinIO.
+      const videoSourceUrls = Array.isArray((c.extra as any)?.videoUrls)
+        ? ((c.extra as any).videoUrls as string[])
+        : undefined;
+
       const persisted = await persistIngested({
         sourceId: source.id,
         url: c.url,
         fetchedAt: c.publishedAt ?? new Date(),
         rawPayload: { title: c.title, extra: c.extra, htmlBytes: c.html?.length ?? 0 },
         mediaUrls: cleaned.mediaUrls,
+        videoSourceUrls,
         contentHash,
         dedupeKey: key,
         simhash: fp,
@@ -135,11 +142,15 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
       });
       stats.ingested++;
 
-      // Hand off to the Classify+Title Agent. jobId dedupes retries.
+      // Hand off to the Classify+Title Agent. jobId dedupes retries while
+      // queued; removeOnComplete:true frees the id on success so the next
+      // pipeline rerun (or a re-ingest of an item that was rolled back) isn't
+      // silently dropped by BullMQ's dedup against the historical completed
+      // job. Same rationale as cover→compliance and compliance→publish.
       await getQueue(QUEUE_NAMES.classifyTitle).add(
         'classify-title',
         { itemId: persisted.itemId },
-        { jobId: `classify-title__${persisted.itemId}` },
+        { jobId: `classify-title__${persisted.itemId}`, removeOnComplete: true },
       );
     } catch (e: any) {
       // 23505 = unique_violation (dedupe_key race from concurrent fetches)

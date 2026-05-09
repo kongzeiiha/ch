@@ -96,10 +96,13 @@ export async function complianceOne(itemId: string) {
   );
 
   if (decision.status === IS.COMPLIANCE_PASS) {
+    // removeOnComplete: true frees the deterministic jobId on success so a
+    // pipeline rerun (rollback → re-cover → re-comply → re-publish) isn't
+    // silently dropped by the BullMQ dedup against the old completed job.
     await getQueue(QUEUE_NAMES.publishing).add(
       'publish',
       { itemId },
-      { jobId: `publish__${itemId}` },
+      { jobId: `publish__${itemId}`, removeOnComplete: true },
     );
   }
 

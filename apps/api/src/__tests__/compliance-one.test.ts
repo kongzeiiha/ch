@@ -93,7 +93,7 @@ describe('complianceOne', () => {
     expect(addSpy).toHaveBeenCalledWith(
       'publish',
       { itemId: 'item-1' },
-      { jobId: 'publish__item-1' },
+      { jobId: 'publish__item-1', removeOnComplete: true },
     );
   });
 
