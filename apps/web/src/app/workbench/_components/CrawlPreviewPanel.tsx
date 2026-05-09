@@ -347,10 +347,52 @@ export function CrawlPreviewPanel({
               <img src={proxied(preview.url, preview.sourceId)} alt={preview.title}
                 style={{ maxWidth: '92vw', maxHeight: '80vh', borderRadius: 8, background: '#000', objectFit: 'contain' }} />
             )}
-            <div style={{ fontSize: 11, color: '#cbd5e1', wordBreak: 'break-all', background: '#1e293b', padding: '6px 10px', borderRadius: 6, lineHeight: 1.7 }}>
-              {preview.videoUrl
-                ? <>视频:<a href={preview.videoUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd' }}>{preview.videoUrl}</a></>
-                : <>原始 URL:<a href={preview.url} target="_blank" rel="noreferrer" style={{ color: '#93c5fd' }}>{preview.url}</a></>}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Explicit download button — Chrome's native video kebab menu has
+                  become unreliable for cross-origin sources, so we ship our own.
+                  `download` attribute on a same-origin (proxied) URL forces a
+                  Save dialog instead of inline navigation. */}
+              {(() => {
+                const dlSrc = preview.videoUrl
+                  ? proxied(preview.videoUrl, preview.sourceId)
+                  : proxied(preview.url, preview.sourceId);
+                const ext = preview.videoUrl
+                  ? (preview.videoUrl.split('?')[0]!.split('.').pop() ?? 'mp4').toLowerCase()
+                  : (preview.url.split('?')[0]!.split('.').pop() ?? 'jpg').toLowerCase();
+                const safeName = (preview.title || 'media').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 60);
+                const filename = `${safeName}.${ext}`;
+                return (
+                  <a
+                    href={dlSrc}
+                    download={filename}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 14px', borderRadius: 6,
+                      background: '#6366f1', color: '#fff',
+                      fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                    }}>
+                    ⬇ 下载{preview.videoUrl ? '视频' : '图片'}
+                  </a>
+                );
+              })()}
+              <a
+                href={preview.videoUrl ?? preview.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px', borderRadius: 6,
+                  background: 'transparent', color: '#94a3b8',
+                  border: '1px solid #334155',
+                  fontSize: 12, fontWeight: 500, textDecoration: 'none',
+                }}>
+                ↗ 原始链接
+              </a>
+              <div style={{ flex: 1, fontSize: 10.5, color: '#64748b', wordBreak: 'break-all', minWidth: 0 }}>
+                {preview.videoUrl ?? preview.url}
+              </div>
             </div>
           </div>
         </div>

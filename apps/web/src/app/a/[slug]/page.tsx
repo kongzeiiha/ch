@@ -210,7 +210,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
     notFound();
   }
 
-  const related = await getRelated(a.category, a.id, 6);
+  const related = await getRelated(a.category, a.id, 12);
   // Cover: prefer cover agent output → first plain image in media_urls. Skip
   // entries that are videos or video posters so the hero doesn't render a
   // .mp4 URL as <img>.
@@ -373,11 +373,9 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
         {related.length > 0 && (
           <section style={{ marginTop: 40 }}>
             <h2 style={{ fontSize: 18, marginBottom: 14, color: '#e2e8f0' }}>相关推荐</h2>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
-              {related.map((r) => (
-                <li key={r.id}><ArticleCard a={r} layout="row" /></li>
-              ))}
-            </ul>
+            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {related.map((r) => <ArticleCard key={r.id} a={r} />)}
+            </div>
           </section>
         )}
 
