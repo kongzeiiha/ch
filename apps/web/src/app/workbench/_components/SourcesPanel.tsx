@@ -1813,7 +1813,18 @@ export function SourcesPanel({
           return (
           <div key={src.id} style={{
             background: isSelected ? '#1e2a4d' : '#1e293b',
-            border: `1px solid ${isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b'}`,
+            // React 19 warns when `border` (shorthand) coexists with `borderLeft`
+            // because the override order is non-deterministic across renders.
+            // Split into per-side properties so each side is explicit.
+            borderTopWidth: 1,
+            borderRightWidth: 1,
+            borderBottomWidth: 1,
+            borderTopStyle: 'solid',
+            borderRightStyle: 'solid',
+            borderBottomStyle: 'solid',
+            borderTopColor: isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b',
+            borderRightColor: isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b',
+            borderBottomColor: isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b',
             borderLeft: `3px solid ${src.status === 'active' ? '#22c55e' : '#374151'}`,
             borderRadius: 8, padding: '16px 18px',
             opacity: src.status === 'active' ? 1 : 0.55,
