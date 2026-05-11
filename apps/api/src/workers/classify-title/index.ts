@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq';
 import { query, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES, startWorker, withRun, permanent, type Model } from '@ch/agents';
+import { displayTitle, cleanTagList } from '@ch/text-clean';
 import { classify, classifyByRules } from './categorize.js';
 import { generateTitle, generateTitleByRules } from './generate.js';
 import { makeUniqueSlug } from './slug.js';
@@ -86,6 +87,13 @@ export async function classifyTitleOne(itemId: string) {
       modelsUsed.push(r.model);
     }
 
+    // Filter LLM-junk tags/keywords (e.g. "关键词《X》", sentence-length
+    // fragments, URL leftovers) at write-time — see @ch/text-clean. Doing
+    // it here means the DB never holds the dirty arrays, so every reader
+    // (frontend cards, JSON-LD, /admin) gets clean data without each
+    // having to filter on read.
+    classified.tags = cleanTagList(classified.tags);
+    classified.keywords = cleanTagList(classified.keywords);
     await query(
       `UPDATE items
          SET category = $2, tags = $3, keywords = $4, status = $5
@@ -94,10 +102,12 @@ export async function classifyTitleOne(itemId: string) {
     );
   } else {
     // Backlog: status is already CLASSIFIED (or TITLED retry) — reuse what's in DB.
+    // Still run cleanTagList here in case the DB row was written before the
+    // write-time sanitizer existed.
     classified = {
       category: item.category ?? '其他',
-      tags: item.tags ?? [],
-      keywords: item.keywords ?? [],
+      tags: cleanTagList(item.tags ?? []),
+      keywords: cleanTagList(item.keywords ?? []),
     };
   }
 
@@ -124,7 +134,21 @@ export async function classifyTitleOne(itemId: string) {
     modelsUsed.push(r.model);
   }
 
-  const best = titleOut.candidates[titleOut.best_index]!;
+  // Write-time sanitization — see @ch/text-clean. The classify-title worker
+  // is the single source of writes for items.title / items.summary, so
+  // cleaning HERE means every reader (frontend H1, card H2, OG meta,
+  // JSON-LD, sitemap) gets the clean string without each having to remember
+  // to call displayTitle at render time. Slug is derived from the cleaned
+  // title so the URL doesn't carry "关键词" / emoji / hashtag noise either.
+  //
+  // Both title and summary use the strict displayTitle pipeline (emoji +
+  // hashtag-chain + arrow-deco + LLM-tail + repeat-punct + edge trim).
+  // Different caps: title at 80 (H1 fits one line), summary at 300 (leaves
+  // room for full <meta description> + OG description without truncation
+  // surprises later).
+  const rawBest = titleOut.candidates[titleOut.best_index]!;
+  const best = displayTitle(rawBest, 80) || rawBest;
+  const cleanedSummary = displayTitle(titleOut.summary, 300) || titleOut.summary;
   const slug = await makeUniqueSlug(best, itemId);
 
   await query(
@@ -135,7 +159,7 @@ export async function classifyTitleOne(itemId: string) {
            title_version = title_version + 1,
            status = $5
      WHERE id = $1`,
-    [itemId, best, titleOut.summary, slug, IS.TITLED],
+    [itemId, best, cleanedSummary, slug, IS.TITLED],
   );
 
   // Hand off to the Cover Agent. jobId dedupes concurrent retries while in

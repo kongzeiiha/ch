@@ -275,10 +275,23 @@ describe('displayTitle (strict H1 / card cleanup)', () => {
       .toBe('某标题、 还有这个！');
   });
 
-  it('trims trailing ellipsis / dot soup left by truncation', () => {
-    expect(displayTitle('某标题…')).toBe('某标题');
+  it('trims trailing dot-soup / 。 left by truncation', () => {
     expect(displayTitle('某标题....')).toBe('某标题');
     expect(displayTitle('某标题。')).toBe('某标题');
+  });
+
+  it('preserves trailing single-char ellipsis (…) — truncation marker', () => {
+    // displayTitle itself appends `…` when it truncates, so a second pass
+    // (backfill → worker write) must NOT strip the marker.
+    expect(displayTitle('某标题…')).toBe('某标题…');
+  });
+
+  it('truncation produces idempotent output (re-running keeps the …)', () => {
+    const long = 'A'.repeat(120);
+    const once = displayTitle(long, 80);
+    const twice = displayTitle(once, 80);
+    expect(twice).toBe(once);
+    expect(twice.endsWith('…')).toBe(true);
   });
 
   it('collapses multiple spaces left after emoji removal', () => {

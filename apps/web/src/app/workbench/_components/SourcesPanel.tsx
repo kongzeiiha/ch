@@ -242,17 +242,27 @@ export function SourcesPanel({
       const j = await r.json();
       if (!r.ok) {
         setDiscoverError(j.error ?? `HTTP ${r.status}`);
+        return;
+      }
+      const total = (j.created?.length ?? 0) + (j.updated?.length ?? 0);
+      const failed = j.failed ?? [];
+      flash(`✓ 已导入 ${total} 个 X 信源,采集已入队${failed.length > 0 ? ` · 失败 ${failed.length}` : ''}`, true);
+      // Refresh outer source list so the new rows appear under the modal.
+      onAfterBatch();
+      // Mirror the batch-import modal: close on full success; keep open with
+      // imported rows dimmed when something failed so the user can retry just
+      // the failed handles.
+      if (failed.length === 0) {
+        setShowDiscover(false);
+        setDiscoverResults([]);
+        setDiscoverSelected(new Set());
+        setDiscoverQuery('');
+        setDiscoverError(null);
       } else {
-        // Mark imported screen_names in the result list so user sees progress
-        // without closing the modal.
         setDiscoverResults((prev) => prev.map((u) =>
           discoverSelected.has(u.screen_name) ? { ...u, alreadyImported: true } : u
         ));
-        const total = (j.created?.length ?? 0) + (j.updated?.length ?? 0);
-        flash(`✓ 已导入 ${total} 个 X 信源,采集已入队`, true);
         setDiscoverSelected(new Set());
-        // Refresh outer source list so the new rows appear under the modal.
-        onAfterBatch();
       }
     } catch (e: any) {
       setDiscoverError(e?.message ?? String(e));

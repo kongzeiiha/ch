@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ArticleCardRow } from '../../lib/feed';
 import { readMinutes } from '../../lib/feed';
 import { proxiedImage } from '../../lib/media';
-import { stripTitleArtifacts, displayTitle } from '../../lib/strip-urls';
+import { displayTitle } from '../../lib/strip-urls';
 
 // For raw social posts, the title agent often regurgitates the source text
 // into both `title` and `summary` (with maybe a `@source` tail), so the card
@@ -35,9 +35,12 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
   // title doesn't push two cards into three lines.
   const stripped = displayTitle(a.title, 60);
   const cleanTitle = stripped || (a.category ? `${a.category} · 无标题内容` : '无标题内容');
-  // Summary keeps the looser stripTitleArtifacts — it's a paragraph, not a
-  // headline, so collapsing punctuation / cropping emoji is overkill.
-  const rawSummary = stripTitleArtifacts(a.summary);
+  // Summary uses the same strict displayTitle cleanup as the headline — for
+  // X / Reddit ingests the "summary" is just the post text again, so it
+  // suffers from the same emoji / hashtag-chain / arrow-decoration garbage
+  // that ruined the H1 case. Cap at 100 chars (vs 60 for the title) since
+  // summary lives on a multi-line clamp and benefits from a bit more room.
+  const rawSummary = displayTitle(a.summary, 100);
   const cleanSummary = summaryIsDuplicate(cleanTitle, rawSummary) ? null : rawSummary;
 
   if (layout === 'row') {
@@ -96,12 +99,15 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
           <span>{minutes} 分钟阅读</span>
           {date && <><span style={{ color: '#475569' }}>·</span><span>{date}</span></>}
         </div>
-        <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 6px', lineHeight: 1.4, color: '#e2e8f0' }}>{cleanTitle}</h2>
-        {cleanSummary && (
-          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {cleanSummary}
-          </p>
-        )}
+        {/* Summary <p> intentionally not rendered in the card grid. The
+            classify-title agent typically copies the post text into both
+            `title` and `summary`, so the line below the H2 usually echoed
+            the headline (or worse, leaked emoji / hashtag chains that
+            displayTitle didn't reach in time). The H2 + meta row is enough
+            for browse — readers click through for detail. The `row` layout
+            above keeps its summary because it's used in admin/list contexts
+            with more horizontal room. */}
+        <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0, lineHeight: 1.4, color: '#e2e8f0' }}>{cleanTitle}</h2>
       </div>
     </Link>
   );
