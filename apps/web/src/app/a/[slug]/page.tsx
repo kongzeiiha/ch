@@ -5,7 +5,7 @@ import { query, SITE_URL, SITE_NAME } from '../../../lib/db';
 import { getRelated, readMinutes } from '../../../lib/feed';
 import { breadcrumbJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
 import { proxiedImage, proxiedMedia } from '../../../lib/media';
-import { stripUrlsFromText, stripUrlsFromHtml, stripCaptionParagraphs, stripSpamParagraphs, stripSpamLines } from '../../../lib/strip-urls';
+import { stripUrlsFromHtml, stripCaptionParagraphs, stripSpamParagraphs, stripTitleArtifacts, cleanTagList, displayTitle } from '../../../lib/strip-urls';
 import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
 import { ArticleCard } from '../../_components/ArticleCard';
@@ -96,7 +96,15 @@ async function loadArticle(slug: string): Promise<Article | null> {
      LIMIT 1`,
     [slug],
   );
-  return rows[0] ?? null;
+  const a = rows[0];
+  if (!a) return null;
+  // Filter LLM-artifact tags/keywords ("关键词《X》") + sentence-length junk
+  // here so downstream surfaces (h1 strip is title-only, but tag chips,
+  // <meta keywords>, JSON-LD keywords, content linkifyTags) all see clean
+  // arrays. Matches feed.ts normalize() behavior on listing pages.
+  a.tags = cleanTagList(a.tags);
+  a.keywords = cleanTagList(a.keywords);
+  return a;
 }
 
 /** Next.js 15 leaves the URL-encoded form on `params.slug` for non-ASCII
@@ -131,9 +139,12 @@ type MediaItem =
  *    2. video_urls[i] is set                    → media_urls[i] is the poster jpg, sidecar is playable
  *    3. else                                    → plain image
  *  Plus any video_urls beyond the media_urls length get included as poster-less videos. */
-// Local alias kept for readability at call sites — delegates to the shared
-// helper so home/category/article pages all strip URLs identically.
-const stripUrls = stripUrlsFromText;
+// Titles/summaries get the heavier cleanup (URLs + @mentions + trailing
+// LLM-label artifacts like "关键词《不洁之星》"). The article body itself
+// goes through a separate strip pipeline (stripUrlsFromHtml +
+// stripCaptionParagraphs + stripSpamParagraphs) plus an unconditional
+// <p>-removal pass — see the body-rendering block below.
+const stripTitle = stripTitleArtifacts;
 
 // Convert `#tag` mentions in article body into real `<a href="/tag/<tag>">` —
 // boosts internal link density without manual editing. Matches both fullwidth
@@ -179,9 +190,11 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   const canonical = `${SITE_URL}/a/${a.slug}`;
   // For articles whose title/summary are nothing but URLs/@mentions (junk
   // ingested from social posts that are pure media), fall back to a category
-  // hint so SERP/OG don't display the bare URL.
-  const cleanedTitle = stripUrls(a.title);
-  const cleanedSummary = stripUrls(a.summary ?? '');
+  // hint so SERP/OG don't display the bare URL. stripTitle additionally peels
+  // off trailing LLM artifacts (关键词《XX》 / Keywords:…) that leaked from
+  // classify-title — see lib/strip-urls.ts.
+  const cleanedTitle = stripTitle(a.title);
+  const cleanedSummary = stripTitle(a.summary ?? '');
   const titleForSerp = cleanedTitle || (a.category ? `${a.category} · 无标题内容` : '无标题内容');
   const trimmedTitle = titleForSerp.length > 70 ? `${titleForSerp.slice(0, 67)}...` : titleForSerp;
   // Trim description for SERP — Google truncates around 150 chars on mobile.
@@ -282,11 +295,16 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
   const minutes = readMinutes((a.content ?? '').length);
 
   const wordCount = (a.content ?? '').length;
+  // Title/summary surfaces that go into structured data / breadcrumbs also
+  // get the LLM-artifact cleanup — Google's rich snippets and breadcrumb
+  // crumbs will otherwise echo the same "关键词《XX》" tail the H1 just hid.
+  const cleanTitleForSchema = stripTitle(a.title) || a.title;
+  const cleanSummaryForSchema = stripTitle(a.summary ?? '') || a.summary;
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
-    headline: a.title,
-    description: a.summary,
+    headline: cleanTitleForSchema,
+    description: cleanSummaryForSchema,
     image: ogImage ? [ogImage] : undefined,
     datePublished: a.published_at,
     dateModified: a.published_at,
@@ -306,7 +324,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
   const crumbs = [
     { name: '首页', url: `${SITE_URL}/` },
     ...(a.category ? [{ name: a.category, url: `${SITE_URL}/category/${encodeURIComponent(a.category)}` }] : []),
-    { name: a.title, url: `${SITE_URL}/a/${a.slug}` },
+    { name: cleanTitleForSchema, url: `${SITE_URL}/a/${a.slug}` },
   ];
 
   return (
@@ -317,7 +335,11 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
         <JsonLd data={jsonLd} />
         <JsonLd data={breadcrumbJsonLd(crumbs)} />
 
-        <h1 style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: '#e2e8f0' }}>{stripUrls(a.title) || (a.category ? `${a.category} · 无标题内容` : '无标题内容')}</h1>
+        {/* H1 uses the strict display cleanup (emoji removal + collapsed
+            repeated punctuation + truncation). SEO surfaces (meta, OG,
+            JSON-LD) above keep the looser stripTitleArtifacts so we don't
+            ship a different canonical title to search engines. */}
+        <h1 style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: '#e2e8f0' }}>{displayTitle(a.title) || (a.category ? `${a.category} · 无标题内容` : '无标题内容')}</h1>
 
         <div style={{ fontSize: 13, color: '#64748b', marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {a.published_at && <span>{new Date(a.published_at).toLocaleDateString('zh-CN')}</span>}
@@ -330,44 +352,60 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
         {ogImage && (
           // eslint-disable-next-line @next/next/no-img-element
-          (<img src={proxiedImage(ogImage, a.source_id)} alt={a.title} className="lightbox-img" data-full={proxiedImage(a.cover_sizes?.full ?? a.cover_sizes?.og ?? ogImage, a.source_id)} style={{ width: '100%', maxWidth: 960, aspectRatio: '1200 / 630', objectFit: 'cover', borderRadius: 8, marginBottom: 24, background: '#1e293b', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />)
+          (<img src={proxiedImage(ogImage, a.source_id)} alt={stripTitle(a.title)} className="lightbox-img" data-full={proxiedImage(a.cover_sizes?.full ?? a.cover_sizes?.og ?? ogImage, a.source_id)} style={{ width: '100%', maxWidth: 960, aspectRatio: '1200 / 630', objectFit: 'cover', borderRadius: 8, marginBottom: 24, background: '#1e293b', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />)
         )}
 
         {/* Summary <p> intentionally hidden on the article page — it duplicates
             the body and often quotes loaded content verbatim. The summary still
             ships in the <meta description>, JSON-LD, and OG tags for SEO. */}
 
-        {a.content_html ? (
-          <article
-            className="article-body"
-            style={{ fontSize: 16 }}
-            dangerouslySetInnerHTML={{ __html: linkifyTags(
-              hasVideo
-                ? stripUrlsFromHtml(a.content_html)
-                    // <figure> wraps img + figcaption — drop the whole block
-                    .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, '')
-                    // <p> containing an <img> — caption text usually lives in
-                    // the same paragraph, so drop the entire paragraph
-                    .replace(/<p\b[^>]*>[\s\S]*?<img\b[\s\S]*?<\/p>/gi, '')
-                    // any standalone <img> not wrapped in <p>/<figure>
-                    .replace(/<img\b[^>]*>/gi, '')
-                : stripSpamParagraphs(
-                    stripCaptionParagraphs(
-                      stripUrlsFromHtml(a.content_html)
-                        // Drop formal captions wrapped in <figcaption>
-                        .replace(/<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/gi, ''),
-                    ),
+        {(() => {
+          // Plain-text body has no real structural elements — it's just raw
+          // text. The product call is "drop all paragraphs"; for plain-text
+          // sources that means dropping everything. Skip the <article> block
+          // entirely (matches HTML-body behavior of "no <p> after strip").
+          if (!a.content_html) return null;
+
+          // HTML body: build the cleaned markup, then unconditionally strip
+          // every <p>...</p> before render. Per product call (X / Reddit
+          // ingests are 100% social-post and the "body" is always a duplicate
+          // of the title; readers don't want above-the-fold paragraphs that
+          // just echo the H1). Other structural elements (<ul>/<blockquote>/
+          // <pre>/etc.) still flow through, so a future longform source
+          // isn't accidentally muted.
+          const rawBody = linkifyTags(
+            hasVideo
+              ? stripUrlsFromHtml(a.content_html)
+                  .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, '')
+                  .replace(/<p\b[^>]*>[\s\S]*?<img\b[\s\S]*?<\/p>/gi, '')
+                  .replace(/<img\b[^>]*>/gi, '')
+              : stripSpamParagraphs(
+                  stripCaptionParagraphs(
+                    stripUrlsFromHtml(a.content_html)
+                      .replace(/<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/gi, ''),
                   ),
-              a.tags,
-            ) }}
-          />
-        ) : (
-          <article
-            className="article-body"
-            style={{ fontSize: 16, whiteSpace: 'pre-wrap' }}
-            dangerouslySetInnerHTML={{ __html: linkifyTags(stripSpamLines(stripUrlsFromText(a.content ?? '')), a.tags) }}
-          />
-        )}
+                ),
+            a.tags,
+          );
+
+          // Drop every <p>...</p> block. The non-greedy [\s\S]*? keeps each
+          // paragraph match local so non-<p> structural elements between
+          // paragraphs aren't accidentally swallowed.
+          const cleanedBody = rawBody.replace(/<p\b[^>]*>[\s\S]*?<\/p>/gi, '').trim();
+
+          // After paragraph removal there might be only whitespace / empty
+          // tags left. Skip rendering the <article> entirely in that case so
+          // we don't show an empty bordered region.
+          if (!cleanedBody.replace(/<[^>]+>/g, '').trim()) return null;
+
+          return (
+            <article
+              className="article-body"
+              style={{ fontSize: 16 }}
+              dangerouslySetInnerHTML={{ __html: cleanedBody }}
+            />
+          );
+        })()}
 
         {galleryVideos.length > 0 && (
           <section style={{ marginTop: 32 }}>
@@ -394,7 +432,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {galleryImages.map((m, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                (<img key={i} src={proxiedImage(m.src, a.source_id)} alt={`${a.title} - 图片 ${i + 1}`} loading="lazy" className="lightbox-img"
+                (<img key={i} src={proxiedImage(m.src, a.source_id)} alt={`${stripTitle(a.title)} - 图片 ${i + 1}`} loading="lazy" className="lightbox-img"
                   style={{ width: '100%', maxWidth: 960, height: 'auto', borderRadius: 6, background: '#1e293b', display: 'block', marginLeft: 'auto', marginRight: 'auto', cursor: 'zoom-in' }} />)
               ))}
             </div>

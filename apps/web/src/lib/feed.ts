@@ -1,5 +1,6 @@
 import { query } from './db';
 import { cached } from './cache';
+import { cleanTagList, isJunkTag } from './strip-urls';
 
 // TTL for hot reads. 60s is the sweet spot: tags / hot / trending change at
 // most every few minutes (a publish or a rollback). One minute of stale tag
@@ -31,7 +32,6 @@ export interface ArticleCardRow {
 }
 
 export interface TagCount { tag: string; count: number }
-export interface KeywordCount { keyword: string; count: number }
 
 // Items joined to their raw counterpart so we can fall back to the first
 // raw media URL when the cover agent hasn't generated a cover_url yet.
@@ -152,10 +152,11 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
     params.push(DATE_BUCKETS[f.date].days);
   }
 
+  // Hot sort reads the materialized i.pv_30d column (refreshed once per
+  // analytics pull). Earlier versions ran a correlated SUM(pv) subquery
+  // here, which forced a filesort over every matching row.
   const orderBy = f.sort === 'hot'
-    ? `(SELECT COALESCE(SUM(pv), 0) FROM analytics_daily a
-        WHERE a.item_id = i.id AND a.date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) DESC,
-       i.published_at DESC`
+    ? 'i.pv_30d DESC, i.published_at DESC'
     : 'i.published_at DESC';
 
   const whereSql = where.join(' AND ');
@@ -237,6 +238,9 @@ export async function getTopTags(limit = 30): Promise<TagCount[]> {
   // SSR query (loaded by /tag, /sitemap.xml, footer TagCloud) so caching has
   // an outsized impact once the corpus grows past a few thousand articles.
   return cached(`tags:${limit}`, HOT_TTL, async () => {
+    // Pull 3× the requested limit so the post-filter (drops LLM-artifact tags
+    // + sentence-length junk) still yields a full `limit` count of clean
+    // entries. Cheaper than re-running the JSON_TABLE scan after a miss.
     const rows = await query<TagCount>(
       // CHARACTER SET utf8mb4 on the JSON_TABLE column is load-bearing —
       // without it the connection's session charset can silently coerce
@@ -248,49 +252,12 @@ export async function getTopTags(limit = 30): Promise<TagCount[]> {
        GROUP BY jt.tag
        ORDER BY count DESC
        LIMIT $1`,
-      [limit],
+      [limit * 3],
     );
-    return rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));
-  });
-}
-
-/** Top keywords scoped to one category — drives the 题材 filter row on
- *  category pages. */
-export async function getTopKeywordsInCategory(category: string, limit = 20): Promise<KeywordCount[]> {
-  return cached(`kw:cat:${category}:${limit}`, HOT_TTL, async () => {
-    const rows = await query<KeywordCount>(
-      `SELECT jt.keyword AS keyword, COUNT(*) AS count
-       FROM items i,
-            JSON_TABLE(i.keywords, '$[*]' COLUMNS (keyword VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
-       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1
-         AND jt.keyword IS NOT NULL AND TRIM(jt.keyword) <> ''
-       GROUP BY jt.keyword
-       ORDER BY count DESC
-       LIMIT $2`,
-      [category, limit],
-    );
-    return rows.map((r) => ({ keyword: r.keyword, count: Number(r.count) }));
-  });
-}
-
-/** Trending keywords from items published in the trailing window. */
-export async function getTrendingKeywords(opts: { limit?: number; days?: number } = {}): Promise<KeywordCount[]> {
-  const limit = opts.limit ?? 20;
-  const days = opts.days ?? 14;
-  return cached(`trending:${limit}:${days}`, HOT_TTL, async () => {
-    const rows = await query<KeywordCount>(
-      `SELECT jt.keyword AS keyword, COUNT(*) AS count
-       FROM items i,
-            JSON_TABLE(i.keywords, '$[*]' COLUMNS (keyword VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
-       WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
-         AND i.published_at >= DATE_SUB(NOW(), INTERVAL $1 DAY)
-         AND jt.keyword IS NOT NULL AND TRIM(jt.keyword) <> ''
-       GROUP BY jt.keyword
-       ORDER BY count DESC
-       LIMIT $2`,
-      [days, limit],
-    );
-    return rows.map((r) => ({ keyword: r.keyword, count: Number(r.count) }));
+    return rows
+      .filter((r) => !isJunkTag(r.tag))
+      .slice(0, limit)
+      .map((r) => ({ tag: r.tag, count: Number(r.count) }));
   });
 }
 
@@ -316,7 +283,12 @@ export async function getRelated(category: string | null, excludeId: string, lim
 function normalize(r: any): ArticleCardRow {
   // mysql2 returns JSON columns as already-parsed JS values. Defensive parse
   // in case the driver hands back a string for some envs.
-  const tags = parseJson<string[]>(r.tags) ?? [];
+  const rawTags = parseJson<string[]>(r.tags) ?? [];
+  // Drop LLM-artifact tags ("关键词《X》"), sentence-length tags, and any tag
+  // that's actually a URL/@handle. Filtering at the read layer means every
+  // surface — listing cards, article page chips, <meta keywords>, JSON-LD —
+  // gets the same clean array without remembering to filter at each call site.
+  const tags = cleanTagList(rawTags);
   const cover_sizes = parseJson<Record<string, string>>(r.cover_sizes) ?? null;
   return {
     id: r.id,

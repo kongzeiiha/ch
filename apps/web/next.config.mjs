@@ -3,6 +3,7 @@ const STATIC_EXPORT = process.env.STATIC_EXPORT === '1';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  devIndicators: false,
   // Compile workspace packages through Next's own SWC instead of relying on
   // their pre-built dist/. Avoids "Cannot read properties of undefined" errors
   // from webpack mis-resolving ESM workspace exports, and means changes in

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { query, SITE_URL, SITE_NAME } from '../../../lib/db';
-import { getFiltered, getTopKeywordsInCategory, type LengthBucket, type DateBucket } from '../../../lib/feed';
+import { getFiltered, type LengthBucket, type DateBucket } from '../../../lib/feed';
 import { breadcrumbJsonLd, collectionPageJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
 import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
@@ -9,12 +10,12 @@ import { FilterBar } from '../../_components/FilterBar';
 import { ArticleCard } from '../../_components/ArticleCard';
 import { Pagination } from '../../_components/Pagination';
 import { SiteFooter } from '../../_components/SiteFooter';
+import { isJunkTag } from '../../../lib/strip-urls';
 
 export const dynamic = 'force-dynamic';
 
 interface SearchParams {
   tag?: string;
-  keyword?: string;
   length?: LengthBucket;
   date?: DateBucket;
   sort?: 'latest' | 'hot';
@@ -59,11 +60,10 @@ export default async function CategoryPage(
   const category = decodeURIComponent(params.slug);
   const page = Math.max(1, Number(searchParams.page ?? 1) || 1);
 
-  const [{ items, total }, tags, keywords] = await Promise.all([
+  const [{ items, total }, tags] = await Promise.all([
     getFiltered({
       category,
       tag: searchParams.tag,
-      keyword: searchParams.keyword,
       length: searchParams.length,
       date: searchParams.date,
       sort: searchParams.sort,
@@ -71,8 +71,14 @@ export default async function CategoryPage(
       offset: (page - 1) * PAGE_SIZE,
     }),
     loadTagsInCategory(category),
-    getTopKeywordsInCategory(category, 20),
   ]);
+
+  // Hard-404 when an unknown category has zero matching articles AND no
+  // filter is active. Returning a 200 with an empty grid is a soft-404 from
+  // Google's perspective and dilutes site quality signals. With filters
+  // applied we keep the 200 so users can tweak filters back to find content.
+  const hasFilter = !!(searchParams.tag || searchParams.length || searchParams.date || searchParams.sort);
+  if (total === 0 && !hasFilter) notFound();
 
   const basePath = `/category/${params.slug}`;
 
@@ -102,7 +108,6 @@ export default async function CategoryPage(
           basePath={basePath}
           current={searchParams}
           tags={tags}
-          keywords={keywords}
         />
 
         {items.length === 0 ? (
@@ -123,15 +128,21 @@ export default async function CategoryPage(
 }
 
 async function loadTagsInCategory(category: string): Promise<{ tag: string; count: number }[]> {
+  // Pull more rows than we render — the post-filter trims out LLM-artifact
+  // tags ("关键词《X》") and sentence-length junk, so the visible Top 30 ends
+  // up actually being 30 clean entries instead of "8 clean + 22 noise".
   const rows = await query<{ tag: string; count: number }>(
     `SELECT jt.tag AS tag, COUNT(*) AS count
      FROM items i,
-          JSON_TABLE(i.tags, '$[*]' COLUMNS (tag VARCHAR(128) PATH '$')) jt
+          JSON_TABLE(i.tags, '$[*]' COLUMNS (tag VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
      WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1 AND jt.tag IS NOT NULL
      GROUP BY jt.tag
      ORDER BY count DESC
-     LIMIT 30`,
+     LIMIT 90`,
     [category],
   );
-  return rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));
+  return rows
+    .filter((r) => !isJunkTag(r.tag))
+    .slice(0, 30)
+    .map((r) => ({ tag: r.tag, count: Number(r.count) }));
 }

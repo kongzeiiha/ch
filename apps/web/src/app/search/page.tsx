@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { search, getTopTags, getTrendingKeywords, getLatest, type LengthBucket, type DateBucket } from '../../lib/feed';
+import { search, getTopTags, getLatest, type LengthBucket, type DateBucket } from '../../lib/feed';
 import { SITE_NAME, SITE_URL } from '../../lib/db';
 import { SiteHeader } from '../_components/SiteHeader';
 import { ArticleCard } from '../_components/ArticleCard';
@@ -16,7 +16,6 @@ interface SearchParams {
   q?: string;
   category?: string;
   tag?: string;
-  keyword?: string;
   length?: LengthBucket;
   date?: DateBucket;
   sort?: 'latest' | 'hot';
@@ -45,14 +44,13 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
   // runs a query; if a tag/keyword has zero hits in combination with q, the
   // empty-state nudges them to relax filters.
   const isBrowsing = !q && !hasFilters(searchParams);
-  const [results, tags, keywords, latestForBrowse] = await Promise.all([
+  const [results, tags, latestForBrowse] = await Promise.all([
     isBrowsing
       ? Promise.resolve({ items: [], total: 0 })
       : search({
           q,
           category: searchParams.category,
           tag: searchParams.tag,
-          keyword: searchParams.keyword,
           length: searchParams.length,
           date: searchParams.date,
           sort: searchParams.sort,
@@ -60,7 +58,6 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
           offset: (page - 1) * PAGE_SIZE,
         }),
     getTopTags(20),
-    getTrendingKeywords({ limit: 20, days: 90 }),
     // 默认落地：用户没输关键词时直接展示最新文章，而不是空白页
     isBrowsing ? getLatest({ limit: PAGE_SIZE }) : Promise.resolve([]),
   ]);
@@ -98,7 +95,7 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
             }}
           />
           {/* Preserve filter selections in the form too */}
-          {(['tag', 'keyword', 'length', 'date', 'sort', 'category'] as const).map((k) =>
+          {(['tag', 'length', 'date', 'sort', 'category'] as const).map((k) =>
             searchParams[k] ? <input key={k} type="hidden" name={k} value={searchParams[k] as string} /> : null,
           )}
           <button type="submit" style={{
@@ -117,7 +114,6 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
           basePath={`${basePath}${baseQuery}`}
           current={searchParams}
           tags={tags}
-          keywords={keywords}
         />
 
         {isBrowsing ? (
@@ -158,5 +154,5 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
 }
 
 function hasFilters(p: SearchParams): boolean {
-  return !!(p.category || p.tag || p.keyword || p.length || p.date);
+  return !!(p.category || p.tag || p.length || p.date);
 }

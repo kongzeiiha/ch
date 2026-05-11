@@ -5,26 +5,26 @@ interface Props {
   basePath: string;
   current: {
     tag?: string;
-    keyword?: string;
     length?: LengthBucket;
     date?: DateBucket;
     sort?: 'latest' | 'hot';
   };
   /** Available tags within the current scope (category, search etc.). */
   tags?: { tag: string; count: number }[];
-  /** Available 题材 (semantic keywords). When provided, renders a 题材 row. */
-  keywords?: { keyword: string; count: number }[];
 }
 
 // Server-rendered filter bar. Each pill is a real <Link> that swaps a single
 // query param while preserving the others — keeps URLs shareable, SEO-clean,
 // and works without JS.
-export function FilterBar({ basePath, current, tags, keywords }: Props) {
+//
+// Note: the legacy 题材 (keywords) row was removed — keywords and tags come
+// from the same LLM classifier and the two rows were almost always identical.
+// The `keyword` URL param is no longer supported.
+export function FilterBar({ basePath, current, tags }: Props) {
   const link = (override: Partial<Props['current']>) => {
     const next = { ...current, ...override };
     const params = new URLSearchParams();
     if (next.tag)     params.set('tag', next.tag);
-    if (next.keyword) params.set('keyword', next.keyword);
     if (next.length)  params.set('length', next.length);
     if (next.date)    params.set('date', next.date);
     if (next.sort && next.sort !== 'latest') params.set('sort', next.sort);
@@ -47,17 +47,6 @@ export function FilterBar({ basePath, current, tags, keywords }: Props) {
         <Pill active={current.sort !== 'hot'}  href={link({ sort: 'latest' })}>最新</Pill>
         <Pill active={current.sort === 'hot'}  href={link({ sort: 'hot' })}>最热</Pill>
       </Row>
-
-      {keywords && keywords.length > 0 && (
-        <Row label="题材">
-          <Pill active={!current.keyword} href={link({ keyword: undefined })}>全部</Pill>
-          {keywords.slice(0, 16).map((k) => (
-            <Pill key={k.keyword} active={current.keyword === k.keyword} href={link({ keyword: k.keyword })}>
-              {k.keyword}
-            </Pill>
-          ))}
-        </Row>
-      )}
 
       <Row label="时长">
         <Pill active={!current.length} href={link({ length: undefined })}>全部</Pill>

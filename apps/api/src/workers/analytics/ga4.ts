@@ -118,5 +118,27 @@ export async function pullAnalyticsYesterday(): Promise<AnalyticsPullResult> {
     upserted++;
   }
 
+  // Refresh the materialized 30-day PV column so hot-sort can use the index
+  // instead of a correlated subquery. Cheap (single UPDATE...JOIN) and runs
+  // once per pull (daily). We update PUBLISHED and DISTRIBUTED items only —
+  // others are invisible to the public site so their PV is meaningless.
+  await refreshPv30d();
+
   return { date, upserted, skipped };
+}
+
+/** Recompute items.pv_30d from analytics_daily. Idempotent; safe to call
+ *  multiple times. Resets to 0 for items with no PV in the window. */
+export async function refreshPv30d(): Promise<void> {
+  await query(
+    `UPDATE items i
+     LEFT JOIN (
+       SELECT item_id, SUM(pv) AS pv
+       FROM analytics_daily
+       WHERE date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+       GROUP BY item_id
+     ) a ON a.item_id = i.id
+     SET i.pv_30d = COALESCE(a.pv, 0)
+     WHERE i.status IN ('PUBLISHED', 'DISTRIBUTED')`,
+  );
 }

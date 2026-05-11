@@ -1,4 +1,5 @@
 import { SITE_URL, SITE_NAME } from './db';
+import { stripTitleArtifacts } from './strip-urls';
 
 /** Optional brand OG image — used by listing pages (category/tag/topic) when
  *  the page has no specific cover to surface. Article pages keep their own
@@ -71,7 +72,12 @@ export const ROBOTS_INDEXABLE = { index: true, follow: true } as const;
 /** CollectionPage + ItemList for category/tag/topic listing pages. Helps
  *  Google show rich list previews and understand these are aggregations of
  *  individual articles rather than standalone content. Pass at most ~30
- *  items — beyond that the payload bloats with no SERP benefit. */
+ *  items — beyond that the payload bloats with no SERP benefit.
+ *
+ *  Per-item titles are run through `stripTitleArtifacts` so the LLM-leaked
+ *  `关键词《X》` / `Tags:…` tails don't end up in structured data and SERP
+ *  rich snippets. Centralized here so every listing page (category / tag /
+ *  topic / search) gets the cleanup without each having to remember. */
 export function collectionPageJsonLd(opts: {
   name: string;
   description?: string;
@@ -91,7 +97,7 @@ export function collectionPageJsonLd(opts: {
         '@type': 'ListItem',
         position: i + 1,
         url: `${SITE_URL}/a/${it.slug}`,
-        name: it.title,
+        name: stripTitleArtifacts(it.title) || it.title,
       })),
     },
   };

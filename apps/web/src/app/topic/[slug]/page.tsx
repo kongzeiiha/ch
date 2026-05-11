@@ -103,10 +103,9 @@ export default async function TopicPage(
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
         {topic.kind === 'theme' && <ThemeTabs active={topic.slug} />}
 
+        {/* Kicker (KIND_LABEL) removed — the breadcrumb + ThemeTabs above
+            already place the user. H1 + description line carry the rest. */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>
-            {KIND_LABEL[topic.kind]}
-          </div>
           <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>
             {topic.kind === 'keyword' ? `#${topic.title}` : topic.title}
           </h1>

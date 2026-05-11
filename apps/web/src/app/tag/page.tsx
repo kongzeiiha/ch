@@ -101,8 +101,10 @@ export default async function TagIndexPage() {
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
+        {/* Kicker label removed — the page name is already in the
+            breadcrumb + the active nav tab. Keep H1 + count line so users
+            still see what they're looking at. */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>标签导航</div>
           <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>全部标签</h1>
           <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>
             {tags.length === 0 ? '等内容采集起来后,热门标签会出现在这里' : `共 ${tags.length} 个标签`}

@@ -75,8 +75,9 @@ export default async function TagPage(
       })} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
+        {/* Kicker "标签" removed — the # prefix on the H1 already conveys
+            this is a tag page, and the breadcrumb shows the same context. */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>标签</div>
           <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>#{tag}</h1>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
             <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>共 {total} 篇</p>

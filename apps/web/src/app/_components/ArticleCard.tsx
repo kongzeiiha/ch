@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ArticleCardRow } from '../../lib/feed';
 import { readMinutes } from '../../lib/feed';
 import { proxiedImage } from '../../lib/media';
-import { stripUrlsFromText } from '../../lib/strip-urls';
+import { stripTitleArtifacts, displayTitle } from '../../lib/strip-urls';
 
 // For raw social posts, the title agent often regurgitates the source text
 // into both `title` and `summary` (with maybe a `@source` tail), so the card
@@ -29,12 +29,15 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
   const minutes = readMinutes(a.content_length);
   const date = a.published_at ? new Date(a.published_at).toLocaleDateString('zh-CN') : null;
   // Many feeds embed `https://t.co/xxx` inside the title/summary — strip for
-  // a cleaner card. If stripping leaves nothing meaningful (article was just
-  // a URL + media), use the category as a title hint rather than rendering
-  // the bare URL or an empty <h2>.
-  const stripped = stripUrlsFromText(a.title);
+  // a cleaner card. displayTitle does the full display-grade cleanup: URL +
+  // @mention removal, LLM-label tail strip, emoji removal, repeated-punct
+  // collapse, ellipsis truncation. Cards cap at 60 chars so a long sentence
+  // title doesn't push two cards into three lines.
+  const stripped = displayTitle(a.title, 60);
   const cleanTitle = stripped || (a.category ? `${a.category} · 无标题内容` : '无标题内容');
-  const rawSummary = stripUrlsFromText(a.summary);
+  // Summary keeps the looser stripTitleArtifacts — it's a paragraph, not a
+  // headline, so collapsing punctuation / cropping emoji is overkill.
+  const rawSummary = stripTitleArtifacts(a.summary);
   const cleanSummary = summaryIsDuplicate(cleanTitle, rawSummary) ? null : rawSummary;
 
   if (layout === 'row') {
