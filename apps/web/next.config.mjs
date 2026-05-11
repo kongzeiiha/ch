@@ -3,6 +3,11 @@ const STATIC_EXPORT = process.env.STATIC_EXPORT === '1';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Compile workspace packages through Next's own SWC instead of relying on
+  // their pre-built dist/. Avoids "Cannot read properties of undefined" errors
+  // from webpack mis-resolving ESM workspace exports, and means changes in
+  // packages/* hot-reload without a separate `tsc -w` watcher.
+  transpilePackages: ['@ch/db', '@ch/agents'],
   // STATIC_EXPORT=1 → emit pure static HTML to apps/web/out/ (no Node needed).
   // Default (dev / regular `next build`) → SSR/ISR mode unchanged.
   ...(STATIC_EXPORT ? {

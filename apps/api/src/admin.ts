@@ -4,6 +4,7 @@ import { query, execute } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import type { IngestionJob } from './workers/ingestion/index.js';
 import { ingestSource } from './workers/ingestion/index.js';
+import { searchUsersByKeyword } from './workers/ingestion/adapters/x.js';
 import { logOperation } from './op-log.js';
 import {
   sourceCreateBody,
@@ -538,6 +539,58 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       return { platform, created, updated, failed, triggerFetch };
     },
   );
+
+  // ── Discover X accounts by keyword (preview before batch import) ─────────
+  // Hits X's SearchTimeline GraphQL with product=People using the credential's
+  // cookie. Returns a ranked list; the workbench renders it with checkboxes
+  // and pipes the selected screen_names back into /sources/batch-import.
+  app.post<{
+    Body: { platform: 'x'; query: string; credentialId: string; limit?: number };
+  }>('/admin/sources/discover-users', async (req, reply) => {
+    const { platform, query: q, credentialId, limit = 30 } = req.body ?? ({} as any);
+    if (platform !== 'x') {
+      return reply.code(400).send({ error: 'discover-users 目前只支持 platform=x' });
+    }
+    if (!q || typeof q !== 'string' || q.trim().length === 0) {
+      return reply.code(400).send({ error: 'query 必填' });
+    }
+    if (!credentialId) {
+      return reply.code(400).send({ error: 'credentialId 必填(从 credential 池里挑一个 active 的 X 账号)' });
+    }
+    const credRows = await query<{ platform: string; status: string; cookie: string | null; user_agent: string | null }>(
+      `SELECT platform, status, cookie, user_agent FROM credentials WHERE id = $1`,
+      [credentialId],
+    );
+    if (!credRows.length) return reply.code(400).send({ error: 'credentialId 不存在' });
+    if (credRows[0].platform !== 'x') return reply.code(400).send({ error: 'credential 不是 X 平台' });
+    if (credRows[0].status !== 'active') return reply.code(400).send({ error: `credential 状态不是 active（当前 ${credRows[0].status}）` });
+    if (!credRows[0].cookie) return reply.code(400).send({ error: 'credential 没有 cookie' });
+
+    try {
+      const users = await searchUsersByKeyword({
+        cookie: credRows[0].cookie,
+        userAgent: credRows[0].user_agent ?? undefined,
+        query: q.trim(),
+        count: Math.min(Math.max(Number(limit), 1), 50),
+      });
+      // Mark which screen_names already exist as sources so the UI can
+      // dim them (or show "已导入" instead of a checkbox).
+      const existing = users.length > 0
+        ? await query<{ external_id: string }>(
+            `SELECT external_id FROM sources
+             WHERE platform = 'x' AND external_id = ANY($1::text[])`,
+            [users.map((u) => u.screen_name.toLowerCase())],
+          )
+        : [];
+      const existingSet = new Set(existing.map((e) => e.external_id.toLowerCase()));
+      return {
+        query: q.trim(),
+        users: users.map((u) => ({ ...u, alreadyImported: existingSet.has(u.screen_name.toLowerCase()) })),
+      };
+    } catch (e: any) {
+      return reply.code(502).send({ error: e?.message ?? String(e) });
+    }
+  });
 
   // Update source
   app.patch<{ Params: { id: string }; Body: { name?: string; url?: string; status?: string; config?: Record<string, unknown> } }>(

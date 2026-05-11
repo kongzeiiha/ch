@@ -7,7 +7,6 @@ import { resolveTopic, type TopicKind } from '../../_data/topics';
 import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
 import { ArticleCard } from '../../_components/ArticleCard';
-import { Breadcrumbs } from '../../_components/Breadcrumbs';
 import { FilterBar } from '../../_components/FilterBar';
 import { Pagination } from '../../_components/Pagination';
 import { SiteFooter } from '../../_components/SiteFooter';
@@ -102,12 +101,6 @@ export default async function TopicPage(
       })} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        <Breadcrumbs items={[
-          { name: '首页', href: '/' },
-          { name: '专题', href: '/' },
-          { name: topic.kind === 'keyword' ? `#${topic.title}` : topic.title },
-        ]} />
-
         {topic.kind === 'theme' && <ThemeTabs active={topic.slug} />}
 
         <div style={{ marginBottom: 20 }}>

@@ -177,9 +177,6 @@ export function CrawlPreviewPanel({
               {renderStatusBadge(it.item_status)}
               <span style={{ fontSize: 11, color: '#64748b' }}>{it.source_name}</span>
               <span style={{ fontSize: 11, color: '#475569' }}>{fmtTime(it.fetched_at)}</span>
-              {it.url && (
-                <a href={it.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#60a5fa', textDecoration: 'none' }}>↗ 原文</a>
-              )}
               {(it.item_status === 'PUBLISHED' || it.item_status === 'DISTRIBUTED') && it.item_slug && (
                 <a href={`/a/${it.item_slug}`} target="_blank" rel="noreferrer"
                   style={{ fontSize: 11, color: '#86efac', textDecoration: 'none' }}>↗ 站点</a>

@@ -1,4 +1,12 @@
 import { query } from './db';
+import { cached } from './cache';
+
+// TTL for hot reads. 60s is the sweet spot: tags / hot / trending change at
+// most every few minutes (a publish or a rollback). One minute of stale tag
+// cloud is invisible to humans and saves orders of magnitude on JSON_TABLE
+// full scans once the corpus grows. Tuned via env so ops can drop this for
+// incident debugging without a code change.
+const HOT_TTL = Number(process.env.FEED_CACHE_TTL ?? 60);
 
 export interface ArticleCardRow {
   id: string;
@@ -42,38 +50,48 @@ const ARTICLE_FROM = `FROM items i
   LEFT JOIN raw_items r ON r.id = i.raw_item_id`;
 
 /** Most-viewed articles in the trailing window. Falls back to recency when
- *  analytics has nothing yet (cold-start). */
+ *  analytics has nothing yet (cold-start). Cached: this aggregates over the
+ *  whole analytics_daily table and is loaded by every landing-page render. */
 export async function getHot(opts: { limit?: number; days?: number } = {}): Promise<ArticleCardRow[]> {
   const limit = opts.limit ?? 8;
   const days = opts.days ?? 7;
-  const rows = await query<ArticleCardRow & { pv: number }>(
-    `SELECT ${ARTICLE_COLS},
-            COALESCE(SUM(a.pv), 0) AS pv
-     ${ARTICLE_FROM}
-     LEFT JOIN analytics_daily a
-       ON a.item_id = i.id
-      AND a.date >= DATE_SUB(CURDATE(), INTERVAL $1 DAY)
-     WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
-     GROUP BY i.id
-     ORDER BY pv DESC, i.published_at DESC
-     LIMIT $2`,
-    [days, limit],
-  );
-  return rows.map(normalize);
+  return cached(`hot:${limit}:${days}`, HOT_TTL, async () => {
+    const rows = await query<ArticleCardRow & { pv: number }>(
+      `SELECT ${ARTICLE_COLS},
+              COALESCE(SUM(a.pv), 0) AS pv
+       ${ARTICLE_FROM}
+       LEFT JOIN analytics_daily a
+         ON a.item_id = i.id
+        AND a.date >= DATE_SUB(CURDATE(), INTERVAL $1 DAY)
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
+       GROUP BY i.id
+       ORDER BY pv DESC, i.published_at DESC
+       LIMIT $2`,
+      [days, limit],
+    );
+    return rows.map(normalize);
+  });
 }
 
 export async function getLatest(opts: { limit?: number; offset?: number } = {}): Promise<ArticleCardRow[]> {
   const limit = opts.limit ?? 24;
   const offset = opts.offset ?? 0;
-  const rows = await query<ArticleCardRow>(
-    `SELECT ${ARTICLE_COLS}
-     ${ARTICLE_FROM}
-     WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
-     ORDER BY i.published_at DESC
-     LIMIT $1 OFFSET $2`,
-    [limit, offset],
-  );
-  return rows.map(normalize);
+  // Only cache the head page (offset=0) — that's the one rendered on every
+  // landing page hit. Deeper paginations have unbounded key cardinality and
+  // are accessed rarely; not worth the Redis pollution.
+  const exec = async () => {
+    const rows = await query<ArticleCardRow>(
+      `SELECT ${ARTICLE_COLS}
+       ${ARTICLE_FROM}
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
+       ORDER BY i.published_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    return rows.map(normalize);
+  };
+  if (offset === 0) return cached(`latest:${limit}`, HOT_TTL, exec);
+  return exec();
 }
 
 /** Length bucket used by category/search filters. Boundaries derived from
@@ -215,70 +233,84 @@ export async function search(opts: FeedFilter & { q?: string }): Promise<{ items
  *  generateStaticParams produces "/tag" which breaks `next build` with an
  *  export-path-mismatch against the `/tag/[slug]` route. */
 export async function getTopTags(limit = 30): Promise<TagCount[]> {
-  const rows = await query<TagCount>(
-    // CHARACTER SET utf8mb4 on the JSON_TABLE column is load-bearing — without
-    // it, the connection's session charset can silently coerce non-ASCII
-    // (Chinese) tag values to NULL during JSON→VARCHAR extraction.
-    `SELECT jt.tag AS tag, COUNT(*) AS count
-     FROM items i,
-          JSON_TABLE(i.tags, '$[*]' COLUMNS (tag VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
-     WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND jt.tag IS NOT NULL AND TRIM(jt.tag) <> ''
-     GROUP BY jt.tag
-     ORDER BY count DESC
-     LIMIT $1`,
-    [limit],
-  );
-  return rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));
+  // JSON_TABLE full-table-scans items every call. This is the single hottest
+  // SSR query (loaded by /tag, /sitemap.xml, footer TagCloud) so caching has
+  // an outsized impact once the corpus grows past a few thousand articles.
+  return cached(`tags:${limit}`, HOT_TTL, async () => {
+    const rows = await query<TagCount>(
+      // CHARACTER SET utf8mb4 on the JSON_TABLE column is load-bearing —
+      // without it the connection's session charset can silently coerce
+      // non-ASCII (Chinese) tag values to NULL during JSON→VARCHAR extraction.
+      `SELECT jt.tag AS tag, COUNT(*) AS count
+       FROM items i,
+            JSON_TABLE(i.tags, '$[*]' COLUMNS (tag VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND jt.tag IS NOT NULL AND TRIM(jt.tag) <> ''
+       GROUP BY jt.tag
+       ORDER BY count DESC
+       LIMIT $1`,
+      [limit],
+    );
+    return rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));
+  });
 }
 
 /** Top keywords scoped to one category — drives the 题材 filter row on
  *  category pages. */
 export async function getTopKeywordsInCategory(category: string, limit = 20): Promise<KeywordCount[]> {
-  const rows = await query<KeywordCount>(
-    `SELECT jt.keyword AS keyword, COUNT(*) AS count
-     FROM items i,
-          JSON_TABLE(i.keywords, '$[*]' COLUMNS (keyword VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
-     WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1
-       AND jt.keyword IS NOT NULL AND TRIM(jt.keyword) <> ''
-     GROUP BY jt.keyword
-     ORDER BY count DESC
-     LIMIT $2`,
-    [category, limit],
-  );
-  return rows.map((r) => ({ keyword: r.keyword, count: Number(r.count) }));
+  return cached(`kw:cat:${category}:${limit}`, HOT_TTL, async () => {
+    const rows = await query<KeywordCount>(
+      `SELECT jt.keyword AS keyword, COUNT(*) AS count
+       FROM items i,
+            JSON_TABLE(i.keywords, '$[*]' COLUMNS (keyword VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1
+         AND jt.keyword IS NOT NULL AND TRIM(jt.keyword) <> ''
+       GROUP BY jt.keyword
+       ORDER BY count DESC
+       LIMIT $2`,
+      [category, limit],
+    );
+    return rows.map((r) => ({ keyword: r.keyword, count: Number(r.count) }));
+  });
 }
 
 /** Trending keywords from items published in the trailing window. */
 export async function getTrendingKeywords(opts: { limit?: number; days?: number } = {}): Promise<KeywordCount[]> {
   const limit = opts.limit ?? 20;
   const days = opts.days ?? 14;
-  const rows = await query<KeywordCount>(
-    `SELECT jt.keyword AS keyword, COUNT(*) AS count
-     FROM items i,
-          JSON_TABLE(i.keywords, '$[*]' COLUMNS (keyword VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
-     WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
-       AND i.published_at >= DATE_SUB(NOW(), INTERVAL $1 DAY)
-       AND jt.keyword IS NOT NULL AND TRIM(jt.keyword) <> ''
-     GROUP BY jt.keyword
-     ORDER BY count DESC
-     LIMIT $2`,
-    [days, limit],
-  );
-  return rows.map((r) => ({ keyword: r.keyword, count: Number(r.count) }));
+  return cached(`trending:${limit}:${days}`, HOT_TTL, async () => {
+    const rows = await query<KeywordCount>(
+      `SELECT jt.keyword AS keyword, COUNT(*) AS count
+       FROM items i,
+            JSON_TABLE(i.keywords, '$[*]' COLUMNS (keyword VARCHAR(128) CHARACTER SET utf8mb4 PATH '$')) jt
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
+         AND i.published_at >= DATE_SUB(NOW(), INTERVAL $1 DAY)
+         AND jt.keyword IS NOT NULL AND TRIM(jt.keyword) <> ''
+       GROUP BY jt.keyword
+       ORDER BY count DESC
+       LIMIT $2`,
+      [days, limit],
+    );
+    return rows.map((r) => ({ keyword: r.keyword, count: Number(r.count) }));
+  });
 }
 
-/** Resolve an article slug → row + related (same category, excluding self). */
+/** Resolve an article slug → row + related (same category, excluding self).
+ *  Cached per-article: every detail-page render asks for this strip and the
+ *  computation is identical across views of the same article. Key includes
+ *  excludeId so neighboring articles don't poison each other. */
 export async function getRelated(category: string | null, excludeId: string, limit = 6): Promise<ArticleCardRow[]> {
   if (!category) return [];
-  const rows = await query<ArticleCardRow>(
-    `SELECT ${ARTICLE_COLS}
-     ${ARTICLE_FROM}
-     WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1 AND i.id <> $2
-     ORDER BY i.published_at DESC
-     LIMIT $3`,
-    [category, excludeId, limit],
-  );
-  return rows.map(normalize);
+  return cached(`rel:${category}:${excludeId}:${limit}`, HOT_TTL, async () => {
+    const rows = await query<ArticleCardRow>(
+      `SELECT ${ARTICLE_COLS}
+       ${ARTICLE_FROM}
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1 AND i.id <> $2
+       ORDER BY i.published_at DESC
+       LIMIT $3`,
+      [category, excludeId, limit],
+    );
+    return rows.map(normalize);
+  });
 }
 
 function normalize(r: any): ArticleCardRow {

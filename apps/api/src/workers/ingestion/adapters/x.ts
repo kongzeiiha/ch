@@ -52,18 +52,27 @@ const BROWSER_UA =
 // Operation hashes captured from twitter.com's JS bundle. These rotate when
 // X ships a new build; if you start seeing 404s, copy the new hash from
 // DevTools and override via config.opIds.
+// X rotates these GraphQL operation hashes every 2-4 weeks when they ship a
+// new web bundle. When a route 404s, capture the fresh hash from DevTools
+// (filter "graphql" in Network panel) and override via env vars:
+//   X_OPID_USER_BY_SCREEN_NAME
+//   X_OPID_USER_TWEETS
+//   X_OPID_SEARCH_TIMELINE        (used by both tweet-search and user-discover)
 const DEFAULT_OP_IDS = {
-  UserByScreenName: 'G3KGOASz96M-Qu0nwmGXNg',
-  UserTweets: 'V7H0Ap3_Hh2FyS75OCDO3Q',
-  SearchTimeline: 'flaR-PUMshxFWZWPNpq4Zw',
+  UserByScreenName: process.env.X_OPID_USER_BY_SCREEN_NAME || 'G3KGOASz96M-Qu0nwmGXNg',
+  UserTweets:       process.env.X_OPID_USER_TWEETS         || 'V7H0Ap3_Hh2FyS75OCDO3Q',
+  SearchTimeline:   process.env.X_OPID_SEARCH_TIMELINE     || 'flaR-PUMshxFWZWPNpq4Zw',
 };
 
+// Synced from a live x.com SearchTimeline request — 2026-05-11.
+// When X starts 404'ing again, re-capture from DevTools and replace this block.
+// X validates this list exactly: extra / missing / mistyped keys all → 404.
 const DEFAULT_FEATURES = {
   rweb_video_screen_enabled: false,
-  payments_enabled: false,
-  rweb_xchat_enabled: false,
+  rweb_cashtags_enabled: true,
   profile_label_improvements_pcf_label_in_post_enabled: true,
-  rweb_tipjar_consumption_enabled: true,
+  responsive_web_profile_redirect_enabled: false,
+  rweb_tipjar_consumption_enabled: false,
   verified_phone_label_enabled: false,
   creator_subscriptions_tweet_preview_api_enabled: true,
   responsive_web_graphql_timeline_navigation_enabled: true,
@@ -73,26 +82,29 @@ const DEFAULT_FEATURES = {
   c9s_tweet_anatomy_moderator_badge_enabled: true,
   responsive_web_grok_analyze_button_fetch_trends_enabled: false,
   responsive_web_grok_analyze_post_followups_enabled: true,
+  rweb_cashtags_composer_attachment_enabled: true,
   responsive_web_jetfuel_frame: true,
   responsive_web_grok_share_attachment_enabled: true,
+  responsive_web_grok_annotations_enabled: true,
   articles_preview_enabled: true,
   responsive_web_edit_tweet_api_enabled: true,
   graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
   view_counts_everywhere_api_enabled: true,
   longform_notetweets_consumption_enabled: true,
   responsive_web_twitter_article_tweet_consumption_enabled: true,
-  tweet_awards_web_tipping_enabled: false,
-  responsive_web_grok_show_grok_translated_post: false,
+  content_disclosure_indicator_enabled: true,
+  content_disclosure_ai_generated_indicator_enabled: true,
+  responsive_web_grok_show_grok_translated_post: true,
   responsive_web_grok_analysis_button_from_backend: true,
-  creator_subscriptions_quote_tweet_preview_enabled: false,
+  post_ctas_fetch_enabled: false,
   freedom_of_speech_not_reach_fetch_enabled: true,
   standardized_nudges_misinfo: true,
   tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
   longform_notetweets_rich_text_read_enabled: true,
-  longform_notetweets_inline_media_enabled: true,
+  longform_notetweets_inline_media_enabled: false,
   responsive_web_grok_image_annotation_enabled: true,
   responsive_web_grok_imagine_annotation_enabled: true,
-  responsive_web_grok_community_note_auto_translation_is_enabled: false,
+  responsive_web_grok_community_note_auto_translation_is_enabled: true,
   responsive_web_enhance_cards_enabled: false,
 };
 
@@ -263,8 +275,12 @@ async function fetchSearch(
     count,
     querySource: 'typed_query',
     product: 'Latest',
+    withGrokTranslatedBio: true,
   };
-  const url = buildUrl('SearchTimeline', opId, variables, features, fieldToggles);
+  const opName = process.env.X_OP_SEARCH_TIMELINE || 'SearchTimeline';
+  // SearchTimeline schema no longer accepts fieldToggles — pass empty so
+  // buildUrl drops the param.
+  const url = buildUrl(opName, opId, variables, features, {});
   const res = await http.get<any>(url, { headers });
   if (res.status === 401 || res.status === 403) {
     throw new AdapterAuthError(res.status, 'X rejected cookie/csrf during SearchTimeline');
@@ -296,7 +312,12 @@ function buildUrl(
   const params = new URLSearchParams();
   params.set('variables', JSON.stringify(variables));
   params.set('features', JSON.stringify(features));
-  params.set('fieldToggles', JSON.stringify(fieldToggles));
+  // X's current SearchTimeline endpoint rejects requests that send an
+  // unrecognized `fieldToggles` param → 404. Only attach it if there's
+  // anything to send (UserByScreenName/UserTweets still expect it).
+  if (fieldToggles && Object.keys(fieldToggles).length > 0) {
+    params.set('fieldToggles', JSON.stringify(fieldToggles));
+  }
   return `https://x.com/i/api/graphql/${opId}/${op}?${params.toString()}`;
 }
 
@@ -312,6 +333,280 @@ function buildUrl(
  *
  * We just walk the whole tree and collect any object with __typename === 'Tweet'.
  */
+/**
+ * Discover X accounts by keyword. Uses SearchTimeline with `product: 'People'`
+ * which returns user nodes instead of tweets. Caller passes a valid cookie
+ * (either from credential pool or inline) — we don't reach into the DB here.
+ *
+ * Returns deduped, ranked-by-followers user summaries. Limit is hard-capped
+ * at 50 (X's own page size for the People product).
+ */
+export interface XUserSummary {
+  screen_name: string;
+  name: string;
+  description: string;
+  followers_count: number;
+  profile_image_url: string;
+  verified: boolean;
+}
+
+/**
+ * Browser-based fallback for keyword user discovery. X's SearchTimeline now
+ * requires an `x-client-transaction-id` header signed by their obfuscated
+ * client JS — direct axios calls can't reproduce it, so we drive a real
+ * (headless) chromium to /search and intercept the GraphQL response.
+ *
+ * Cost: ~3-5s per call (browser launch + page load). Used only when the
+ * direct path 404s.
+ */
+async function searchUsersByKeywordViaBrowser(opts: {
+  cookie: string;
+  userAgent?: string;
+  query: string;
+  count?: number;
+}): Promise<XUserSummary[]> {
+  // Lazy-import playwright-extra so cold starts that never call this don't
+  // pay the import cost.
+  const { chromium: chromiumExtra } = await import('playwright-extra');
+  const stealth = (await import('puppeteer-extra-plugin-stealth')).default();
+  stealth.enabledEvasions.delete('iframe.contentWindow');
+  stealth.enabledEvasions.delete('media.codecs');
+  (chromiumExtra as any).use(stealth);
+
+  const browser = await (chromiumExtra as any).launch({ headless: true });
+  try {
+    const ctx = await browser.newContext({
+      userAgent: opts.userAgent || BROWSER_UA,
+      locale: 'en-US',
+      viewport: { width: 1280, height: 800 },
+    });
+
+    // Parse the "name=value; name=value" cookie string into Playwright's
+    // setCookie format. Domain '.x.com' makes them visible to both x.com
+    // and api.x.com.
+    const cookieEntries: Array<{ name: string; value: string; domain: string; path: string }> = [];
+    for (const part of opts.cookie.split(/;\s*/)) {
+      const eq = part.indexOf('=');
+      if (eq < 1) continue;
+      const name = part.slice(0, eq).trim();
+      const value = part.slice(eq + 1).trim();
+      if (!name) continue;
+      cookieEntries.push({ name, value, domain: '.x.com', path: '/' });
+    }
+    if (cookieEntries.length === 0) {
+      throw new AdapterAuthError(401, 'cookie string parsed to empty — credential malformed');
+    }
+    await ctx.addCookies(cookieEntries);
+
+    const page = await ctx.newPage();
+
+    // Capture the SearchTimeline GraphQL response body before navigating.
+    // X may call this multiple times (filters/refreshes) — we keep the last
+    // successful 200 with users in it.
+    let captured: any = null;
+    page.on('response', async (res: any) => {
+      const url = res.url();
+      if (!url.includes('/i/api/graphql/') || !url.includes('/SearchTimeline')) return;
+      if (res.status() !== 200) return;
+      try {
+        const json = await res.json();
+        captured = json;
+      } catch { /* non-JSON body (rare) — skip */ }
+    });
+
+    // f=user routes the search page to the People tab, which fires
+    // SearchTimeline with product=People. If X has killed that product, the
+    // page falls back to a generic search where SearchTimeline still fires
+    // with product=Top — same walker extracts users from either.
+    const url = `https://x.com/search?q=${encodeURIComponent(opts.query)}&f=user`;
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    } catch (e: any) {
+      throw new AdapterAuthError(500, `playwright navigation failed: ${e?.message ?? e}`);
+    }
+
+    // Give X's JS time to fire the first SearchTimeline request and respond.
+    // Two short waits so we tolerate slow networks without hard-coding a
+    // long fixed delay.
+    const deadline = Date.now() + 8_000;
+    while (Date.now() < deadline && !captured) {
+      await page.waitForTimeout(500);
+    }
+
+    if (!captured) {
+      throw new AdapterAuthError(504, 'X did not return a SearchTimeline response within 8s — page may be blocked or cookie invalid');
+    }
+
+    // Reuse the same User-node walker as the direct path so result shape
+    // stays identical.
+    const users: any[] = [];
+    walk(captured, (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.__typename === 'User' && (node.legacy || node.core)) users.push(node);
+    });
+
+    const tally = new Map<string, number>();
+    const byHandle = new Map<string, XUserSummary>();
+    const want = Math.min(Math.max(opts.count ?? 20, 1), 50);
+    for (const u of users) {
+      const screen: string = u.legacy?.screen_name || u.core?.screen_name || '';
+      if (!screen) continue;
+      const key = screen.toLowerCase();
+      tally.set(key, (tally.get(key) ?? 0) + 1);
+      if (!byHandle.has(key)) {
+        byHandle.set(key, {
+          screen_name: screen,
+          name: u.legacy?.name || u.core?.name || '',
+          description: u.legacy?.description || '',
+          followers_count: Number(u.legacy?.followers_count ?? 0),
+          profile_image_url: u.legacy?.profile_image_url_https || u.avatar?.image_url || '',
+          verified: !!(u.legacy?.verified || u.is_blue_verified || u.verification?.verified),
+        });
+      }
+    }
+    const out = Array.from(byHandle.values());
+    out.sort((a, b) => {
+      const ca = tally.get(a.screen_name.toLowerCase()) ?? 0;
+      const cb = tally.get(b.screen_name.toLowerCase()) ?? 0;
+      if (cb !== ca) return cb - ca;
+      return b.followers_count - a.followers_count;
+    });
+    return out.slice(0, want);
+  } finally {
+    try { await browser.close(); } catch { /* ignore */ }
+  }
+}
+
+export async function searchUsersByKeyword(opts: {
+  cookie: string;
+  userAgent?: string;
+  query: string;
+  count?: number;
+}): Promise<XUserSummary[]> {
+  const csrf = (extractCt0(opts.cookie) || '').trim();
+  if (!csrf) throw new AdapterAuthError(401, 'cookie missing ct0 — refresh the credential');
+
+  const headers = {
+    authorization: `Bearer ${PUBLIC_BEARER}`,
+    'x-csrf-token': csrf,
+    'x-twitter-active-user': 'yes',
+    'x-twitter-auth-type': 'OAuth2Session',
+    'x-twitter-client-language': 'en',
+    'content-type': 'application/json',
+    accept: '*/*',
+    'accept-language': 'en-US,en;q=0.9',
+    'user-agent': opts.userAgent || BROWSER_UA,
+    origin: 'https://x.com',
+    referer: 'https://x.com/',
+    cookie: opts.cookie,
+  };
+
+  const count = Math.min(Math.max(opts.count ?? 20, 1), 50);
+  // Uses DEFAULT_OP_IDS.SearchTimeline + X_OP_SEARCH_TIMELINE so both the
+  // operation hash AND the operation name can be overridden from env (X has
+  // shipped bundles using names like "SearchTimelineV2" / "UsersSearchTimeline").
+  const searchOp = process.env.X_OP_SEARCH_TIMELINE || 'SearchTimeline';
+  const searchOpId = DEFAULT_OP_IDS.SearchTimeline;
+
+  // ── Strategy ────────────────────────────────────────────────────────────
+  // Some X bundles serve user discovery via SearchTimeline(product:'People');
+  // others have deprecated People entirely and only return tweets. We try
+  // People first; if it 404s (or returns zero users) we fall back to a Latest
+  // tweet search and harvest unique authors. Either way the caller gets a
+  // ranked list of accounts matching the keyword.
+  async function callTimeline(product: 'People' | 'Latest' | 'Top') {
+    const variables = {
+      rawQuery: opts.query,
+      count,
+      querySource: 'typed_query',
+      product,
+      withGrokTranslatedBio: true,
+    };
+    // SearchTimeline no longer accepts fieldToggles (see buildUrl comment).
+    const url = buildUrl(searchOp, searchOpId, variables, DEFAULT_FEATURES, {});
+    const res = await http.get<any>(url, { headers });
+    return res;
+  }
+
+  let res = await callTimeline('People');
+  let fallbackUsed = false;
+  if (res.status === 404 || res.status === 410) {
+    fallbackUsed = true;
+    res = await callTimeline('Top');
+    if (res.status === 404 || res.status === 410) {
+      res = await callTimeline('Latest');
+    }
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    throw new AdapterAuthError(res.status, 'X rejected cookie/csrf during user discovery');
+  }
+  if (res.status === 429) {
+    throw new AdapterAuthError(429, 'X rate-limited this account — slow down or rotate session');
+  }
+  if (res.status === 404 || res.status === 410) {
+    // All direct-axios paths are gated by x-client-transaction-id now.
+    // Drive a real headless browser instead — slower but works.
+    console.warn('[x] SearchTimeline 404 on direct path — falling back to playwright');
+    return searchUsersByKeywordViaBrowser(opts);
+  }
+  if (res.status !== 200) {
+    throw new AdapterAuthError(res.status, `X discover http=${res.status}`);
+  }
+  if (Array.isArray(res.data?.errors) && res.data.errors.length > 0) {
+    const msg = res.data.errors[0]?.message || 'unknown GraphQL error';
+    throw new AdapterAuthError(400, `X GraphQL rejected discover: ${msg.slice(0, 120)}`);
+  }
+
+  // ── Extract users from the response tree ────────────────────────────────
+  // Same response shape for both products. People product surfaces standalone
+  // <User> nodes; Latest surfaces <Tweet> nodes whose `core.user_results.result`
+  // is a User. The walker catches both.
+  const users: any[] = [];
+  walk(res.data, (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.__typename === 'User' && (node.legacy || node.core)) users.push(node);
+  });
+
+  // Tally how many times each author appears (Latest path uses this as a
+  // proxy for relevance — accounts posting many matching tweets are likely
+  // the most on-topic). People path keeps server-supplied ordering since
+  // X already ranked them.
+  const tally = new Map<string, number>();
+  const byHandle = new Map<string, XUserSummary>();
+  for (const u of users) {
+    const screen: string = u.legacy?.screen_name || u.core?.screen_name || '';
+    if (!screen) continue;
+    const key = screen.toLowerCase();
+    tally.set(key, (tally.get(key) ?? 0) + 1);
+    if (!byHandle.has(key)) {
+      byHandle.set(key, {
+        screen_name: screen,
+        name: u.legacy?.name || u.core?.name || '',
+        description: u.legacy?.description || '',
+        followers_count: Number(u.legacy?.followers_count ?? 0),
+        profile_image_url: u.legacy?.profile_image_url_https || u.avatar?.image_url || '',
+        verified: !!(u.legacy?.verified || u.is_blue_verified || u.verification?.verified),
+      });
+    }
+  }
+
+  const out = Array.from(byHandle.values());
+  if (fallbackUsed) {
+    // Latest path: sort by (tweet count for this query) DESC, then followers.
+    out.sort((a, b) => {
+      const ca = tally.get(a.screen_name.toLowerCase()) ?? 0;
+      const cb = tally.get(b.screen_name.toLowerCase()) ?? 0;
+      if (cb !== ca) return cb - ca;
+      return b.followers_count - a.followers_count;
+    });
+  } else {
+    // People path: X ranked them; we re-stabilise by followers desc.
+    out.sort((a, b) => b.followers_count - a.followers_count);
+  }
+  return out;
+}
+
 function extractTweetsFromTimeline(json: any): any[] {
   const out: any[] = [];
   walk(json, (node) => {

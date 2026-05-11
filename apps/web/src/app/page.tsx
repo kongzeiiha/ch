@@ -67,15 +67,16 @@ export default async function Home(props: { searchParams: Promise<SearchParams> 
 }
 
 async function LandingView() {
-  const [hot, latest, taggedLatest] = await Promise.all([
+  const [hot, latest] = await Promise.all([
     getHot({ limit: 6, days: 7 }),
     getLatest({ limit: 12 }),
-    getLatest({ limit: 12 }),
   ]);
-  // Articles with at least one tag — falls back to plain latest if every
-  // article in this corpus is untagged.
-  const tagSectionItems = taggedLatest.filter((a) => a.tags && a.tags.length > 0);
-  const tagItems = tagSectionItems.length > 0 ? tagSectionItems : taggedLatest;
+  // The "标签导航" strip used to fetch a second identical batch of latest 12.
+  // Both queries returned the same rows, so there's no information value in
+  // the second trip — reuse `latest`. If every article happens to be untagged
+  // we still want a non-empty grid, so fall back to `latest` whole.
+  const taggedLatest = latest.filter((a) => a.tags && a.tags.length > 0);
+  const tagItems = taggedLatest.length > 0 ? taggedLatest : latest;
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>

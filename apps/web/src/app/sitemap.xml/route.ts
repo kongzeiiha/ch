@@ -2,7 +2,11 @@ import { query, SITE_URL } from '../../lib/db';
 import { getTopTags } from '../../lib/feed';
 import { listKnownTopicSlugs } from '../_data/topics';
 
-export const dynamic = 'force-dynamic';
+// ISR with a 5-minute window — sitemap entries change at most when an article
+// is published or unpublished, both of which already call revalidatePath() so
+// the cache flushes immediately. The TTL is the upper bound for the unlikely
+// case where the explicit invalidation didn't fire (worker died mid-publish).
+export const revalidate = 300;
 
 const toIso = (d: string | null | undefined) => (d ? new Date(d).toISOString() : undefined);
 

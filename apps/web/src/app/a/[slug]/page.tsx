@@ -5,12 +5,14 @@ import { query, SITE_URL, SITE_NAME } from '../../../lib/db';
 import { getRelated, readMinutes } from '../../../lib/feed';
 import { breadcrumbJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
 import { proxiedImage, proxiedMedia } from '../../../lib/media';
+import { stripUrlsFromText, stripUrlsFromHtml, stripCaptionParagraphs, stripSpamParagraphs, stripSpamLines } from '../../../lib/strip-urls';
 import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
 import { ArticleCard } from '../../_components/ArticleCard';
 import { AdSlot } from '../../_components/AdSlot';
 import { CTAModule } from '../../_components/CTAModule';
 import { SiteFooter } from '../../_components/SiteFooter';
+import { ImageLightbox } from '../../_components/ImageLightbox';
 
 // Scoped overrides so RSS-cleaned content_html (which often carries inline
 // light-theme styles) blends into the dark slate page. Targets only the
@@ -42,7 +44,13 @@ const ARTICLE_CSS = `
     overflow-x: auto;
     color: #e2e8f0;
   }
-  .article-body img { background: #0f172a; border-radius: 6px; max-width: 100%; height: auto; }
+  /* Body media follows the column width — 100% inside the 1200px main wrapper.
+     Reading max-width keeps super-tall portrait images from blowing out the
+     viewport while still letting wide ones (3:2 X/Twitter media) fill the
+     column on desktop. */
+  .article-body img { background: #0f172a; border-radius: 6px; width: 100%; max-width: 100%; height: auto; display: block; margin: 16px auto; cursor: zoom-in; }
+  .lightbox-img { cursor: zoom-in; }
+  .article-body video { width: 100%; max-width: 100%; height: auto; display: block; margin: 16px auto; }
   .article-body hr { border: 0; border-top: 1px solid #334155; margin: 24px 0; }
   .article-body table { border-collapse: collapse; }
   .article-body th, .article-body td { border: 1px solid #334155; padding: 6px 10px; }
@@ -123,6 +131,10 @@ type MediaItem =
  *    2. video_urls[i] is set                    → media_urls[i] is the poster jpg, sidecar is playable
  *    3. else                                    → plain image
  *  Plus any video_urls beyond the media_urls length get included as poster-less videos. */
+// Local alias kept for readability at call sites — delegates to the shared
+// helper so home/category/article pages all strip URLs identically.
+const stripUrls = stripUrlsFromText;
+
 // Convert `#tag` mentions in article body into real `<a href="/tag/<tag>">` —
 // boosts internal link density without manual editing. Matches both fullwidth
 // `＃` (used by some CN platforms) and plain `#`. Only safe to apply to text
@@ -165,20 +177,25 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   if (!a) return { title: '未找到' };
   const ogImage = a.cover_sizes?.og ?? a.cover_url ?? a.media_urls?.[0] ?? undefined;
   const canonical = `${SITE_URL}/a/${a.slug}`;
-  // Trim summary for the meta description so SERP isn't truncated mid-sentence.
-  // ~150 chars is Google's display ceiling on most devices.
-  const desc = a.summary
-    ? a.summary.length > 150 ? `${a.summary.slice(0, 147)}...` : a.summary
-    : (a.title.length > 150 ? `${a.title.slice(0, 147)}...` : a.title);
+  // For articles whose title/summary are nothing but URLs/@mentions (junk
+  // ingested from social posts that are pure media), fall back to a category
+  // hint so SERP/OG don't display the bare URL.
+  const cleanedTitle = stripUrls(a.title);
+  const cleanedSummary = stripUrls(a.summary ?? '');
+  const titleForSerp = cleanedTitle || (a.category ? `${a.category} · 无标题内容` : '无标题内容');
+  const trimmedTitle = titleForSerp.length > 70 ? `${titleForSerp.slice(0, 67)}...` : titleForSerp;
+  // Trim description for SERP — Google truncates around 150 chars on mobile.
+  const descSrc = cleanedSummary || cleanedTitle || titleForSerp;
+  const desc = descSrc.length > 150 ? `${descSrc.slice(0, 147)}...` : descSrc;
   return {
-    title: a.title.length > 70 ? `${a.title.slice(0, 67)}...` : a.title,
+    title: trimmedTitle,
     description: desc,
     keywords: a.keywords.length ? a.keywords : undefined,
     alternates: { canonical },
     robots: ROBOTS_INDEXABLE,
     openGraph: {
-      title: a.title,
-      description: a.summary ?? undefined,
+      title: titleForSerp,
+      description: cleanedSummary || undefined,
       url: canonical,
       siteName: SITE_NAME,
       type: 'article',
@@ -188,8 +205,8 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
     },
     twitter: {
       card: 'summary_large_image',
-      title: a.title,
-      description: a.summary ?? undefined,
+      title: titleForSerp,
+      description: cleanedSummary || undefined,
       images: ogImage ? [ogImage] : undefined,
     },
   };
@@ -217,12 +234,51 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
   const allMedia = classifyMedia(a.media_urls ?? [], a.video_urls ?? []);
   const firstImageItem = allMedia.find((m) => m.kind === 'image');
   const firstImageUrl = firstImageItem?.kind === 'image' ? firstImageItem.src : undefined;
-  const ogImage = a.cover_sizes?.og ?? a.cover_url ?? firstImageUrl ?? undefined;
+  // When an article has videos, the still images alongside are usually the
+  // video poster duplicated in media_urls or unrelated thumbnails — both feel
+  // redundant when the video itself is the headline content. Hide them
+  // entirely (cover + gallery + inline) so the page reads as video-first.
+  const hasVideo = allMedia.some((m) => m.kind === 'video');
+  const ogImage = hasVideo ? undefined : (a.cover_sizes?.og ?? a.cover_url ?? firstImageUrl ?? undefined);
   // Gallery items minus the cover (so cover doesn't render twice). Match by
   // image src; videos always render in the video section regardless.
   const galleryItems = allMedia.filter((m) => m.kind === 'video' || m.src !== ogImage);
   const galleryVideos = galleryItems.filter((m): m is Extract<MediaItem, { kind: 'video' }> => m.kind === 'video');
-  const galleryImages = galleryItems.filter((m): m is Extract<MediaItem, { kind: 'image' }> => m.kind === 'image');
+  // Dedup gallery images. Two layers:
+  //   1) URL stem — same image with different size suffixes / query strings:
+  //      pbs.twimg.com/.../foo.jpg:large == foo.jpg?name=orig == foo.jpg
+  //   2) cover-as-MinIO vs cover-as-source — when the cover agent has run,
+  //      ogImage is the MinIO mirror (localhost:9000/...); the original CDN
+  //      URL still sits in media_urls[0]. They're visually the same photo
+  //      but their URL stems differ, so we explicitly add BOTH to the seen
+  //      set: the rendered cover and the source it was derived from.
+  const imageStem = (url: string): string =>
+    url
+      .split('?')[0]!
+      .replace(/:[a-z]+$/i, '')                 // X CDN: ...jpg:large → ...jpg
+      .replace(/_(?:small|medium|large|orig|\d{2,4}x\d{2,4})\.(?=jpg|jpeg|png|webp|gif)/i, '.') // foo_large.jpg → foo.jpg
+      .toLowerCase();
+  const seenStems = new Set<string>();
+  if (ogImage) seenStems.add(imageStem(ogImage));
+  if (firstImageUrl) seenStems.add(imageStem(firstImageUrl));
+  // Also mark every cover_sizes variant (og/card/thumb/full) as seen — those
+  // MinIO URLs share the same itemId path so this is mostly belt-and-braces
+  // for sources that store multiple cover variants in different formats.
+  if (a.cover_sizes) {
+    for (const v of Object.values(a.cover_sizes)) {
+      if (typeof v === 'string') seenStems.add(imageStem(v));
+    }
+  }
+  const galleryImages = hasVideo
+    ? []
+    : galleryItems
+        .filter((m): m is Extract<MediaItem, { kind: 'image' }> => m.kind === 'image')
+        .filter((m) => {
+          const stem = imageStem(m.src);
+          if (seenStems.has(stem)) return false;
+          seenStems.add(stem);
+          return true;
+        });
   const minutes = readMinutes((a.content ?? '').length);
 
   const wordCount = (a.content ?? '').length;
@@ -261,25 +317,11 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
         <JsonLd data={jsonLd} />
         <JsonLd data={breadcrumbJsonLd(crumbs)} />
 
-        <nav style={{ fontSize: 13, marginBottom: 20, color: '#64748b' }}>
-          <Link href="/" style={{ color: '#94a3b8', textDecoration: 'none' }}>首页</Link>
-          {a.category && (
-            <>
-              {' › '}
-              <Link href={`/category/${encodeURIComponent(a.category)}`} style={{ color: '#94a3b8', textDecoration: 'none' }}>
-                {a.category}
-              </Link>
-            </>
-          )}
-        </nav>
-
-        <h1 style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: '#e2e8f0' }}>{a.title}</h1>
+        <h1 style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: '#e2e8f0' }}>{stripUrls(a.title) || (a.category ? `${a.category} · 无标题内容` : '无标题内容')}</h1>
 
         <div style={{ fontSize: 13, color: '#64748b', marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {a.published_at && <span>{new Date(a.published_at).toLocaleDateString('zh-CN')}</span>}
           <span>· {minutes} 分钟阅读</span>
-          <span>· 来源:<span style={{ color: '#94a3b8' }}>{a.source}</span></span>
-          <a href={a.url} target="_blank" rel="nofollow noreferrer" style={{ color: '#93c5fd' }}>· 原文 ↗</a>
         </div>
 
         <div style={{ marginBottom: 20 }}>
@@ -288,41 +330,48 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
         {ogImage && (
           // eslint-disable-next-line @next/next/no-img-element
-          (<img src={proxiedImage(ogImage, a.source_id)} alt={a.title} style={{ width: '100%', aspectRatio: '1200 / 630', objectFit: 'cover', borderRadius: 8, marginBottom: 24, background: '#1e293b' }} />)
+          (<img src={proxiedImage(ogImage, a.source_id)} alt={a.title} className="lightbox-img" data-full={proxiedImage(a.cover_sizes?.full ?? a.cover_sizes?.og ?? ogImage, a.source_id)} style={{ width: '100%', maxWidth: 960, aspectRatio: '1200 / 630', objectFit: 'cover', borderRadius: 8, marginBottom: 24, background: '#1e293b', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />)
         )}
 
-        {a.summary && (
-          <p style={{
-            fontSize: 16,
-            color: '#cbd5e1',
-            background: '#1e293b',
-            borderLeft: '3px solid #6366f1',
-            padding: '12px 16px',
-            margin: '0 0 24px',
-            borderRadius: 4,
-            lineHeight: 1.7,
-          }}>
-            {a.summary}
-          </p>
-        )}
+        {/* Summary <p> intentionally hidden on the article page — it duplicates
+            the body and often quotes loaded content verbatim. The summary still
+            ships in the <meta description>, JSON-LD, and OG tags for SEO. */}
 
         {a.content_html ? (
           <article
             className="article-body"
             style={{ fontSize: 16 }}
-            dangerouslySetInnerHTML={{ __html: linkifyTags(a.content_html, a.tags) }}
+            dangerouslySetInnerHTML={{ __html: linkifyTags(
+              hasVideo
+                ? stripUrlsFromHtml(a.content_html)
+                    // <figure> wraps img + figcaption — drop the whole block
+                    .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, '')
+                    // <p> containing an <img> — caption text usually lives in
+                    // the same paragraph, so drop the entire paragraph
+                    .replace(/<p\b[^>]*>[\s\S]*?<img\b[\s\S]*?<\/p>/gi, '')
+                    // any standalone <img> not wrapped in <p>/<figure>
+                    .replace(/<img\b[^>]*>/gi, '')
+                : stripSpamParagraphs(
+                    stripCaptionParagraphs(
+                      stripUrlsFromHtml(a.content_html)
+                        // Drop formal captions wrapped in <figcaption>
+                        .replace(/<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/gi, ''),
+                    ),
+                  ),
+              a.tags,
+            ) }}
           />
         ) : (
           <article
             className="article-body"
             style={{ fontSize: 16, whiteSpace: 'pre-wrap' }}
-            dangerouslySetInnerHTML={{ __html: linkifyTags(a.content ?? '', a.tags) }}
+            dangerouslySetInnerHTML={{ __html: linkifyTags(stripSpamLines(stripUrlsFromText(a.content ?? '')), a.tags) }}
           />
         )}
 
         {galleryVideos.length > 0 && (
           <section style={{ marginTop: 32 }}>
-            <SectionLabel>视频 · {galleryVideos.length}</SectionLabel>
+            {galleryVideos.length > 1 && <SectionLabel>视频 · {galleryVideos.length}</SectionLabel>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {galleryVideos.map((v, i) => (
                 <video
@@ -332,7 +381,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
                   preload="metadata"
                   playsInline
                   poster={proxiedImage(v.poster, a.source_id)}
-                  style={{ width: '100%', height: 'auto', maxHeight: 540, borderRadius: 6, background: '#0f172a' }}
+                  style={{ width: '100%', maxWidth: 960, height: 'auto', maxHeight: 720, borderRadius: 6, background: '#0f172a', display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
                 />
               ))}
             </div>
@@ -341,12 +390,12 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
         {galleryImages.length > 0 && (
           <section style={{ marginTop: 32 }}>
-            <SectionLabel>图片 · {galleryImages.length}</SectionLabel>
+            {galleryImages.length > 1 && <SectionLabel>图片 · {galleryImages.length}</SectionLabel>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {galleryImages.map((m, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                (<img key={i} src={proxiedImage(m.src, a.source_id)} alt={`${a.title} - 图片 ${i + 1}`} loading="lazy"
-                  style={{ width: '100%', height: 'auto', borderRadius: 6, background: '#1e293b' }} />)
+                (<img key={i} src={proxiedImage(m.src, a.source_id)} alt={`${a.title} - 图片 ${i + 1}`} loading="lazy" className="lightbox-img"
+                  style={{ width: '100%', maxWidth: 960, height: 'auto', borderRadius: 6, background: '#1e293b', display: 'block', marginLeft: 'auto', marginRight: 'auto', cursor: 'zoom-in' }} />)
               ))}
             </div>
           </section>
@@ -391,6 +440,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
           <AdSlot name="footer" />
         </div>
       </main>
+      <ImageLightbox />
       <SiteFooter />
     </div>
   );

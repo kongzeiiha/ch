@@ -124,43 +124,79 @@ export default function WorkbenchPage() {
   const autoRefresh = useRef(true);
 
   // ── Data loading ──
+  // Split into "always" (header counters + sources for stage chips + auth
+  // banner) and "pipeline-only" (the 7 endpoints that drive only the Pipeline
+  // tab's queues / live-jobs / blocked / passed / published lists). Cuts the
+  // per-tick request count from 12 → 5 whenever the user is on Sources / Crawl
+  // / Credentials / Queues / OpLogs tabs.
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+
   const load = useCallback(async () => {
+    const onPipeline = tabRef.current === 'pipeline';
     try {
-      const [s, rv, pv, dv, ar, qv, sv, lv, asv, bv, psv, pubv] = await Promise.allSettled([
+      // Always-needed fetches.
+      const alwaysJobs = [
         fetch(`${API}/admin/pipeline/state`, { cache: 'no-store' }).then(r => r.json()),
-        fetch(`${API}/admin/pipeline/review-queue`, { cache: 'no-store' }).then(r => r.json()),
-        fetch(`${API}/admin/pipeline/publish-queue`, { cache: 'no-store' }).then(r => r.json()),
-        fetch(`${API}/admin/pipeline/distribution-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/ops/agent-runs`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/ops/queues`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/sources`, { cache: 'no-store' }).then(r => r.json()),
-        fetch(`${API}/admin/pipeline/live-jobs`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/sources/auth-status`, { cache: 'no-store' }).then(r => r.json()),
+      ];
+      // Pipeline-tab-only fetches (7 of them).
+      const pipelineJobs = onPipeline ? [
+        fetch(`${API}/admin/pipeline/review-queue`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/pipeline/publish-queue`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/pipeline/distribution-queue`, { cache: 'no-store' }).then(r => r.json()),
+        fetch(`${API}/admin/pipeline/live-jobs`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/blocked-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/passed-queue`, { cache: 'no-store' }).then(r => r.json()),
         fetch(`${API}/admin/pipeline/published-queue`, { cache: 'no-store' }).then(r => r.json()),
-      ]);
+      ] : [];
+
+      const all = await Promise.allSettled([...alwaysJobs, ...pipelineJobs]);
+      const [s, ar, qv, sv, asv, rv, pv, dv, lv, bv, psv, pubv] = all;
+
       if (s.status === 'fulfilled') setState(s.value);
-      if (rv.status === 'fulfilled') setReviewItems(rv.value.items ?? []);
-      if (pv.status === 'fulfilled') setPublishItems(pv.value.items ?? []);
-      if (dv.status === 'fulfilled') setDistTasks(dv.value.tasks ?? []);
       if (ar.status === 'fulfilled') setAgentSummary(ar.value.summary ?? []);
       if (qv.status === 'fulfilled') setQueues(qv.value.stats ?? []);
       if (sv.status === 'fulfilled') setSources(sv.value.sources ?? []);
-      if (lv.status === 'fulfilled') setLiveJobs({ active: lv.value.active ?? {}, recent: lv.value.recent ?? {} });
       if (asv.status === 'fulfilled') setAuthSuspect(asv.value.suspect ?? []);
-      if (bv.status === 'fulfilled') setBlockedItems(bv.value.items ?? []);
-      if (psv.status === 'fulfilled') setPassedItems(psv.value.items ?? []);
-      if (pubv.status === 'fulfilled') setPublishedItems(pubv.value.items ?? []);
+
+      if (onPipeline) {
+        if (rv?.status === 'fulfilled') setReviewItems(rv.value.items ?? []);
+        if (pv?.status === 'fulfilled') setPublishItems(pv.value.items ?? []);
+        if (dv?.status === 'fulfilled') setDistTasks(dv.value.tasks ?? []);
+        if (lv?.status === 'fulfilled') setLiveJobs({ active: lv.value.active ?? {}, recent: lv.value.recent ?? {} });
+        if (bv?.status === 'fulfilled') setBlockedItems(bv.value.items ?? []);
+        if (psv?.status === 'fulfilled') setPassedItems(psv.value.items ?? []);
+        if (pubv?.status === 'fulfilled') setPublishedItems(pubv.value.items ?? []);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, tab]);
   useEffect(() => {
-    timer.current = setInterval(() => { if (autoRefresh.current) load(); }, POLL);
-    return () => { if (timer.current) clearInterval(timer.current); };
+    // Pause polling when the browser tab is hidden — saves ~10 RPS for users
+    // who left workbench open in a background tab. Catches up with one
+    // immediate fetch on visibility-restore so the UI is never stale on
+    // refocus.
+    const tick = () => {
+      if (autoRefresh.current && document.visibilityState === 'visible') {
+        load();
+      }
+    };
+    timer.current = setInterval(tick, POLL);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [load]);
 
   // ── Crawl preview loader ──
@@ -401,6 +437,36 @@ export default function WorkbenchPage() {
       }
       await load();
     } catch (e) { flash(`删除失败: ${e}`, false); }
+  };
+
+  // Bulk delete: one confirm covers the whole batch and forces cascade so we
+  // don't ping-pong through the per-source 409 dialog N times. Sequential
+  // (not Promise.all) — DELETE cascades touch MinIO and we don't want to slam
+  // the bucket with parallel deletes that may share keys.
+  const bulkDeleteSources = async (srcs: Source[]) => {
+    if (srcs.length === 0) return;
+    const ok = await confirmAsync({
+      title: `批量删除 ${srcs.length} 个采集源`,
+      body: `所选 ${srcs.length} 个采集源及其所有关联文章、封面、媒体文件都会被永久删除。此操作不可撤销。\n\n${srcs.slice(0, 8).map((s) => `· ${s.name} (${s.platform})`).join('\n')}${srcs.length > 8 ? `\n…还有 ${srcs.length - 8} 个` : ''}`,
+      danger: true,
+      confirmLabel: `删除 ${srcs.length} 个源（含关联文章）`,
+    });
+    if (!ok) return;
+    let deleted = 0;
+    let failed = 0;
+    for (const src of srcs) {
+      try {
+        const r = await fetch(`${API}/admin/sources/${src.id}?cascade=1`, { method: 'DELETE' });
+        if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+        deleted++;
+      } catch (e) {
+        failed++;
+        console.warn(`bulk delete failed for ${src.name}:`, e);
+      }
+    }
+    if (failed === 0) flash(`已删除 ${deleted} 个采集源`);
+    else flash(`删除 ${deleted} 成功 / ${failed} 失败`, false);
+    await load();
   };
 
   const toggleSourceStatus = async (src: Source) => {
@@ -701,7 +767,15 @@ export default function WorkbenchPage() {
         })}
       </div>
 
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 20px 60px' }}>
+      <div style={{
+        // Pipeline + queues tabs are dense (8 stage cards / queue grid) — they
+        // need the full 1280. The list/form-heavy tabs (sources / crawl /
+        // credentials / oplogs) look airier at a narrower width.
+        maxWidth: ['sources', 'crawl', 'credentials', 'oplogs'].includes(tab) ? 1180 : 1280,
+        margin: '0 auto',
+        padding: '20px 20px 60px',
+        transition: 'max-width 200ms ease',
+      }}>
 
         {loading && !state && (
           <div style={{ textAlign: 'center', padding: 60, color: '#475569' }}>连接中…</div>
@@ -754,6 +828,7 @@ export default function WorkbenchPage() {
             setShowAddSource={setShowAddSource}
             onSave={saveSource}
             onDelete={deleteSource}
+            onBulkDelete={bulkDeleteSources}
             onToggleStatus={toggleSourceStatus}
             onIngest={ingestOne}
             onAfterBatch={load}

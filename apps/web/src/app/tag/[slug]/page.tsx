@@ -6,7 +6,6 @@ import { breadcrumbJsonLd, collectionPageJsonLd, ogImages, ROBOTS_INDEXABLE } fr
 import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
 import { ArticleCard } from '../../_components/ArticleCard';
-import { Breadcrumbs } from '../../_components/Breadcrumbs';
 import { FilterBar } from '../../_components/FilterBar';
 import { Pagination } from '../../_components/Pagination';
 import { SiteFooter } from '../../_components/SiteFooter';
@@ -76,12 +75,6 @@ export default async function TagPage(
       })} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        <Breadcrumbs items={[
-          { name: '首页', href: '/' },
-          { name: '标签导航', href: '/tag' },
-          { name: `#${tag}` },
-        ]} />
-
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>标签</div>
           <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>#{tag}</h1>

@@ -7,8 +7,10 @@
     "node": ">=20.10"
   },
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,green \"pnpm --filter @ch/api dev\" \"pnpm --filter @ch/web dev\"",
+    "dev": "concurrently -n db,agents,api,web -c gray,gray,blue,green \"pnpm --filter @ch/db build:watch\" \"pnpm --filter @ch/agents build:watch\" \"pnpm --filter @ch/api dev\" \"pnpm --filter @ch/web dev\"",
+    "dev:no-watch": "concurrently -n api,web -c blue,green \"pnpm --filter @ch/api dev\" \"pnpm --filter @ch/web dev\"",
     "build": "pnpm -r build",
+    "build:packages": "pnpm --filter @ch/db build && pnpm --filter @ch/agents build",
     "migrate": "pnpm --filter @ch/db migrate",
     "seed": "pnpm --filter @ch/api seed",
     "test": "vitest run",

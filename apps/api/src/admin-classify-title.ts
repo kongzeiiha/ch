@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { query, ITEM_STATUS as IS } from '@ch/db';
+import { query, execute, ITEM_STATUS as IS } from '@ch/db';
 import { getQueue, QUEUE_NAMES } from '@ch/agents';
 import { revalidatePaths } from './workers/publishing/revalidate.js';
+import { logOperation } from './op-log.js';
 
 export async function registerClassifyTitle(app: FastifyInstance): Promise<void> {
   // Count items in each pipeline stage. When `category` is passed,
@@ -175,6 +176,96 @@ export async function registerClassifyTitle(app: FastifyInstance): Promise<void>
         { jobId: `classify-title__${req.params.id}__${Date.now()}` },
       );
       return { ok: true, statusBefore: before.status, statusAfter: IS.INGESTED };
+    },
+  );
+
+  // Manual title (and optional summary) edit. Unlike retitle/reclassify this
+  // does NOT clear downstream state — operator owns the new title, the
+  // generated cover_copy / compliance scores etc stay valid. Use cases:
+  //   - LLM produced a clickbaity / inaccurate title; operator wants to fix.
+  //   - A typo or formatting glitch in the auto title needs a quick edit.
+  //
+  // Slug is deliberately NOT regenerated for items past CLASSIFIED — once a
+  // slug is live (even pre-publish) it may already be referenced by external
+  // shares / sitemap, and rotating it on every title tweak would break those
+  // links. The classify-title worker is the only place slugs are minted.
+  //
+  // If the item is already PUBLISHED, we revalidate the article/home/category
+  // ISR paths so the live site shows the new title immediately.
+  app.patch<{ Params: { id: string }; Body: { title?: string; summary?: string | null } }>(
+    '/admin/classify-title/edit-title/:id',
+    async (req, reply) => {
+      const { title, summary } = req.body ?? {};
+      const trimmedTitle = typeof title === 'string' ? title.trim() : undefined;
+      if (trimmedTitle !== undefined && trimmedTitle.length === 0) {
+        return reply.code(400).send({ error: 'title cannot be empty (omit the field to keep current)' });
+      }
+      if (trimmedTitle !== undefined && trimmedTitle.length > 500) {
+        return reply.code(400).send({ error: 'title too long (max 500 chars)' });
+      }
+      if (trimmedTitle === undefined && summary === undefined) {
+        return reply.code(400).send({ error: 'pass title and/or summary' });
+      }
+
+      const rows = await query<{ id: string; status: string; slug: string | null; category: string | null; title: string | null; summary: string | null }>(
+        `SELECT id, status, slug, category, title, summary FROM items WHERE id = $1`,
+        [req.params.id],
+      );
+      const before = rows[0];
+      if (!before) return reply.code(404).send({ error: 'item not found' });
+
+      // If the item hasn't been classified yet, manually titling makes the
+      // automated retitle pass redundant — bump it to TITLED so the cover
+      // worker picks it up next. Otherwise preserve the current status: a
+      // PUBLISHED article stays PUBLISHED.
+      const nextStatus = before.status === IS.INGESTED || before.status === IS.CLASSIFIED
+        ? IS.TITLED
+        : before.status;
+
+      // COALESCE only when caller actually passed the field; using $param IS
+      // NULL would let an explicit `summary: null` (clear) work too.
+      await execute(
+        `UPDATE items
+           SET title   = COALESCE($2, title),
+               summary = CASE WHEN $4 = 1 THEN $3 ELSE summary END,
+               status  = $5
+         WHERE id = $1`,
+        [
+          req.params.id,
+          trimmedTitle ?? null,
+          summary ?? null,
+          summary === undefined ? 0 : 1,
+          nextStatus,
+        ],
+      );
+
+      // Drop ISR cache for PUBLISHED articles so the live page reflects the
+      // new title without waiting for the next ISR window.
+      if (before.status === IS.PUBLISHED && before.slug) {
+        const paths = ['/', `/a/${before.slug}`, '/sitemap.xml'];
+        if (before.category) paths.push(`/category/${encodeURIComponent(before.category)}`);
+        // Best-effort — don't block the response on revalidate.
+        revalidatePaths(paths).catch(() => {});
+      }
+
+      await logOperation(req, {
+        operation: 'item.edit-title',
+        targetType: 'item',
+        targetId: req.params.id,
+        payload: {
+          before: { title: before.title, summary: before.summary, status: before.status },
+          after:  { title: trimmedTitle ?? before.title, summary: summary === undefined ? before.summary : summary, status: nextStatus },
+        },
+      });
+
+      return {
+        ok: true,
+        id: req.params.id,
+        title: trimmedTitle ?? before.title,
+        summary: summary === undefined ? before.summary : summary,
+        status: nextStatus,
+        statusChanged: nextStatus !== before.status,
+      };
     },
   );
 

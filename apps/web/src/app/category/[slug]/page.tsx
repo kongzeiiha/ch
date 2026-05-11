@@ -4,7 +4,6 @@ import { getFiltered, getTopKeywordsInCategory, type LengthBucket, type DateBuck
 import { breadcrumbJsonLd, collectionPageJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
 import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
-import { Breadcrumbs } from '../../_components/Breadcrumbs';
 import { CategoryNav } from '../../_components/CategoryNav';
 import { FilterBar } from '../../_components/FilterBar';
 import { ArticleCard } from '../../_components/ArticleCard';
@@ -94,12 +93,6 @@ export default async function CategoryPage(
       })} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        <Breadcrumbs items={[
-          { name: '首页', href: '/' },
-          { name: '分类', href: '/' },
-          { name: category },
-        ]} />
-
         <CategoryNav active={category} />
 
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 14, color: '#e2e8f0' }}>{category}</h1>

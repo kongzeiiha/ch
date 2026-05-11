@@ -13,7 +13,8 @@
   },
   "scripts": {
     "migrate": "tsx src/migrate.ts",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -w -p tsconfig.json --preserveWatchOutput"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

@@ -5,10 +5,83 @@ import type { Source, CredentialRow } from './types';
 import { API } from './constants';
 import { buildStealthOpts, parseKsgLine } from './utils';
 
+// Custom checkbox tuned for the slate palette. Native <input type="checkbox">
+// renders with the OS theme on macOS/Windows and clashes with the dark
+// surface; this version is fully styled and supports an indeterminate state
+// for the "all-selected" header toggle.
+function Checkbox({
+  checked, indeterminate, onClick, ariaLabel,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onClick?: (e: React.MouseEvent) => void;
+  ariaLabel?: string;
+}) {
+  const active = checked || indeterminate;
+  return (
+    <span
+      role="checkbox"
+      aria-checked={indeterminate ? 'mixed' : checked}
+      aria-label={ariaLabel}
+      tabIndex={0}
+      onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
+      onKeyDown={(e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          onClick?.(e as unknown as React.MouseEvent);
+        }
+      }}
+      style={{
+        width: 14, height: 14,
+        border: `1.5px solid ${active ? '#6366f1' : '#475569'}`,
+        borderRadius: 3,
+        background: active ? '#6366f1' : '#0f172a',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+        cursor: 'pointer',
+        transition: 'all 0.12s',
+      }}>
+      {checked && (
+        <svg viewBox="0 0 14 14" width={10} height={10} aria-hidden>
+          <path d="M2 7 L6 11 L12 3" stroke="#fff" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+      {indeterminate && !checked && (
+        <span style={{ width: 6, height: 2, background: '#fff', borderRadius: 1, display: 'block' }} />
+      )}
+    </span>
+  );
+}
+
+// Heroicons-style trash glyph. Uses currentColor so it inherits whatever
+// `color` the parent button sets — that's how we get the red icon to track
+// the red button without hard-coding the hex twice.
+function TrashIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
 export function SourcesPanel({
   sources, editingSource, showAddSource,
   setEditingSource, setShowAddSource,
-  onSave, onDelete, onToggleStatus, onIngest,
+  onSave, onDelete, onBulkDelete, onToggleStatus, onIngest,
   onAfterBatch, flash,
   credentials, refreshingCredId, reloadCredentials, refreshCredential,
 }: {
@@ -19,6 +92,7 @@ export function SourcesPanel({
   setShowAddSource: (v: boolean) => void;
   onSave: (data: any) => void;
   onDelete: (s: Source) => void;
+  onBulkDelete: (srcs: Source[]) => void;
   onToggleStatus: (s: Source) => void;
   onIngest: (s: Source) => void;
   onAfterBatch: () => void;
@@ -28,6 +102,31 @@ export function SourcesPanel({
   reloadCredentials: () => Promise<void>;
   refreshCredential: (id: string) => Promise<void>;
 }) {
+  // Multi-select state. Drop ids that disappear from `sources` (e.g. after a
+  // bulk delete) so the toolbar doesn't keep ghost selections around.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setSelected((prev) => {
+      const live = new Set(sources.map((s) => s.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (live.has(id)) next.add(id); else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [sources]);
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const allSelected = sources.length > 0 && selected.size === sources.length;
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(sources.map((s) => s.id)));
+  };
   // Batch-import modal state. Lives inside SourcesPanel because it's coupled
   // to this surface; surfacing it through the global state machine isn't worth
   // the indirection.
@@ -61,6 +160,106 @@ export function SourcesPanel({
     updated: { handle: string; sourceId: string }[];
     failed: { handle: string; reason: string }[];
   }>(null);
+
+  // ── Keyword discovery (search X People timeline) ────────────────────────
+  interface DiscoveredUser {
+    screen_name: string;
+    name: string;
+    description: string;
+    followers_count: number;
+    profile_image_url: string;
+    verified: boolean;
+    alreadyImported: boolean;
+  }
+  const [showDiscover, setShowDiscover] = useState(false);
+  const [discoverQuery, setDiscoverQuery] = useState('');
+  const [discoverCredentialId, setDiscoverCredentialId] = useState<string>('');
+  const [discoverLimit, setDiscoverLimit] = useState(30);
+  const [discoverBusy, setDiscoverBusy] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [discoverResults, setDiscoverResults] = useState<DiscoveredUser[]>([]);
+  const [discoverSelected, setDiscoverSelected] = useState<Set<string>>(new Set());
+  const [discoverImportBusy, setDiscoverImportBusy] = useState(false);
+
+  const openDiscoverModal = () => {
+    // Pre-select the first active X credential, same default as batch-import.
+    const firstX = credentials.find((c) => c.platform === 'x' && c.status === 'active');
+    setDiscoverCredentialId(firstX?.id ?? '');
+    setDiscoverQuery('');
+    setDiscoverResults([]);
+    setDiscoverSelected(new Set());
+    setDiscoverError(null);
+    setShowDiscover(true);
+  };
+
+  const runDiscover = async () => {
+    if (!discoverQuery.trim()) { setDiscoverError('请输入关键词'); return; }
+    if (!discoverCredentialId)  { setDiscoverError('请选择一个 X 凭证'); return; }
+    setDiscoverBusy(true);
+    setDiscoverError(null);
+    try {
+      const r = await fetch(`${API}/admin/sources/discover-users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: 'x',
+          query: discoverQuery.trim(),
+          credentialId: discoverCredentialId,
+          limit: discoverLimit,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setDiscoverError(j.error ?? `HTTP ${r.status}`);
+        setDiscoverResults([]);
+      } else {
+        setDiscoverResults(j.users ?? []);
+        setDiscoverSelected(new Set());
+      }
+    } catch (e: any) {
+      setDiscoverError(e?.message ?? String(e));
+    } finally {
+      setDiscoverBusy(false);
+    }
+  };
+
+  const importDiscovered = async () => {
+    if (discoverSelected.size === 0) return;
+    setDiscoverImportBusy(true);
+    try {
+      const handles = [...discoverSelected];
+      const r = await fetch(`${API}/admin/sources/batch-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: 'x',
+          handles,
+          credentialId: discoverCredentialId,
+          triggerFetch: true,
+          sharedConfig: { limit: 20, skipRetweets: true },
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setDiscoverError(j.error ?? `HTTP ${r.status}`);
+      } else {
+        // Mark imported screen_names in the result list so user sees progress
+        // without closing the modal.
+        setDiscoverResults((prev) => prev.map((u) =>
+          discoverSelected.has(u.screen_name) ? { ...u, alreadyImported: true } : u
+        ));
+        const total = (j.created?.length ?? 0) + (j.updated?.length ?? 0);
+        flash(`✓ 已导入 ${total} 个 X 信源,采集已入队`, true);
+        setDiscoverSelected(new Set());
+        // Refresh outer source list so the new rows appear under the modal.
+        onAfterBatch();
+      }
+    } catch (e: any) {
+      setDiscoverError(e?.message ?? String(e));
+    } finally {
+      setDiscoverImportBusy(false);
+    }
+  };
 
   // Default-fill cookie+UA from the most recent X source so the user doesn't
   // re-paste a 4KB cookie for every batch.
@@ -264,7 +463,37 @@ export function SourcesPanel({
           <span style={{ color: '#22c55e' }}>活跃 {sources.filter(s => s.status === 'active').length}</span>
           &nbsp;/ <span style={{ color: '#475569' }}>停用 {sources.filter(s => s.status !== 'active').length}</span>
         </span>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Batch-delete button — mirrors the 批量导入博主 button (transparent
+              bg + colored 1px border + matching text), swapped to red so the
+              destructive action reads at-a-glance. Two states share the same
+              shell: no-selection seeds the multi-select via toggleAll, then
+              with selection the same slot becomes the actual delete trigger.
+              The trash glyph is an inline SVG (not the 🗑 emoji) so it picks
+              up the button's red `color` via stroke="currentColor" — emoji
+              ignores CSS color and would render as a gray waste basket. */}
+          {sources.length > 0 && selected.size === 0 && (
+            <button
+              onClick={toggleAll}
+              title="全选当前列表，便于批量删除"
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#fca5a5', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <TrashIcon /> 批量删除信源
+            </button>
+          )}
+          {selected.size > 0 && (
+            <button
+              onClick={() => onBulkDelete(sources.filter((s) => selected.has(s.id)))}
+              title={`批量删除选中的 ${selected.size} 个采集源`}
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#fca5a5', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <TrashIcon /> 批量删除 ({selected.size})
+            </button>
+          )}
+          <button
+            onClick={openDiscoverModal}
+            title="按关键词在 X 上搜账号(走 SearchTimeline·People),勾选后一键批量导入"
+            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #14532d', background: 'transparent', color: '#86efac', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            🔍 关键词找博主
+          </button>
           <button
             onClick={openBatchModal}
             title="批量粘贴博主 handle（X / Bluesky），系统自动建源 + 抓取 + 分类"
@@ -278,6 +507,165 @@ export function SourcesPanel({
           </button>
         </div>
       </div>
+
+      {/* Keyword-discover modal — search X for accounts by keyword */}
+      {showDiscover && (
+        <div
+          onClick={() => !discoverBusy && !discoverImportBusy && setShowDiscover(false)}
+          style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#1e293b', border: '1px solid #14532d', borderRadius: 12, padding: 22, maxWidth: 760, width: '100%', maxHeight: '88vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#86efac' }}>🔍 关键词找博主</div>
+              <button onClick={() => !discoverBusy && !discoverImportBusy && setShowDiscover(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+
+            <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 14, lineHeight: 1.7 }}>
+              用 X 的 SearchTimeline · People 接口按关键词搜账号，按粉丝数倒序。勾选后走和「批量导入博主」相同的链路建源 + 触发抓取。
+            </div>
+
+            {/* Query + credential + limit */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <input
+                value={discoverQuery}
+                onChange={(e) => setDiscoverQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && runDiscover()}
+                placeholder="关键词,如:美食 / AI / 摄影"
+                disabled={discoverBusy}
+                style={{ flex: 1, minWidth: 200, padding: '7px 12px', background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0', borderRadius: 6, fontSize: 13 }}
+              />
+              <select
+                value={discoverCredentialId}
+                onChange={(e) => setDiscoverCredentialId(e.target.value)}
+                disabled={discoverBusy}
+                style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0', borderRadius: 6, fontSize: 12, minWidth: 160 }}>
+                <option value="">选择 X 凭证</option>
+                {credentials.filter((c) => c.platform === 'x' && c.status === 'active').map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={discoverLimit}
+                onChange={(e) => setDiscoverLimit(Math.min(50, Math.max(1, Number(e.target.value) || 30)))}
+                disabled={discoverBusy}
+                title="返回条数 1-50"
+                style={{ width: 64, padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0', borderRadius: 6, fontSize: 13 }}
+              />
+              <button
+                onClick={runDiscover}
+                disabled={discoverBusy || !discoverQuery.trim() || !discoverCredentialId}
+                style={{ padding: '7px 18px', background: discoverBusy ? '#334155' : '#14532d', color: '#86efac', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: discoverBusy ? 'wait' : 'pointer' }}>
+                {discoverBusy ? '搜索中…' : '搜索'}
+              </button>
+            </div>
+
+            {discoverError && (
+              <div style={{ marginBottom: 10, padding: '8px 12px', background: '#450a0a', border: '1px solid #7f1d1d', color: '#fca5a5', borderRadius: 6, fontSize: 12 }}>
+                {discoverError}
+              </div>
+            )}
+
+            {/* Results list */}
+            {discoverResults.length > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '12px 0 8px' }}>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                    找到 <strong style={{ color: '#86efac' }}>{discoverResults.length}</strong> 个账号 · 已选 <strong style={{ color: '#a5b4fc' }}>{discoverSelected.size}</strong>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => setDiscoverSelected(new Set(discoverResults.filter((u) => !u.alreadyImported).map((u) => u.screen_name)))}
+                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                      全选可导入
+                    </button>
+                    <button
+                      onClick={() => setDiscoverSelected(new Set())}
+                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                      清除
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 380, overflowY: 'auto', marginBottom: 12 }}>
+                  {discoverResults.map((u) => {
+                    const checked = discoverSelected.has(u.screen_name);
+                    const disabled = u.alreadyImported;
+                    return (
+                      <div
+                        key={u.screen_name}
+                        onClick={() => {
+                          if (disabled) return;
+                          setDiscoverSelected((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(u.screen_name)) next.delete(u.screen_name);
+                            else next.add(u.screen_name);
+                            return next;
+                          });
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '8px 12px',
+                          background: checked ? '#1e2a4d' : '#0f172a',
+                          border: `1px solid ${checked ? '#6366f1' : '#1e293b'}`,
+                          borderRadius: 8,
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          opacity: disabled ? 0.5 : 1,
+                        }}>
+                        <input
+                          type="checkbox"
+                          readOnly
+                          checked={checked}
+                          disabled={disabled}
+                          style={{ marginTop: 4, accentColor: '#6366f1', cursor: disabled ? 'not-allowed' : 'pointer' }}
+                        />
+                        {u.profile_image_url && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={u.profile_image_url} alt="" loading="lazy"
+                            style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: '#1e293b' }} />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{u.name || u.screen_name}</span>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>@{u.screen_name}</span>
+                            {u.verified && <span style={{ fontSize: 10, padding: '0 6px', borderRadius: 8, background: '#1e3a8a', color: '#93c5fd' }}>verified</span>}
+                            {disabled && <span style={{ fontSize: 10, padding: '0 6px', borderRadius: 8, background: '#1e293b', color: '#64748b' }}>已导入</span>}
+                          </div>
+                          {u.description && (
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {u.description}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 3 }}>
+                            {u.followers_count.toLocaleString()} followers
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', borderTop: '1px solid #334155', paddingTop: 12 }}>
+                  <button
+                    onClick={() => !discoverImportBusy && setShowDiscover(false)}
+                    style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>
+                    关闭
+                  </button>
+                  <button
+                    onClick={importDiscovered}
+                    disabled={discoverImportBusy || discoverSelected.size === 0}
+                    style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: discoverSelected.size === 0 ? '#334155' : '#14532d', color: '#86efac', fontSize: 13, fontWeight: 700, cursor: discoverImportBusy ? 'wait' : discoverSelected.size === 0 ? 'not-allowed' : 'pointer' }}>
+                    {discoverImportBusy ? '导入中…' : `导入选中 ${discoverSelected.size} 个`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Batch-import modal */}
       {showBatch && (
@@ -1409,14 +1797,18 @@ export function SourcesPanel({
       )}
 
       {/* Sources list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {sources.map(src => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {sources.map(src => {
+          const isSelected = selected.has(src.id);
+          return (
           <div key={src.id} style={{
-            background: '#1e293b',
-            border: `1px solid ${src.status === 'active' ? '#334155' : '#1e293b'}`,
+            background: isSelected ? '#1e2a4d' : '#1e293b',
+            border: `1px solid ${isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b'}`,
             borderLeft: `3px solid ${src.status === 'active' ? '#22c55e' : '#374151'}`,
-            borderRadius: 8, padding: '12px 16px',
+            borderRadius: 8, padding: '16px 18px',
             opacity: src.status === 'active' ? 1 : 0.55,
+            boxShadow: isSelected ? '0 0 0 1px rgba(99,102,241,0.25)' : 'none',
+            transition: 'background 0.12s, border-color 0.12s, box-shadow 0.12s',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
@@ -1485,10 +1877,16 @@ export function SourcesPanel({
                 </button>
                 <button onClick={() => startEdit(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>编辑</button>
                 <button onClick={() => onDelete(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>删除</button>
+                {selected.size > 0 && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', paddingLeft: 4, marginLeft: 2, borderLeft: '1px solid #334155' }}>
+                    <Checkbox checked={isSelected} onClick={() => toggleOne(src.id)} ariaLabel={`选中 ${src.name}`} />
+                  </span>
+                )}
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
         {sources.length === 0 && (
           <div style={{ textAlign: 'center', padding: 40, color: '#334155' }}>暂无采集源，点击「+ 添加来源」</div>
         )}

@@ -3,7 +3,6 @@ import { search, getTopTags, getTrendingKeywords, getLatest, type LengthBucket, 
 import { SITE_NAME, SITE_URL } from '../../lib/db';
 import { SiteHeader } from '../_components/SiteHeader';
 import { ArticleCard } from '../_components/ArticleCard';
-import { Breadcrumbs } from '../_components/Breadcrumbs';
 import { FilterBar } from '../_components/FilterBar';
 import { Pagination } from '../_components/Pagination';
 import { SiteFooter } from '../_components/SiteFooter';
@@ -77,11 +76,6 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
       <SiteHeader crumb="搜索" activeTab="search" />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        <Breadcrumbs items={[
-          { name: '首页', href: '/' },
-          { name: q ? `搜索: ${q}` : '站内搜索' },
-        ]} />
-
         <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 14, color: '#e2e8f0' }}>站内搜索</h1>
 
         <form action="/search" method="get" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>

@@ -79,6 +79,11 @@ export default function Day3Page() {
   const [err, setErr] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [loadingItems, setLoadingItems] = useState(false);
+  // Inline-edit state: which item is being edited, and the draft buffer.
+  // Background polls (4s) overwrite `items` — we keep the draft in a separate
+  // map so a typing user doesn't lose their work mid-edit.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ title: string; summary: string }>({ title: '', summary: '' });
   // Items the user just kicked back via reclassify/retitle. We keep them
   // hidden from the list until the filter changes — otherwise the 4s
   // background poll would re-pull the row (its new status may still match
@@ -134,6 +139,60 @@ export default function Day3Page() {
       setErr(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  function startEdit(it: Item) {
+    setEditingId(it.id);
+    setEditDraft({ title: it.title ?? '', summary: it.summary ?? '' });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft({ title: '', summary: '' });
+  }
+
+  async function saveEdit(it: Item) {
+    const title = editDraft.title.trim();
+    if (!title) {
+      setErr('标题不能为空');
+      setTimeout(() => setErr(null), 2500);
+      return;
+    }
+    // Send summary only if it actually changed — keeps the payload clean and
+    // avoids stomping a NULL summary when the user didn't touch it.
+    const body: { title: string; summary?: string | null } = { title };
+    const draftSummary = editDraft.summary.trim();
+    const currentSummary = it.summary ?? '';
+    if (draftSummary !== currentSummary) {
+      body.summary = draftSummary === '' ? null : draftSummary;
+    }
+
+    setBusyId((b) => ({ ...b, [it.id]: true }));
+    try {
+      const r = await fetch(`/api/admin/classify-title/edit-title/${it.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error ?? `${r.status} ${r.statusText}`);
+      // Optimistic local update — replace the row in-place so the user sees
+      // the new title without waiting for the 4s background poll.
+      setItems((prev) => prev.map((x) =>
+        x.id === it.id
+          ? { ...x, title: data.title ?? title, summary: body.summary !== undefined ? (body.summary ?? null) : x.summary, status: data.status ?? x.status }
+          : x,
+      ));
+      cancelEdit();
+      setToast(data.statusChanged ? '已保存（状态升级到 TITLED）' : '已保存');
+      setTimeout(() => setToast(null), 2500);
+      refresh(true);
+    } catch (e: any) {
+      setErr(e.message);
+      setTimeout(() => setErr(null), 4000);
+    } finally {
+      setBusyId((b) => ({ ...b, [it.id]: false }));
     }
   }
 
@@ -299,18 +358,80 @@ export default function Day3Page() {
               </tr>
             </thead>
             <tbody>
-              {visibleItems.map((it) => (
+              {visibleItems.map((it) => {
+                const isEditing = editingId === it.id;
+                return (
                 <tr key={it.id}>
                   <td style={{ ...td, maxWidth: 380 }}>
-                    <div style={{ fontWeight: 500, marginBottom: 2 }}>
-                      {it.title ? (
-                        <a href={it.url} target="_blank" rel="noreferrer" style={{ color: '#e2e8f0', textDecoration: 'none' }}>{it.title}</a>
-                      ) : (
-                        <span style={{ color: '#64748b' }}>(无标题)</span>
-                      )}
-                    </div>
-                    {it.summary && <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>{it.summary}</div>}
-                    <div style={{ color: '#475569', fontSize: 11, marginTop: 4 }}>{it.source} · {it.slug ?? '—'}</div>
+                    {isEditing ? (
+                      // Edit mode: title + summary textareas. Cmd/Ctrl+Enter saves,
+                      // Esc cancels — keep operators on the keyboard.
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <textarea
+                          value={editDraft.title}
+                          autoFocus
+                          rows={2}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, title: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                            else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEdit(it); }
+                          }}
+                          placeholder="标题"
+                          style={{
+                            background: '#0f172a', border: '1px solid #6366f1', borderRadius: 6,
+                            padding: '6px 10px', color: '#e2e8f0', fontSize: 13, lineHeight: 1.5,
+                            outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+                          }}
+                        />
+                        <textarea
+                          value={editDraft.summary}
+                          rows={3}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, summary: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                            else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEdit(it); }
+                          }}
+                          placeholder="摘要（可选）"
+                          style={{
+                            background: '#0f172a', border: '1px solid #334155', borderRadius: 6,
+                            padding: '6px 10px', color: '#cbd5e1', fontSize: 12, lineHeight: 1.5,
+                            outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: '#64748b' }}>
+                          <button style={btnPrimary} disabled={!!busyId[it.id]} onClick={() => saveEdit(it)}>
+                            {busyId[it.id] ? '保存中…' : '保存'}
+                          </button>
+                          <button style={btn} disabled={!!busyId[it.id]} onClick={cancelEdit}>取消</button>
+                          <span style={{ marginLeft: 4 }}>⌘/Ctrl + Enter 保存 · Esc 取消</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontWeight: 500, marginBottom: 2, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {it.title ? (
+                              <a href={it.url} target="_blank" rel="noreferrer" style={{ color: '#e2e8f0', textDecoration: 'none' }}>{it.title}</a>
+                            ) : (
+                              <span style={{ color: '#64748b' }}>(无标题)</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => startEdit(it)}
+                            title="编辑标题 / 摘要(不会清空下游;PUBLISHED 文章会同步刷 ISR)"
+                            style={{
+                              flexShrink: 0,
+                              background: 'transparent', border: '1px solid #334155', borderRadius: 4,
+                              padding: '1px 6px', color: '#94a3b8', fontSize: 11, cursor: 'pointer',
+                              lineHeight: 1.4,
+                            }}>
+                            ✎ 编辑
+                          </button>
+                        </div>
+                        {it.summary && <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>{it.summary}</div>}
+                        <div style={{ color: '#475569', fontSize: 11, marginTop: 4 }}>{it.source} · {it.slug ?? '—'}</div>
+                      </>
+                    )}
                   </td>
                   <td style={td}>
                     {it.category ? <Pill color="#1e3a8a" fg="#93c5fd">{it.category}</Pill> : <span style={{ color: '#64748b' }}>—</span>}
@@ -326,21 +447,22 @@ export default function Day3Page() {
                   <td style={{ ...td, whiteSpace: 'nowrap' }}>
                     <button
                       style={btn}
-                      disabled={!!busyId[it.id]}
+                      disabled={!!busyId[it.id] || isEditing}
                       title="清空分类 + 下游所有字段，从 INGESTED 重跑（PUBLISHED 会触发 ISR 失效）"
                       onClick={() => retrigger('reclassify', it)}>
                       {busyId[it.id] ? '…' : '重新分类'}
                     </button>{' '}
                     <button
                       style={btn}
-                      disabled={!!busyId[it.id]}
+                      disabled={!!busyId[it.id] || isEditing}
                       title="保留分类，重跑标题 + 下游（cover/compliance/published 会清空重做）"
                       onClick={() => retrigger('retitle', it)}>
                       {busyId[it.id] ? '…' : '重新标题'}
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {visibleItems.length === 0 && (
                 <tr>
                   <td style={{ ...td, color: '#64748b' }} colSpan={5}>
