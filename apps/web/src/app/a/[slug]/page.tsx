@@ -240,11 +240,17 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
     notFound();
   }
 
-  const related = await getRelated(a.category, a.id, 12);
   // Cover: prefer cover agent output → first plain image in media_urls. Skip
   // entries that are videos or video posters so the hero doesn't render a
   // .mp4 URL as <img>.
   const allMedia = classifyMedia(a.media_urls ?? [], a.video_urls ?? []);
+  // Decide which "relateds" to surface: if this article is a video post,
+  // recommend other videos; if it's image-only, recommend images. Computed
+  // BEFORE the getRelated call so it can be passed as the media filter.
+  const isVideoPost = (a.video_urls?.length ?? 0) > 0 || allMedia.some((m) => m.kind === 'video');
+  const isImagePost = !isVideoPost && (a.media_urls?.length ?? 0) > 0;
+  const relatedKind: 'video' | 'image' | undefined = isVideoPost ? 'video' : isImagePost ? 'image' : undefined;
+  const related = await getRelated(a.category, a.id, 12, relatedKind);
   const firstImageItem = allMedia.find((m) => m.kind === 'image');
   const firstImageUrl = firstImageItem?.kind === 'image' ? firstImageItem.src : undefined;
   // When an article has videos, the still images alongside are usually the

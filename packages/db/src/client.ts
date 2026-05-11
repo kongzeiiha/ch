@@ -2,10 +2,31 @@ import mysql from 'mysql2/promise';
 
 let _pool: mysql.Pool | null = null;
 
+/**
+ * Parse DATABASE_URL with WHATWG URL instead of letting mysql2 do it. mysql2's
+ * internal connection_config.js still uses the legacy `url.parse()` which fires
+ * a noisy DEP0169 warning on every request (Node 19+). Passing discrete
+ * host/port/user/database options bypasses that path entirely.
+ */
+function dsnToOptions(dsn: string): mysql.PoolOptions {
+  const u = new URL(dsn);
+  // pathname is "/dbname" — strip the leading slash
+  const database = decodeURIComponent(u.pathname.replace(/^\//, ''));
+  return {
+    host: u.hostname,
+    port: u.port ? Number(u.port) : 3306,
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    database,
+  };
+}
+
 function getPool(): mysql.Pool {
   if (!_pool) {
+    const dsn = process.env.DATABASE_URL;
+    if (!dsn) throw new Error('DATABASE_URL is not set');
     _pool = mysql.createPool({
-      uri: process.env.DATABASE_URL,
+      ...dsnToOptions(dsn),
       connectionLimit: 10,
       // Numeric strings (DECIMAL) are returned as strings; call sites cast where needed.
       decimalNumbers: false,

@@ -710,47 +710,103 @@ export default function WorkbenchPage() {
         </div>
       </header>
 
-      {/* ── Auth-failure banner ── */}
-      {authSuspect.length > 0 && !authBannerDismissed && (
-        <div style={{
-          background: '#7f1d1d', borderBottom: '1px solid #991b1b',
-          padding: '10px 24px', color: '#fee2e2', fontSize: 13,
-          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-        }}>
-          <span style={{ fontSize: 16 }}>🔑</span>
-          <strong>{authSuspect.length}</strong> 个采集源凭证可能已过期 ·&nbsp;
-          <span>
-            {authSuspect.slice(0, 3).map(s => (
-              <button
-                key={s.id}
-                onClick={() => {
-                  setTab('sources');
-                  const src = sources.find(x => x.id === s.id);
-                  if (src) { setEditingSource(src); setShowAddSource(false); }
-                }}
-                title={s.auth_reason ?? ''}
-                style={{
-                  background: '#991b1b', border: '1px solid #fecaca',
-                  color: '#fee2e2', borderRadius: 4, padding: '2px 8px',
-                  fontSize: 12, marginRight: 6, cursor: 'pointer', fontWeight: 600,
-                }}>
-                {s.name} <span style={{ opacity: 0.6, fontWeight: 400 }}>· {s.platform}</span>
+      {/* ── Auth-failure banners ──
+          Split into two distinct categories because they need different
+          operator action:
+            • Rate-limit (HTTP 429): the cookie is fine, X is throttling
+              the account. Re-logging in just gets a fresh cookie that gets
+              throttled the same way. The fix is slow down / wait / rotate
+              to another credential — NOT "去刷新".
+            • Auth-fail (401/403 + cookie/cf_clearance errors): the cookie
+              actually expired. "去刷新" → Credentials tab → 🔁 立即刷新 is
+              the right action, and the cron does this hourly if a secret
+              (username + password) is stored. */}
+      {(() => {
+        if (authBannerDismissed) return null;
+        const rateLimited = authSuspect.filter((s) => s.auth_status === 429);
+        const expired     = authSuspect.filter((s) => s.auth_status !== 429);
+        if (rateLimited.length === 0 && expired.length === 0) return null;
+
+        const Chip = ({ s, bg }: { s: typeof authSuspect[number]; bg: string }) => (
+          <button
+            key={s.id}
+            onClick={() => {
+              setTab('sources');
+              const src = sources.find((x) => x.id === s.id);
+              if (src) { setEditingSource(src); setShowAddSource(false); }
+            }}
+            title={s.auth_reason ?? ''}
+            style={{
+              background: bg, border: '1px solid #fecaca',
+              color: '#fee2e2', borderRadius: 4, padding: '2px 8px',
+              fontSize: 12, marginRight: 6, cursor: 'pointer', fontWeight: 600,
+            }}>
+            {s.name} <span style={{ opacity: 0.6, fontWeight: 400 }}>· {s.platform}</span>
+          </button>
+        );
+
+        return (
+          <>
+            {/* Cookie-expired branch: red. "去刷新" makes sense. */}
+            {expired.length > 0 && (
+              <div style={{
+                background: '#7f1d1d', borderBottom: '1px solid #991b1b',
+                padding: '10px 24px', color: '#fee2e2', fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+              }}>
+                <span style={{ fontSize: 16 }}>🔑</span>
+                <strong>{expired.length}</strong> 个采集源凭证可能已过期 ·&nbsp;
+                <span>
+                  {expired.slice(0, 3).map((s) => <Chip key={s.id} s={s} bg="#991b1b" />)}
+                  {expired.length > 3 && <span style={{ opacity: 0.7 }}>· 还有 {expired.length - 3} 个</span>}
+                </span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                  <button onClick={() => setTab('credentials')}
+                    style={{ background: 'transparent', border: '1px solid #fecaca', color: '#fee2e2', borderRadius: 4, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>
+                    去刷新凭证
+                  </button>
+                </span>
+              </div>
+            )}
+
+            {/* Rate-limit branch: amber. Different copy + action — X is
+                throttling, refreshing won't help. Suggest slow-down or
+                multi-credential rotation instead. */}
+            {rateLimited.length > 0 && (
+              <div style={{
+                background: '#78350f', borderBottom: '1px solid #92400e',
+                padding: '10px 24px', color: '#fef3c7', fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+              }}>
+                <span style={{ fontSize: 16 }}>⏳</span>
+                <strong>{rateLimited.length}</strong> 个采集源被 X 限流 (429) ·&nbsp;
+                <span>
+                  {rateLimited.slice(0, 3).map((s) => <Chip key={s.id} s={s} bg="#92400e" />)}
+                  {rateLimited.length > 3 && <span style={{ opacity: 0.7 }}>· 还有 {rateLimited.length - 3} 个</span>}
+                </span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ opacity: 0.7, fontSize: 11 }}>等限流解除 / 调慢采集 / 多账号轮转</span>
+                  <button onClick={() => setTab('credentials')}
+                    style={{ background: 'transparent', border: '1px solid #fcd34d', color: '#fef3c7', borderRadius: 4, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>
+                    管理凭证池
+                  </button>
+                </span>
+              </div>
+            )}
+
+            {/* Single dismiss applies to both banners — they're the same
+                fundamental "needs ops attention" surface and dismiss-each
+                would just add clicks. */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 24px' }}>
+              <button onClick={() => setAuthBannerDismissed(true)}
+                title="本会话内隐藏告警"
+                style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', padding: '4px 0' }}>
+                ✕ 本次隐藏
               </button>
-            ))}
-            {authSuspect.length > 3 && <span style={{ opacity: 0.7 }}>· 还有 {authSuspect.length - 3} 个</span>}
-          </span>
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button onClick={() => setTab('sources')}
-              style={{ background: 'transparent', border: '1px solid #fecaca', color: '#fee2e2', borderRadius: 4, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>
-              去刷新
-            </button>
-            <button onClick={() => setAuthBannerDismissed(true)}
-              style={{ background: 'transparent', border: 'none', color: '#fecaca', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>
-              ✕
-            </button>
-          </span>
-        </div>
-      )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── Tab bar ── */}
       <div style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', display: 'flex', gap: 4 }}>

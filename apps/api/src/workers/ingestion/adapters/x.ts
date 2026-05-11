@@ -400,42 +400,83 @@ async function searchUsersByKeywordViaBrowser(opts: {
 
     const page = await ctx.newPage();
 
-    // Capture the SearchTimeline GraphQL response body before navigating.
-    // X may call this multiple times (filters/refreshes) — we keep the last
-    // successful 200 with users in it.
-    let captured: any = null;
-    page.on('response', async (res: any) => {
+    // Persistent response listener — collects every graphql payload that
+    // contains User nodes. We don't lock onto a specific op name because X
+    // has been migrating between SearchTimeline / UsersSearchTimeline / etc.
+    //
+    // Critical fix from the previous version: read the body INSIDE the
+    // listener with a swallow-on-error try-catch. Reading res.json() can
+    // race with page navigation; if it errors we just drop that one body.
+    const capturedJsons: any[] = [];
+    const opNamesSeen: string[] = [];
+    const onResponse = async (res: any) => {
       const url = res.url();
-      if (!url.includes('/i/api/graphql/') || !url.includes('/SearchTimeline')) return;
+      if (!url.includes('/i/api/graphql/')) return;
       if (res.status() !== 200) return;
+      const m = url.match(/\/graphql\/[^/]+\/([^/?]+)/);
+      const op = m?.[1] ?? '';
+      if (op) opNamesSeen.push(op);
       try {
-        const json = await res.json();
-        captured = json;
-      } catch { /* non-JSON body (rare) — skip */ }
-    });
+        const body = await res.text();   // text() is more forgiving than json()
+        if (!body.includes('"__typename":"User"') && !body.includes('"user_results"')) return;
+        const json = JSON.parse(body);
+        capturedJsons.push(json);
+      } catch { /* body read after page closed / non-JSON / etc — drop */ }
+    };
+    page.on('response', onResponse);
 
-    // f=user routes the search page to the People tab, which fires
-    // SearchTimeline with product=People. If X has killed that product, the
-    // page falls back to a generic search where SearchTimeline still fires
-    // with product=Top — same walker extracts users from either.
-    const url = `https://x.com/search?q=${encodeURIComponent(opts.query)}&f=user`;
+    // Helper: wait until at least one User-bearing payload arrives, polling
+    // every 200ms (tighter than the old 500ms — catches X's burst pattern).
+    const waitForUserPayload = async (ms: number) => {
+      const deadline = Date.now() + ms;
+      while (Date.now() < deadline && capturedJsons.length === 0) {
+        await page.waitForTimeout(200);
+      }
+    };
+
+    let navError: any = null;
     try {
+      // Step 1: warm up on x.com to let cookies + stealth fingerprint settle.
+      // Without this X sometimes 302s the very first /search request to /login.
+      await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.waitForTimeout(600);
+
+      // Step 2: navigate to People search.
+      const url = `https://x.com/search?q=${encodeURIComponent(opts.query)}&src=typed_query&f=user`;
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+      // Wait for first batch.
+      await waitForUserPayload(12_000);
+
+      // Retry path: scroll once to trigger any deferred SearchTimeline that
+      // X fires only after the search input gets focused / the results pane
+      // mounts. Cheap; runs only if the first wait found nothing.
+      if (capturedJsons.length === 0) {
+        try {
+          await page.evaluate(() => window.scrollBy(0, 600));
+          await page.waitForTimeout(400);
+        } catch { /* ignore */ }
+        await waitForUserPayload(5_000);
+      }
     } catch (e: any) {
-      throw new AdapterAuthError(500, `playwright navigation failed: ${e?.message ?? e}`);
+      navError = e;
+    } finally {
+      page.off('response', onResponse);
     }
 
-    // Give X's JS time to fire the first SearchTimeline request and respond.
-    // Two short waits so we tolerate slow networks without hard-coding a
-    // long fixed delay.
-    const deadline = Date.now() + 8_000;
-    while (Date.now() < deadline && !captured) {
-      await page.waitForTimeout(500);
+    if (capturedJsons.length === 0) {
+      const opsList = Array.from(new Set(opNamesSeen)).slice(0, 8).join(', ') || 'none';
+      let currentUrl = '?';
+      let title = '?';
+      try { currentUrl = page.url(); title = await page.title(); } catch { /* ignore */ }
+      console.warn(`[x] playwright captured no User payload — ops seen: ${opsList} · page: ${currentUrl} · title="${title}"${navError ? ` · navErr: ${navError?.message ?? navError}` : ''}`);
+      throw new AdapterAuthError(
+        504,
+        `X did not return user payload (ops seen: ${opsList}) — cookie may be expired or X redirected. Page now at: ${currentUrl}`,
+      );
     }
-
-    if (!captured) {
-      throw new AdapterAuthError(504, 'X did not return a SearchTimeline response within 8s — page may be blocked or cookie invalid');
-    }
+    const captured = capturedJsons;
+    console.info(`[x] playwright captured ${capturedJsons.length} payload(s); ops: ${Array.from(new Set(opNamesSeen)).join(', ')}`);
 
     // Reuse the same User-node walker as the direct path so result shape
     // stays identical.

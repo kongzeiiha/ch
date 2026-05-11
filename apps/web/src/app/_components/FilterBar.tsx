@@ -8,6 +8,11 @@ interface Props {
     length?: LengthBucket;
     date?: DateBucket;
     sort?: 'latest' | 'hot';
+    /** Media filter (?media=video / ?media=image). Surfaces on the home
+     *  page's 视频 / 图片 tabs — must be preserved when the user toggles
+     *  any other facet, otherwise toggling 时长 silently drops the media
+     *  scope and the URL falls back to "最新更新". */
+    media?: 'video' | 'image';
   };
   /** Available tags within the current scope (category, search etc.). */
   tags?: { tag: string; count: number }[];
@@ -24,6 +29,11 @@ export function FilterBar({ basePath, current, tags }: Props) {
   const link = (override: Partial<Props['current']>) => {
     const next = { ...current, ...override };
     const params = new URLSearchParams();
+    // Preserve `media` first — it scopes the whole listing (视频 / 图片
+    // tabs), so dropping it on a length/date toggle would silently bounce
+    // the user back to the unfiltered "最新更新" view. See FilteredView
+    // in app/page.tsx for the activeTab logic that reads ?media=.
+    if (next.media)   params.set('media', next.media);
     if (next.tag)     params.set('tag', next.tag);
     if (next.length)  params.set('length', next.length);
     if (next.date)    params.set('date', next.date);

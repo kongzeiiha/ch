@@ -3,6 +3,7 @@ import type { ArticleCardRow } from '../../lib/feed';
 import { readMinutes } from '../../lib/feed';
 import { proxiedImage } from '../../lib/media';
 import { displayTitle } from '../../lib/strip-urls';
+import { VideoDurationBadge } from './VideoDurationBadge';
 
 // For raw social posts, the title agent often regurgitates the source text
 // into both `title` and `summary` (with maybe a `@source` tail), so the card
@@ -56,8 +57,11 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
         textDecoration: 'none',
       }}>
         {thumb && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: 160, height: 100, objectFit: 'cover', borderRadius: 4, background: '#0f172a', flexShrink: 0 }} />
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: 160, height: 100, objectFit: 'cover', borderRadius: 4, background: '#0f172a', display: 'block' }} />
+            <MediaBadge hasVideo={a.has_video} hasImage={a.has_image} />
+          </div>
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 6px', color: '#e2e8f0', lineHeight: 1.45 }}>{cleanTitle}</h3>
@@ -69,7 +73,11 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
           <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {a.category && <span style={{ color: '#a5b4fc' }}>{a.category}</span>}
             {date && <span>{date}</span>}
-            <span>{minutes} 分钟阅读</span>
+            {a.has_video && a.video_url ? (
+              <VideoDurationBadge src={a.video_url} fallback={`${minutes} 分钟`} />
+            ) : (
+              <span>{minutes} 分钟阅读</span>
+            )}
           </div>
         </div>
       </Link>
@@ -86,17 +94,29 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
       overflow: 'hidden',
       background: '#1e293b',
     }}>
-      {thumb ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: '100%', aspectRatio: '3/2', objectFit: 'cover', background: '#0f172a', display: 'block' }} />
-      ) : (
-        <div style={{ width: '100%', aspectRatio: '3/2', background: '#0f172a' }} />
-      )}
+      <div style={{ position: 'relative' }}>
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: '100%', aspectRatio: '3/2', objectFit: 'cover', background: '#0f172a', display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', aspectRatio: '3/2', background: '#0f172a' }} />
+        )}
+        <MediaBadge hasVideo={a.has_video} hasImage={a.has_image} />
+      </div>
       <div style={{ padding: 14 }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, fontSize: 11, color: '#64748b', flexWrap: 'wrap' }}>
           {a.category && <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{a.category}</span>}
           {a.category && <span style={{ color: '#475569' }}>·</span>}
-          <span>{minutes} 分钟阅读</span>
+          {/* Video items: replace the meaningless "1 分钟阅读" (computed
+              from the 20-char tweet body) with the actual playback duration
+              read client-side via <video preload="metadata">. Falls back to
+              the read-minutes string while metadata loads / on error so SSR
+              stays non-empty. Non-video items keep the read-time text. */}
+          {a.has_video && a.video_url ? (
+            <VideoDurationBadge src={a.video_url} fallback={`${minutes} 分钟`} />
+          ) : (
+            <span>{minutes} 分钟阅读</span>
+          )}
           {date && <><span style={{ color: '#475569' }}>·</span><span>{date}</span></>}
         </div>
         {/* Summary <p> intentionally not rendered in the card grid. The
@@ -110,5 +130,77 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
         <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0, lineHeight: 1.4, color: '#e2e8f0' }}>{cleanTitle}</h2>
       </div>
     </Link>
+  );
+}
+
+// Top-left corner badge on cards/rows. Video wins precedence over plain
+// image (a video post almost always also has the poster jpg in media_urls,
+// but readers care that it plays). No badge when neither flag is set.
+//
+// Both glyphs are inline SVGs (not emoji) so they render identically across
+// macOS / Win / Linux. The 🖼 emoji used to render as a tiny gray rectangle
+// on most systems and looked low-contrast against the dark badge bg — the
+// solid white SVG sits flush with the "图片" label like the video ▶ does.
+function MediaBadge({ hasVideo, hasImage }: { hasVideo: boolean; hasImage: boolean }) {
+  if (!hasVideo && !hasImage) return null;
+  const isVideo = hasVideo;
+  const label = isVideo ? '视频' : '图片';
+  // Video → red (action / playable); Image → indigo (brand color, matches
+  // active filter chips + 工作台 buttons elsewhere). Both at 0.92 alpha so
+  // the cover thumbnail bleeds through slightly without sacrificing contrast.
+  const bg = isVideo ? 'rgba(220, 38, 38, 0.92)' : 'rgba(99, 102, 241, 0.92)';
+  return (
+    <span style={{
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      padding: '2px 8px',
+      background: bg,
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: 600,
+      borderRadius: 4,
+      lineHeight: 1.4,
+      backdropFilter: 'blur(4px)',
+    }}>
+      {isVideo ? <PlayIcon /> : <ImageIcon />}
+      {label}
+    </span>
+  );
+}
+
+/** Filled triangle, the canonical "play" glyph. fill="currentColor" picks
+ *  up the badge's `color: #fff` so it always reads as white. */
+function PlayIcon({ size = 9 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 10 10" width={size} height={size} fill="currentColor" aria-hidden>
+      <polygon points="1.5,0.5 1.5,9.5 9,5" />
+    </svg>
+  );
+}
+
+/** Classic "photo" glyph: rectangle frame + sun + mountain peaks. Tuned to
+ *  read clearly at 11px badge size. stroke="currentColor" picks up the
+ *  badge's `color: #fff`. */
+function ImageIcon({ size = 10 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 14 14"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="1.2" y="2.2" width="11.6" height="9.6" rx="1.2" />
+      <circle cx="4.6" cy="5.4" r="1" fill="currentColor" stroke="none" />
+      <path d="M2 11l3-3.2 2.2 2.2L9.6 7l2.6 2.6" />
+    </svg>
   );
 }

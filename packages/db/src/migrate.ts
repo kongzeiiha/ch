@@ -23,8 +23,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(__dirname, '..', 'migrations');
 
 async function main(): Promise<void> {
+  const dsn = process.env.DATABASE_URL;
+  if (!dsn) throw new Error('DATABASE_URL is not set');
+  const u = new URL(dsn);
   const conn = await mysql.createConnection({
-    uri: process.env.DATABASE_URL,
+    host: u.hostname,
+    port: u.port ? Number(u.port) : 3306,
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    database: decodeURIComponent(u.pathname.replace(/^\//, '')),
     multipleStatements: true,
   });
 

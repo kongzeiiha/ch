@@ -43,6 +43,7 @@ export const metadata: Metadata = {
 
 interface SearchParams {
   tag?: string;
+  media?: 'video' | 'image';
   length?: LengthBucket;
   date?: DateBucket;
   sort?: 'latest' | 'hot';
@@ -53,7 +54,7 @@ interface SearchParams {
 const PAGE_SIZE = 24;
 
 function hasActiveFilter(p: SearchParams): boolean {
-  return !!(p.tag || p.length || (p.date && p.date !== 'all') || p.sort === 'hot' || p.page);
+  return !!(p.tag || p.media || p.length || (p.date && p.date !== 'all') || p.sort === 'hot' || p.page);
 }
 
 export default async function Home(props: { searchParams: Promise<SearchParams> }) {
@@ -71,12 +72,6 @@ async function LandingView() {
     getHot({ limit: 6, days: 7 }),
     getLatest({ limit: 12 }),
   ]);
-  // The "标签导航" strip used to fetch a second identical batch of latest 12.
-  // Both queries returned the same rows, so there's no information value in
-  // the second trip — reuse `latest`. If every article happens to be untagged
-  // we still want a non-empty grid, so fall back to `latest` whole.
-  const taggedLatest = latest.filter((a) => a.tags && a.tags.length > 0);
-  const tagItems = taggedLatest.length > 0 ? taggedLatest : latest;
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
@@ -132,19 +127,6 @@ async function LandingView() {
           </div>
         </Section>
 
-        {/* 4. 标签导航 — same article card grid as 最新更新 */}
-        <Section id="tags" title="标签导航" hint="热门标签" more={{ href: '/tag', label: '查看全部标签 →' }}>
-          {tagItems.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', background: '#1e293b', border: '1px dashed #334155', borderRadius: 8, color: '#94a3b8' }}>
-              暂无已发布内容
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-              {tagItems.map((a) => <ArticleCard key={a.id} a={a} />)}
-            </div>
-          )}
-        </Section>
-
         <div style={{ marginTop: 32 }}>
           <CTAModule />
         </div>
@@ -158,6 +140,7 @@ async function FilteredView({ searchParams }: { searchParams: SearchParams }) {
   const page = Math.max(1, Number(searchParams.page ?? 1) || 1);
   const { items, total } = await getFiltered({
     tag: searchParams.tag,
+    media: searchParams.media,
     length: searchParams.length,
     date: searchParams.date,
     sort: searchParams.sort,
@@ -165,15 +148,24 @@ async function FilteredView({ searchParams }: { searchParams: SearchParams }) {
     offset: (page - 1) * PAGE_SIZE,
   });
 
+  // Crumb + active-tab pick the most specific scope. Media beats sort beats
+  // generic "latest" so the header highlights the tab the user just clicked.
+  const heading = searchParams.media === 'video' ? '视频'
+    : searchParams.media === 'image' ? '图片'
+    : searchParams.sort === 'hot' ? '热门精选'
+    : '全部内容';
+  const activeTab = searchParams.media === 'video' ? 'videos'
+    : searchParams.media === 'image' ? 'images'
+    : searchParams.sort === 'hot' ? 'hot'
+    : 'latest';
+
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
-      <SiteHeader crumb="全部内容" activeTab={searchParams.sort === 'hot' ? 'hot' : 'latest'} />
+      <SiteHeader crumb={heading} activeTab={activeTab} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px 60px' }}>
         <header style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>
-            {searchParams.sort === 'hot' ? '热门精选' : '全部内容'}
-          </h1>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>{heading}</h1>
           <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>共 {total} 篇 · 已应用筛选</p>
         </header>
 

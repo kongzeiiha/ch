@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { search, getTopTags, getLatest, type LengthBucket, type DateBucket } from '../../lib/feed';
 import { SITE_NAME, SITE_URL } from '../../lib/db';
 import { SiteHeader } from '../_components/SiteHeader';
@@ -44,6 +45,9 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
   // runs a query; if a tag/keyword has zero hits in combination with q, the
   // empty-state nudges them to relax filters.
   const isBrowsing = !q && !hasFilters(searchParams);
+  // Fetch up to 200 tags for the "热门标签" section — top 20 render inline,
+  // the rest are hidden behind a native <details> "更多标签" toggle. Tags
+  // beyond the first 200 are long-tail noise and live on /tag instead.
   const [results, tags, latestForBrowse] = await Promise.all([
     isBrowsing
       ? Promise.resolve({ items: [], total: 0 })
@@ -57,11 +61,24 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
           limit: PAGE_SIZE,
           offset: (page - 1) * PAGE_SIZE,
         }),
-    getTopTags(20),
+    getTopTags(200),
     // 默认落地：用户没输关键词时直接展示最新文章，而不是空白页
     isBrowsing ? getLatest({ limit: PAGE_SIZE }) : Promise.resolve([]),
   ]);
   const { items, total } = results;
+  const visibleTags = tags.slice(0, 20);
+  const hiddenTags = tags.slice(20);
+
+  // Tag pill href — preserves current q so users can drill in without
+  // losing their query. When the tag matches `current.tag`, the pill
+  // becomes a "deselect" link instead.
+  const tagHref = (tag: string | null) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (tag) params.set('tag', tag);
+    const qs = params.toString();
+    return qs ? `/search?${qs}` : '/search';
+  };
 
   const basePath = '/search';
   // Preserve `q` across filter switches so the user doesn't lose their query
@@ -110,10 +127,56 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
           }}>搜索</button>
         </form>
 
+        {tags.length > 0 && (
+          <section aria-label="热门标签" style={{
+            padding: 14,
+            background: '#0f172a',
+            border: '1px solid #1e293b',
+            borderRadius: 8,
+            marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 600, letterSpacing: 0.6, textTransform: 'uppercase' }}>热门标签</span>
+              <span style={{ fontSize: 11, color: '#64748b' }}>共 {tags.length} 个</span>
+              {searchParams.tag && (
+                <Link href={tagHref(null)} style={{ marginLeft: 'auto', fontSize: 12, color: '#a5b4fc', textDecoration: 'none' }}>
+                  清除标签筛选 ×
+                </Link>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {visibleTags.map((t) => (
+                <TagPill key={t.tag} tag={t.tag} count={t.count} active={searchParams.tag === t.tag} href={tagHref(t.tag)} />
+              ))}
+            </div>
+            {hiddenTags.length > 0 && (
+              // Native <details> — no JS, fully SSR'd, crawlable. Pre-opens when
+              // a hidden tag is currently selected so the user sees the active
+              // pill highlighted instead of an empty toggle.
+              <details open={!!searchParams.tag && hiddenTags.some((t) => t.tag === searchParams.tag)} style={{ marginTop: 10 }}>
+                <summary style={{
+                  fontSize: 12,
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  userSelect: 'none',
+                  listStyle: 'none',
+                }}>
+                  更多标签 · {hiddenTags.length}  ▾
+                </summary>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {hiddenTags.map((t) => (
+                    <TagPill key={t.tag} tag={t.tag} count={t.count} active={searchParams.tag === t.tag} href={tagHref(t.tag)} />
+                  ))}
+                </div>
+              </details>
+            )}
+          </section>
+        )}
+
         <FilterBar
           basePath={`${basePath}${baseQuery}`}
           current={searchParams}
-          tags={tags}
         />
 
         {isBrowsing ? (
@@ -155,4 +218,32 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
 
 function hasFilters(p: SearchParams): boolean {
   return !!(p.category || p.tag || p.length || p.date);
+}
+
+function TagPill({ tag, count, active, href }: { tag: string; count: number; active: boolean; href: string }) {
+  return (
+    <Link href={href} style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      padding: '3px 10px',
+      borderRadius: 999,
+      border: `1px solid ${active ? '#6366f1' : '#334155'}`,
+      background: active ? '#6366f1' : '#1e293b',
+      color: active ? '#fff' : '#cbd5e1',
+      fontSize: 12,
+      fontWeight: active ? 600 : 400,
+      textDecoration: 'none',
+      lineHeight: 1.5,
+    }}>
+      <span style={{ color: active ? '#e0e7ff' : '#818cf8', fontWeight: 600 }}>#</span>
+      {tag}
+      <span style={{
+        fontSize: 10,
+        color: active ? '#e0e7ff' : '#64748b',
+        fontVariantNumeric: 'tabular-nums',
+        marginLeft: 2,
+      }}>{count}</span>
+    </Link>
+  );
 }

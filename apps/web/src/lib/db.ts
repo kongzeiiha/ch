@@ -5,10 +5,25 @@ declare global {
   var __chPool: mysql.Pool | undefined;
 }
 
+// Same WHATWG URL parsing as packages/db — keeps Node from logging DEP0169
+// (mysql2's internal `url.parse` fallback) on every server render.
+function dsnToOptions(dsn: string): mysql.PoolOptions {
+  const u = new URL(dsn);
+  return {
+    host: u.hostname,
+    port: u.port ? Number(u.port) : 3306,
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    database: decodeURIComponent(u.pathname.replace(/^\//, '')),
+  };
+}
+
 function pool(): mysql.Pool {
   if (!global.__chPool) {
+    const dsn = process.env.DATABASE_URL;
+    if (!dsn) throw new Error('DATABASE_URL is not set');
     global.__chPool = mysql.createPool({
-      uri: process.env.DATABASE_URL,
+      ...dsnToOptions(dsn),
       connectionLimit: 5,
       timezone: 'Z',
     });

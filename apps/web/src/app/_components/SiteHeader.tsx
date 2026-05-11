@@ -1,13 +1,17 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-export type TabKey = 'hot' | 'latest' | 'topics' | 'tags' | 'search';
+// 'tags' is still a valid value to keep existing `activeTab="tags"` call
+// sites from breaking — it just no longer renders a separate tab.
+// Tag navigation now lives inside the 站内搜索 page as a tag-pill section.
+export type TabKey = 'hot' | 'videos' | 'images' | 'latest' | 'topics' | 'tags' | 'search';
 
 const TABS: Array<{ key: TabKey; label: string; href: string }> = [
   { key: 'hot',     label: '热门精选', href: '/?sort=hot' },
+  { key: 'videos',  label: '视频',     href: '/?media=video' },
+  { key: 'images',  label: '图片',     href: '/?media=image' },
   { key: 'latest',  label: '最新更新', href: '/#latest' },
   { key: 'topics',  label: '主题专区', href: '/topic/weekly-hot' },
-  { key: 'tags',    label: '标签导航', href: '/tag' },
   { key: 'search',  label: '站内搜索', href: '/search' },
 ];
 

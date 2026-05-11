@@ -23,6 +23,14 @@ export interface ArticleCardRow {
   /** Source UUID — needed by /img-proxy to apply platform-aware
    *  Referer/Cookie when fetching the fallback image. */
   source_id: string | null;
+  /** Computed flags from raw_items.video_urls / media_urls. Drive the corner
+   *  badge on cards and the 视频/图片 filtered sections on the landing. */
+  has_video: boolean;
+  has_image: boolean;
+  /** First video URL (raw_items.video_urls[0]) — used by the card to load
+   *  `<video preload="metadata">` and read the real playback duration on the
+   *  client instead of showing "1 分钟阅读" derived from a 20-char tweet body. */
+  video_url: string | null;
   category: string | null;
   tags: string[];
   published_at: string | null;
@@ -43,6 +51,9 @@ const ARTICLE_COLS = `
   i.published_at,
   s.name AS source,
   JSON_UNQUOTE(JSON_EXTRACT(r.media_urls, '$[0]')) AS cover_fallback,
+  JSON_UNQUOTE(JSON_EXTRACT(r.video_urls, '$[0]')) AS video_url,
+  (JSON_LENGTH(r.video_urls) > 0) AS has_video,
+  (JSON_LENGTH(r.media_urls) > 0) AS has_image,
   COALESCE(CHAR_LENGTH(i.content), 0) AS content_length
 `;
 const ARTICLE_FROM = `FROM items i
@@ -68,6 +79,27 @@ export async function getHot(opts: { limit?: number; days?: number } = {}): Prom
        ORDER BY pv DESC, i.published_at DESC
        LIMIT $2`,
       [days, limit],
+    );
+    return rows.map(normalize);
+  });
+}
+
+/** Latest articles that have at least one video. `kind: 'video'` filters on
+ *  raw_items.video_urls being non-empty; `kind: 'image'` filters on items
+ *  with media but NO video so the two sections don't double-count. */
+export async function getMediaLatest(opts: { kind: 'video' | 'image'; limit?: number } = { kind: 'video' }): Promise<ArticleCardRow[]> {
+  const limit = opts.limit ?? 12;
+  const cond = opts.kind === 'video'
+    ? 'JSON_LENGTH(r.video_urls) > 0'
+    : '(JSON_LENGTH(r.media_urls) > 0 AND COALESCE(JSON_LENGTH(r.video_urls), 0) = 0)';
+  return cached(`media:${opts.kind}:${limit}`, HOT_TTL, async () => {
+    const rows = await query<ArticleCardRow>(
+      `SELECT ${ARTICLE_COLS}
+       ${ARTICLE_FROM}
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND ${cond}
+       ORDER BY i.published_at DESC
+       LIMIT $1`,
+      [limit],
     );
     return rows.map(normalize);
   });
@@ -124,6 +156,10 @@ export interface FeedFilter {
   sourceId?: string;
   length?: LengthBucket;
   date?: DateBucket;
+  /** Filter to items whose raw post carries video / image media. Drives the
+   *  视频 / 图片 top-nav tabs. `image` excludes posts that ALSO have video so
+   *  the two surfaces don't double-count the same article. */
+  media?: 'video' | 'image';
   /** sort: 'latest' (default) | 'hot' (PV desc) */
   sort?: 'latest' | 'hot';
   limit?: number;
@@ -142,6 +178,11 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
   if (f.sourceId) { where.push(`i.source_id = $${p++}`); params.push(f.sourceId); }
   if (f.tag)      { where.push(`JSON_CONTAINS(i.tags, JSON_QUOTE($${p++}))`);     params.push(f.tag); }
   if (f.keyword)  { where.push(`JSON_CONTAINS(i.keywords, JSON_QUOTE($${p++}))`); params.push(f.keyword); }
+  if (f.media === 'video') {
+    where.push(`JSON_LENGTH(r.video_urls) > 0`);
+  } else if (f.media === 'image') {
+    where.push(`JSON_LENGTH(r.media_urls) > 0 AND COALESCE(JSON_LENGTH(r.video_urls), 0) = 0`);
+  }
   if (f.length) {
     const b = LENGTH_BUCKETS[f.length];
     where.push(`CHAR_LENGTH(COALESCE(i.content, '')) >= $${p++}`); params.push(b.min);
@@ -262,20 +303,53 @@ export async function getTopTags(limit = 30): Promise<TagCount[]> {
 }
 
 /** Resolve an article slug → row + related (same category, excluding self).
+ *  When `media` is passed, also constrains to articles of the same media
+ *  kind (video or image-only) so the "相关推荐" strip on a video page only
+ *  surfaces other videos, and the image page only surfaces other images.
+ *  Falls back to the unconstrained set if the strict match returns nothing
+ *  — a sparse category shouldn't render an empty section.
+ *
  *  Cached per-article: every detail-page render asks for this strip and the
  *  computation is identical across views of the same article. Key includes
- *  excludeId so neighboring articles don't poison each other. */
-export async function getRelated(category: string | null, excludeId: string, limit = 6): Promise<ArticleCardRow[]> {
+ *  excludeId + media so neighboring articles don't poison each other and the
+ *  two media flavours don't cross-contaminate. */
+export async function getRelated(
+  category: string | null,
+  excludeId: string,
+  limit = 6,
+  media?: 'video' | 'image',
+): Promise<ArticleCardRow[]> {
   if (!category) return [];
-  return cached(`rel:${category}:${excludeId}:${limit}`, HOT_TTL, async () => {
+  return cached(`rel:${category}:${media ?? 'any'}:${excludeId}:${limit}`, HOT_TTL, async () => {
+    const mediaCond = media === 'video'
+      ? 'AND JSON_LENGTH(r.video_urls) > 0'
+      : media === 'image'
+      ? 'AND JSON_LENGTH(r.media_urls) > 0 AND COALESCE(JSON_LENGTH(r.video_urls), 0) = 0'
+      : '';
     const rows = await query<ArticleCardRow>(
       `SELECT ${ARTICLE_COLS}
        ${ARTICLE_FROM}
-       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1 AND i.id <> $2
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1 AND i.id <> $2 ${mediaCond}
        ORDER BY i.published_at DESC
        LIMIT $3`,
       [category, excludeId, limit],
     );
+    // Fallback when same-category + same-media yields nothing: drop the
+    // category constraint but KEEP the media filter — we'd rather show
+    // less-relevant videos than mix in images on a video article (the user
+    // expectation is strict media separation between 视频/图片 surfaces).
+    // If neither query finds anything, render an empty section.
+    if (rows.length === 0 && media) {
+      const fallback = await query<ArticleCardRow>(
+        `SELECT ${ARTICLE_COLS}
+         ${ARTICLE_FROM}
+         WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.id <> $1 ${mediaCond}
+         ORDER BY i.published_at DESC
+         LIMIT $2`,
+        [excludeId, limit],
+      );
+      return fallback.map(normalize);
+    }
     return rows.map(normalize);
   });
 }
@@ -299,6 +373,11 @@ function normalize(r: any): ArticleCardRow {
     cover_sizes,
     cover_fallback: r.cover_fallback ?? null,
     source_id: r.source_id ?? null,
+    // mysql2 returns the boolean expressions as 1/0; coerce to real booleans
+    // so the JSX can use them in `&&` without rendering "0".
+    has_video: Boolean(Number(r.has_video ?? 0)),
+    has_image: Boolean(Number(r.has_image ?? 0)),
+    video_url: r.video_url ?? null,
     category: r.category,
     tags,
     published_at: r.published_at,
