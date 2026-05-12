@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { X } from './theme';
 
 // Server-rendered numeric pagination. Each page link is a real URL with all
 // existing search params preserved + page=N — keeps history navigable, copy-
@@ -45,7 +46,7 @@ export function Pagination({
       )}
       {pages.map((p, i) =>
         p === '…' ? (
-          <span key={`g-${i}`} style={{ padding: '5px 6px', fontSize: 12, color: '#475569' }}>…</span>
+          <span key={`g-${i}`} style={{ padding: '5px 6px', fontSize: 13, color: X.textMuted }}>…</span>
         ) : (
           <Link key={p} href={link(p)} style={btn(p === page)}>{p}</Link>
         ),
@@ -59,15 +60,15 @@ export function Pagination({
 
 function btn(active: boolean): React.CSSProperties {
   return {
-    padding: '5px 11px',
-    minWidth: 32,
+    padding: '6px 13px',
+    minWidth: 36,
     textAlign: 'center',
-    borderRadius: 6,
-    border: `1px solid ${active ? '#6366f1' : '#334155'}`,
-    background: active ? '#6366f1' : 'transparent',
-    color: active ? '#fff' : '#94a3b8',
-    fontSize: 12,
-    fontWeight: active ? 600 : 400,
+    borderRadius: 9999,
+    border: `1px solid ${active ? X.accent : X.borderStrong}`,
+    background: active ? X.accent : X.surface,
+    color: active ? '#ffffff' : X.text,
+    fontSize: 13,
+    fontWeight: active ? 700 : 500,
     textDecoration: 'none',
   };
 }

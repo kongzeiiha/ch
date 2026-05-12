@@ -1,80 +1,83 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { X } from './theme';
 
-// 'tags' is still a valid value to keep existing `activeTab="tags"` call
-// sites from breaking — it just no longer renders a separate tab.
-// Tag navigation now lives inside the 站内搜索 page as a tag-pill section.
+// Trimmed nav: only 4 tabs surfaced (热门精选 / 视频 / 图片 / 站内搜索).
+// 'latest', 'topics', 'tags' remain valid TabKey values so existing
+// `activeTab=` call sites compile — they just won't highlight any tab.
+// Their underlying routes (/topic/*, /tag/*) still work via direct URL.
 export type TabKey = 'hot' | 'videos' | 'images' | 'latest' | 'topics' | 'tags' | 'search';
 
+// "热门精选" 落到根 `/`(LandingView 默认按 sort=hot 渲染),避免和 `/?sort=hot`
+// 两条不同视图路径并存导致同一 tab 出现两种 UI。视频/图片 tab 走 ?media=*
+// 走 FilteredView,并在那里出现 最新/最热 子 tab 切换该媒体类型的排序。
 const TABS: Array<{ key: TabKey; label: string; href: string }> = [
-  { key: 'hot',     label: '热门精选', href: '/?sort=hot' },
+  { key: 'hot',     label: '热门精选', href: '/' },
   { key: 'videos',  label: '视频',     href: '/?media=video' },
   { key: 'images',  label: '图片',     href: '/?media=image' },
-  { key: 'latest',  label: '最新更新', href: '/#latest' },
-  { key: 'topics',  label: '主题专区', href: '/topic/weekly-hot' },
   { key: 'search',  label: '站内搜索', href: '/search' },
 ];
 
 export function SiteHeader({ crumb, activeTab }: { crumb?: ReactNode; activeTab?: TabKey }) {
   return (
     <header style={{
-      background: '#020617',
-      borderBottom: '1px solid #1e293b',
+      background: 'rgba(0, 0, 0, 0.85)',         // sticky 头：纯黑半透明 + 背景模糊,和页面 #000 一致
+      backdropFilter: 'saturate(180%) blur(12px)',
+      WebkitBackdropFilter: 'saturate(180%) blur(12px)',
       position: 'sticky',
       top: 0,
       zIndex: 100,
     }}>
       {/* ── Row 1 — chrome (home, breadcrumb, search, admin) ── */}
+      {/* maxWidth 1200 + 20px 横向 padding = 与 <main> 完全对齐 */}
       <div style={{
-        padding: '0 24px',
-        height: 48,
+        maxWidth: 1200,
+        margin: '0 auto',
+        padding: '0 20px',
+        height: 53,
         display: 'flex',
         alignItems: 'center',
         gap: 16,
       }}>
-        {/* Brand wordmark hidden per request — keep an unlabelled home anchor
-            so screen readers and crawlers still reach `/`, and the breadcrumb
-            slot below still has a leading link to render against. */}
-        <Link href="/" aria-label="首页" style={{
-          color: '#94a3b8', textDecoration: 'none', fontSize: 18, lineHeight: 1, padding: '0 2px',
-        }}>⌂</Link>
+        {/* Brand mark — 堆叠卡片 logo. Three layered rounded squares that step
+            up and to the right with increasing alpha (35 → 65 → 100). Suggests
+            "stacked content cards" — matches the B1 card-grid landing aesthetic.
+            32×32 viewBox sized to 28px to sit cleanly in the 53px chrome row. */}
+        <Link href="/" aria-label="内容中台 首页" style={{
+          display: 'inline-flex', alignItems: 'center', textDecoration: 'none',
+          padding: '0 2px',
+        }}>
+          <SiteLogo />
+        </Link>
         {crumb && (
           <>
-            <span style={{ color: '#334155' }}>/</span>
-            <span style={{ fontSize: 13, color: '#94a3b8' }}>{crumb}</span>
+            <span style={{ color: X.borderStrong }}>/</span>
+            <span style={{ fontSize: 14, color: X.textSecondary, fontWeight: 500 }}>{crumb}</span>
           </>
         )}
-        <form action="/search" method="get" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-          <input
-            type="search"
-            name="q"
-            placeholder="搜索文章 / 标签"
-            aria-label="站内搜索"
-            style={{
-              width: 220,
-              background: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: 6,
-              padding: '5px 10px',
-              color: '#e2e8f0',
-              fontSize: 12,
-              outline: 'none',
-            }}
-          />
-        </form>
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Top-right inline search hidden — full search is available via the
+         *  "站内搜索" tab in the nav row below, so the chrome row stays clean. */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link href="/workbench" style={chromeLinkStyle}>工作台 →</Link>
-          <Link href="/admin" style={{ ...chromeLinkStyle, color: '#a5b4fc' }} title="按 Day 分页的验收后台">Admin →</Link>
+          <Link href="/admin" style={{ ...chromeLinkStyle, color: X.accent, borderColor: X.accent }} title="按 Day 分页的验收后台">Admin →</Link>
         </div>
       </div>
 
       {/* ── Row 2 — primary nav tabs ── */}
+      {/* Tab 左边 padding 用 4px (而非 20px), 因为每个 tab Link 自带 16px 左
+       *  padding —— 4 + 16 = 20 与 main 完全对齐, "热门精选" 文字左边缘正好
+       *  落在 main 内容(如 "全部" 胶囊)的左边缘。
+       *  borderBottom 落在这一行(而非外层 header), 这样灰线只覆盖 1200px
+       *  居中区域,左右两端不再通栏延伸,跟内容宽度对齐。 */}
       <nav aria-label="主导航" style={{
-        padding: '0 24px',
-        height: 40,
+        maxWidth: 1200,
+        margin: '0 auto',
+        padding: '0 4px',
+        height: 44,
         display: 'flex',
         alignItems: 'stretch',
         gap: 0,
+        borderBottom: `1px solid ${X.border}`,
       }}>
         {TABS.map((t) => {
           const active = t.key === activeTab;
@@ -83,12 +86,13 @@ export function SiteHeader({ crumb, activeTab }: { crumb?: ReactNode; activeTab?
               padding: '0 16px',
               display: 'inline-flex',
               alignItems: 'center',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: active ? 700 : 500,
-              color: active ? '#e2e8f0' : '#64748b',
-              borderBottom: `2px solid ${active ? '#6366f1' : 'transparent'}`,
+              color: active ? X.text : X.textSecondary,
+              borderBottom: `4px solid ${active ? X.accent : 'transparent'}`,
               textDecoration: 'none',
-              letterSpacing: 0.2,
+              letterSpacing: 0.1,
+              transition: 'background 0.15s',
             }}>{t.label}</Link>
           );
         })}
@@ -97,13 +101,25 @@ export function SiteHeader({ crumb, activeTab }: { crumb?: ReactNode; activeTab?
   );
 }
 
-// Match the workbench top-right buttons exactly so 工作台/Admin look the same
-// no matter where you enter the system from.
+/** Brand mark — three layered rounded squares stepping up-right with
+ *  ascending alpha. Standalone so it can be re-used in /admin, favicon
+ *  generators, OG image renderers, etc. */
+export function SiteLogo({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
+      <rect x="3"  y="3"  width="18" height="18" rx="3.5" fill="#dc2626" fillOpacity="0.32" />
+      <rect x="7"  y="7"  width="18" height="18" rx="3.5" fill="#dc2626" fillOpacity="0.62" />
+      <rect x="11" y="11" width="18" height="18" rx="3.5" fill="#dc2626" />
+    </svg>
+  );
+}
+
 const chromeLinkStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: '#94a3b8',
+  fontSize: 13,
+  color: X.text,
   textDecoration: 'none',
-  padding: '4px 10px',
-  border: '1px solid #334155',
-  borderRadius: 6,
+  padding: '6px 14px',
+  border: `1px solid ${X.borderStrong}`,
+  borderRadius: 9999,
+  fontWeight: 600,
 };

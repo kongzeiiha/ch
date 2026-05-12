@@ -41,7 +41,7 @@ export default function PrivacyPage() {
       <P>本站采取合理的技术与管理措施保护服务器与数据,但不作绝对安全的承诺。</P>
 
       <H2>6. 联系方式</H2>
-      <P>如对本政策有疑问,可通过 <a href="/about/dmca" style={{ color: '#a5b4fc' }}>版权与联系页面</a> 提供的方式与我们联系。</P>
+      <P>如对本政策有疑问,可通过 <a href="/about/dmca" style={{ color: '#dc2626' }}>版权与联系页面</a> 提供的方式与我们联系。</P>
 
       <P style={{ color: '#64748b', fontSize: 13, marginTop: 32 }}>※ 本文为占位文本,正式上线前请根据实际数据处理范围与法律要求(GDPR、PIPL、CCPA 等)由法律顾问审阅并替换。</P>
     </AboutShell>

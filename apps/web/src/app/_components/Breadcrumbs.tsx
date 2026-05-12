@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { X } from './theme';
 
 export interface CrumbItem {
   /** Display text. */
@@ -14,14 +15,14 @@ export interface CrumbItem {
 export function Breadcrumbs({ items }: { items: CrumbItem[] }) {
   if (items.length === 0) return null;
   return (
-    <nav aria-label="面包屑" style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+    <nav aria-label="面包屑" style={{ fontSize: 14, color: X.textSecondary, marginBottom: 16 }}>
       {items.map((it, i) => (
         <span key={i}>
-          {i > 0 && <span style={{ margin: '0 6px', color: '#475569' }}>›</span>}
+          {i > 0 && <span style={{ margin: '0 8px', color: X.textMuted }}>›</span>}
           {it.href ? (
-            <Link href={it.href} style={{ color: '#94a3b8', textDecoration: 'none' }}>{it.name}</Link>
+            <Link href={it.href} style={{ color: X.accent, textDecoration: 'none' }}>{it.name}</Link>
           ) : (
-            <span style={{ color: '#cbd5e1' }}>{it.name}</span>
+            <span style={{ color: X.text, fontWeight: 600 }}>{it.name}</span>
           )}
         </span>
       ))}

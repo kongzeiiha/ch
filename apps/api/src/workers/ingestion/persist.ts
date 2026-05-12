@@ -74,15 +74,30 @@ export async function persistIngested(input: PersistInput): Promise<PersistResul
     const sources = input.videoSourceUrls ?? [];
     if (sources.length > 0) {
       const ourUrls: string[] = [];
+      const durations: number[] = [];
       for (let i = 0; i < sources.length; i++) {
         const ext = pickExt(sources[i]!);
-        const url = await uploadVideoFromUrl(sources[i]!, `videos/${result.rawItemId}/${i}${ext}`);
-        if (url) ourUrls.push(url);
+        const uploaded = await uploadVideoFromUrl(sources[i]!, `videos/${result.rawItemId}/${i}${ext}`);
+        if (uploaded) {
+          ourUrls.push(uploaded.url);
+          if (uploaded.durationSec != null) durations.push(uploaded.durationSec);
+        }
       }
       if (ourUrls.length > 0) {
         await query(
           `UPDATE raw_items SET video_urls = $2 WHERE id = $1`,
           [result.rawItemId, JSON.stringify(ourUrls)],
+        );
+      }
+      // Stamp the longest video duration onto items.duration_sec so the feed's
+      // length filter has a single column to range-scan. Multi-video posts
+      // (X carousels are uncommon) pick the max — same intuition as "longest
+      // clip drives the post's overall length".
+      if (durations.length > 0) {
+        const maxDuration = Math.max(...durations);
+        await query(
+          `UPDATE items SET duration_sec = $2 WHERE id = $1`,
+          [result.itemId, maxDuration],
         );
       }
     }

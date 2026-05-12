@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { THEMES } from '../_data/topics';
+import { X } from './theme';
 
 export function ThemeTabs({ active }: { active?: string }) {
   return (
@@ -11,14 +12,14 @@ export function ThemeTabs({ active }: { active?: string }) {
             key={t.slug}
             href={`/topic/${t.slug}`}
             style={{
-              padding: '6px 14px',
-              border: `1px solid ${isActive ? '#6366f1' : '#334155'}`,
-              borderRadius: 8,
-              background: isActive ? '#6366f1' : '#1e293b',
-              color: isActive ? '#fff' : '#cbd5e1',
+              padding: '7px 16px',
+              border: `1px solid ${isActive ? X.accent : X.borderStrong}`,
+              borderRadius: 9999,
+              background: isActive ? X.accent : X.surface,
+              color: isActive ? '#ffffff' : X.text,
               textDecoration: 'none',
-              fontSize: 13,
-              fontWeight: isActive ? 600 : 500,
+              fontSize: 14,
+              fontWeight: isActive ? 700 : 500,
             }}
           >
             {t.title}

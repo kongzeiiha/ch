@@ -38,6 +38,7 @@ const { startHarvestPoller } = await import('./training-data.js');
 const { deriveRulesFromExamples } = await import('./derive-rules.js');
 const { registerAdminAuth } = await import('./admin-auth.js');
 const { registerMediaProxy } = await import('./media-proxy.js');
+const { registerSiteAnalytics } = await import('./site-analytics.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
 
@@ -85,6 +86,8 @@ async function main(): Promise<void> {
   // sit outside /admin/* so the auth hook ignores them.
   registerAdminAuth(app);
   await registerMediaProxy(app);
+  // 公开 PV 埋点(POST /pv/:slug),路径不带 /admin 所以不会被 admin auth 拦截。
+  registerSiteAnalytics(app);
 
   await registerAdmin(app);
   await registerInfra(app);
@@ -105,6 +108,21 @@ async function main(): Promise<void> {
 
   const alertTimer = startAlertPoller();
   const harvestTimer = startHarvestPoller();
+
+  // 自建 PV 埋点写入 analytics_daily 之后,items.pv_30d 需要刷新才能让"最热"
+  // 排序看见新数据。每小时跑一次就够 — recomputePv30d 是单条 UPDATE JOIN,廉价。
+  // 配 DISABLE_PV_RECOMPUTE=1 可关闭(比如 worker 进程已经在跑,避免双写)。
+  let pvRecomputeTimer: NodeJS.Timeout | null = null;
+  if (process.env.DISABLE_PV_RECOMPUTE !== '1') {
+    const { refreshPv30d } = await import('./workers/analytics/ga4.js');
+    const runRefresh = async () => {
+      try { await refreshPv30d(); }
+      catch (e: any) { console.warn('[pv-recompute]', e?.message ?? e); }
+    };
+    // 启动后等 1 分钟再首次跑(让其他初始化先完成),之后每小时一次
+    pvRecomputeTimer = setInterval(runRefresh, 3600_000);
+    setTimeout(runRefresh, 60_000);
+  }
 
   // Weekly derive-rules: waits 1h after boot so the first run doesn't compete
   // with startup traffic, then fires every DERIVE_RULES_INTERVAL_MS (7 days).
@@ -142,6 +160,7 @@ async function main(): Promise<void> {
     stopAutoPipeline();
     clearInterval(alertTimer);
     clearInterval(harvestTimer);
+    if (pvRecomputeTimer) clearInterval(pvRecomputeTimer);
     await app.close();
     await Promise.all(workers.map((w) => w.close()));
     await closeAll();

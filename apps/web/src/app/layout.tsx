@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AgeGate } from './_components/AgeGate';
 import { JsonLd } from './_components/JsonLd';
 import { websiteJsonLd, organizationJsonLd, AGE_GATE_EXIT_URL } from '../lib/seo';
+import { X } from './_components/theme';
 
 // Per-route metadata.title (when set) overrides this; the template appends
 // the brand suffix to anything that doesn't already include it.
@@ -11,6 +12,10 @@ export const metadata = {
     template: '%s | 内容中台',
   },
   description: '聚合多源精选内容,热门精选、最新更新、主题专区、标签导航全方位长尾覆盖',
+  // SVG favicon — pure vector, scales to any size (tab/touch icon/PWA).
+  // Falls back to /favicon.ico if a browser doesn't accept SVG, but every
+  // current browser does so we don't bother shipping a raster fallback.
+  icons: { icon: '/favicon.svg' },
 };
 
 // Global keyframes used by status indicators across the workbench. Inlined
@@ -34,9 +39,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body style={{
         margin: 0,
-        background: '#0f172a',
-        color: '#e2e8f0',
-        fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif',
+        background: X.page,
+        color: X.text,
+        fontFamily: '"Chirp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Helvetica Neue", Arial, sans-serif',
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale',
       }}>
         {children}
         <AgeGate exitUrl={AGE_GATE_EXIT_URL} />

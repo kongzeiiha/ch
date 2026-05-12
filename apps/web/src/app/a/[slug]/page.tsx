@@ -13,47 +13,46 @@ import { AdSlot } from '../../_components/AdSlot';
 import { CTAModule } from '../../_components/CTAModule';
 import { SiteFooter } from '../../_components/SiteFooter';
 import { ImageLightbox } from '../../_components/ImageLightbox';
+import { PvBeacon } from '../../_components/PvBeacon';
 
 // Scoped overrides so RSS-cleaned content_html (which often carries inline
-// light-theme styles) blends into the dark slate page. Targets only the
+// light-theme styles) blends into the B1 dark reader. Targets only the
 // article element, never bleeds into siblings.
 const ARTICLE_CSS = `
-  .article-body { color: #cbd5e1; }
-  .article-body a { color: #93c5fd; }
-  .article-body a:hover { color: #bfdbfe; }
-  .article-body h1, .article-body h2, .article-body h3, .article-body h4 { color: #e2e8f0; }
+  .article-body { color: #e2e8f0; }
+  .article-body a { color: #dc2626; text-decoration: none; }
+  .article-body a:hover { text-decoration: underline; }
+  .article-body h1, .article-body h2, .article-body h3, .article-body h4 { color: #f1f5f9; }
   .article-body blockquote {
-    border-left: 3px solid #6366f1;
-    padding: 8px 14px;
-    background: #0f172a;
-    color: #cbd5e1;
+    border-left: 4px solid #dc2626;
+    padding: 10px 16px;
+    background: #000000;
+    color: #94a3b8;
     margin: 14px 0;
+    border-radius: 0 12px 12px 0;
   }
   .article-body code {
-    background: #0f172a;
-    padding: 1px 6px;
-    border-radius: 3px;
+    background: #000000;
+    padding: 2px 7px;
+    border-radius: 4px;
     color: #fbbf24;
     font-size: 0.92em;
+    border: 1px solid #1f2937;
   }
   .article-body pre {
-    background: #020617;
-    border: 1px solid #334155;
-    padding: 12px 14px;
-    border-radius: 6px;
+    background: #000000;
+    border: 1px solid #1f2937;
+    padding: 14px 16px;
+    border-radius: 12px;
     overflow-x: auto;
     color: #e2e8f0;
   }
-  /* Body media follows the column width — 100% inside the 1200px main wrapper.
-     Reading max-width keeps super-tall portrait images from blowing out the
-     viewport while still letting wide ones (3:2 X/Twitter media) fill the
-     column on desktop. */
-  .article-body img { background: #0f172a; border-radius: 6px; width: 100%; max-width: 100%; height: auto; display: block; margin: 16px auto; cursor: zoom-in; }
+  .article-body img { background: #000000; border-radius: 12px; width: 100%; max-width: 100%; height: auto; display: block; margin: 16px auto; cursor: zoom-in; }
   .lightbox-img { cursor: zoom-in; }
-  .article-body video { width: 100%; max-width: 100%; height: auto; display: block; margin: 16px auto; }
-  .article-body hr { border: 0; border-top: 1px solid #334155; margin: 24px 0; }
+  .article-body video { width: 100%; max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 12px; }
+  .article-body hr { border: 0; border-top: 1px solid #1f2937; margin: 24px 0; }
   .article-body table { border-collapse: collapse; }
-  .article-body th, .article-body td { border: 1px solid #334155; padding: 6px 10px; }
+  .article-body th, .article-body td { border: 1px solid #1f2937; padding: 6px 10px; }
 `;
 
 // 文章页也走 force-dynamic — publishing 完成的瞬间访问 /a/<slug> 就能看到,
@@ -161,7 +160,7 @@ function linkifyTags(text: string, knownTags: string[]): string {
   return text.replace(TAG_RE, (_full, hash, name) => {
     if (!allow.has(name)) return `${hash}${name}`;
     const href = `/tag/${encodeURIComponent(name)}`;
-    return `<a href="${href}" style="color:#a5b4fc;text-decoration:none;">${hash}${name}</a>`;
+    return `<a href="${href}" style="color:#dc2626;text-decoration:none;">${hash}${name}</a>`;
   });
 }
 
@@ -334,20 +333,16 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
+    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
       <SiteHeader crumb={a.category ?? undefined} />
       <style dangerouslySetInnerHTML={{ __html: ARTICLE_CSS }} />
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px', lineHeight: 1.85 }}>
         <JsonLd data={jsonLd} />
         <JsonLd data={breadcrumbJsonLd(crumbs)} />
 
-        {/* H1 uses the strict display cleanup (emoji removal + collapsed
-            repeated punctuation + truncation). SEO surfaces (meta, OG,
-            JSON-LD) above keep the looser stripTitleArtifacts so we don't
-            ship a different canonical title to search engines. */}
-        <h1 style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: '#e2e8f0' }}>{displayTitle(a.title) || (a.category ? `${a.category} · 无标题内容` : '无标题内容')}</h1>
+        <h1 style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.3, marginBottom: 8, color: '#f1f5f9' }}>{displayTitle(a.title) || (a.category ? `${a.category} · 无标题内容` : '无标题内容')}</h1>
 
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {a.published_at && <span>{new Date(a.published_at).toLocaleDateString('zh-CN')}</span>}
           <span>· {minutes} 分钟阅读</span>
         </div>
@@ -358,7 +353,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
         {ogImage && (
           // eslint-disable-next-line @next/next/no-img-element
-          (<img src={proxiedImage(ogImage, a.source_id)} alt={stripTitle(a.title)} className="lightbox-img" data-full={proxiedImage(a.cover_sizes?.full ?? a.cover_sizes?.og ?? ogImage, a.source_id)} style={{ width: '100%', maxWidth: 960, aspectRatio: '1200 / 630', objectFit: 'cover', borderRadius: 8, marginBottom: 24, background: '#1e293b', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />)
+          (<img src={proxiedImage(ogImage, a.source_id)} alt={stripTitle(a.title)} className="lightbox-img" data-full={proxiedImage(a.cover_sizes?.full ?? a.cover_sizes?.og ?? ogImage, a.source_id)} style={{ width: '100%', maxWidth: 960, aspectRatio: '1200 / 630', objectFit: 'cover', borderRadius: 12, marginBottom: 24, background: '#000000', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />)
         )}
 
         {/* Summary <p> intentionally hidden on the article page — it duplicates
@@ -425,7 +420,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
                   preload="metadata"
                   playsInline
                   poster={proxiedImage(v.poster, a.source_id)}
-                  style={{ width: '100%', maxWidth: 960, height: 'auto', maxHeight: 720, borderRadius: 6, background: '#0f172a', display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
+                  style={{ width: '100%', maxWidth: 960, height: 'auto', maxHeight: 720, borderRadius: 12, background: '#000000', display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
                 />
               ))}
             </div>
@@ -439,25 +434,26 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
               {galleryImages.map((m, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 (<img key={i} src={proxiedImage(m.src, a.source_id)} alt={`${stripTitle(a.title)} - 图片 ${i + 1}`} loading="lazy" className="lightbox-img"
-                  style={{ width: '100%', maxWidth: 960, height: 'auto', borderRadius: 6, background: '#1e293b', display: 'block', marginLeft: 'auto', marginRight: 'auto', cursor: 'zoom-in' }} />)
+                  style={{ width: '100%', maxWidth: 960, height: 'auto', borderRadius: 12, background: '#000000', display: 'block', marginLeft: 'auto', marginRight: 'auto', cursor: 'zoom-in' }} />)
               ))}
             </div>
           </section>
         )}
 
         {a.tags.length > 0 && (
-          <div style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid #334155', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#64748b', marginRight: 4 }}>标签</span>
+          <div style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid #1f2937', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: '#94a3b8', marginRight: 4, fontWeight: 600 }}>标签</span>
             {a.tags.map((t) => (
               <Link key={t} href={`/tag/${encodeURIComponent(t)}`} style={{
                 display: 'inline-block',
-                fontSize: 12,
-                padding: '2px 10px',
-                background: '#1e293b',
+                fontSize: 13,
+                padding: '4px 12px',
+                background: '#000000',
                 border: '1px solid #334155',
-                color: '#cbd5e1',
-                borderRadius: 10,
+                color: '#e2e8f0',
+                borderRadius: 9999,
                 textDecoration: 'none',
+                fontWeight: 500,
               }}>#{t}</Link>
             ))}
           </div>
@@ -465,7 +461,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
         {related.length > 0 && (
           <section style={{ marginTop: 40 }}>
-            <h2 style={{ fontSize: 18, marginBottom: 14, color: '#e2e8f0' }}>相关推荐</h2>
+            <h2 style={{ fontSize: 20, marginBottom: 14, color: '#f1f5f9', fontWeight: 800 }}>相关推荐</h2>
             <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
               {related.map((r) => <ArticleCard key={r.id} a={r} />)}
             </div>
@@ -485,6 +481,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
         </div>
       </main>
       <ImageLightbox />
+      <PvBeacon slug={a.slug} />
       <SiteFooter />
     </div>
   );
@@ -493,8 +490,8 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <h2 style={{
-      fontSize: 12,
-      color: '#64748b',
+      fontSize: 13,
+      color: '#94a3b8',
       fontWeight: 700,
       letterSpacing: 0.6,
       textTransform: 'uppercase',

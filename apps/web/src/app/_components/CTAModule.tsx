@@ -1,3 +1,5 @@
+import { X } from './theme';
+
 // Traffic-driving module. Renders any of the configured external channels
 // (newsletter / Telegram / RSS / X). Hides itself entirely when no channel
 // env vars are set, so dev environments don't show empty CTAs.
@@ -16,26 +18,27 @@ export function CTAModule({ compact = false }: { compact?: boolean }) {
 
   return (
     <aside style={{
-      background: '#1e293b',
-      border: '1px solid #334155',
-      borderRadius: 8,
+      background: X.surfaceSoft,
+      border: `1px solid ${X.border}`,
+      borderRadius: 16,
       padding: compact ? '12px 14px' : '18px 20px',
     }}>
       {!compact && (
-        <div style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 600, marginBottom: 10 }}>
+        <div style={{ fontSize: 14, color: X.text, fontWeight: 700, marginBottom: 10 }}>
           不想错过更新?
         </div>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {items.map((c) => (
           <a key={c.env} href={c.url} target="_blank" rel="noreferrer" style={{
-            padding: '6px 12px',
-            border: '1px solid #6366f1',
-            borderRadius: 6,
-            color: '#a5b4fc',
+            padding: '7px 16px',
+            border: `1px solid ${X.accent}`,
+            borderRadius: 9999,
+            color: X.accent,
+            background: X.surface,
             textDecoration: 'none',
-            fontSize: 12,
-            fontWeight: 500,
+            fontSize: 13,
+            fontWeight: 600,
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,

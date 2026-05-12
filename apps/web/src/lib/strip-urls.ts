@@ -20,4 +20,5 @@ export {
   isJunkTag,
   bodyDuplicatesTitle,
   looksLikeCaption,
+  sanitizeHtml,
 } from '@ch/text-clean';

@@ -4,6 +4,16 @@ import { readMinutes } from '../../lib/feed';
 import { proxiedImage } from '../../lib/media';
 import { displayTitle } from '../../lib/strip-urls';
 import { VideoDurationBadge } from './VideoDurationBadge';
+import { X } from './theme';
+
+// Card-grid hover effects need real CSS pseudo-classes; ship as a once-per-app
+// <style> via the layout, but for now inline a scoped block here so the
+// .b1-card class stays alongside the markup.
+const CARD_CSS = `
+  .b1-card { transition: border-color 0.15s ease, background 0.15s ease; }
+  .b1-card:hover { border-color: ${X.borderStrong}; background: ${X.surfaceHover}; }
+  .b1-card:hover .b1-card-title { color: ${X.accent}; }
+`;
 
 // For raw social posts, the title agent often regurgitates the source text
 // into both `title` and `summary` (with maybe a `@source` tail), so the card
@@ -50,28 +60,28 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
         display: 'flex',
         gap: 16,
         padding: 12,
-        borderRadius: 8,
-        border: '1px solid #334155',
-        background: '#1e293b',
-        color: '#e2e8f0',
+        borderRadius: 16,
+        border: `1px solid ${X.border}`,
+        background: X.surface,
+        color: X.text,
         textDecoration: 'none',
       }}>
         {thumb && (
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: 160, height: 100, objectFit: 'cover', borderRadius: 4, background: '#0f172a', display: 'block' }} />
+            <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: 160, height: 100, objectFit: 'cover', borderRadius: 12, background: X.surfaceSoft, display: 'block' }} />
             <MediaBadge hasVideo={a.has_video} hasImage={a.has_image} />
           </div>
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 6px', color: '#e2e8f0', lineHeight: 1.45 }}>{cleanTitle}</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px', color: X.text, lineHeight: 1.4 }}>{cleanTitle}</h3>
           {cleanSummary && (
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 8px', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            <p style={{ fontSize: 14, color: X.textSecondary, margin: '0 0 8px', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
               {cleanSummary}
             </p>
           )}
-          <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {a.category && <span style={{ color: '#a5b4fc' }}>{a.category}</span>}
+          <div style={{ fontSize: 13, color: X.textSecondary, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {a.category && <span style={{ color: X.accent, fontWeight: 600 }}>{a.category}</span>}
             {date && <span>{date}</span>}
             {a.has_video && a.video_url ? (
               <VideoDurationBadge src={a.video_url} fallback={`${minutes} 分钟`} />
@@ -85,51 +95,53 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
   }
 
   return (
-    <Link href={`/a/${a.slug}`} style={{
-      display: 'block',
-      color: '#e2e8f0',
-      textDecoration: 'none',
-      border: '1px solid #334155',
-      borderRadius: 8,
-      overflow: 'hidden',
-      background: '#1e293b',
-    }}>
-      <div style={{ position: 'relative' }}>
-        {thumb ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: '100%', aspectRatio: '3/2', objectFit: 'cover', background: '#0f172a', display: 'block' }} />
-        ) : (
-          <div style={{ width: '100%', aspectRatio: '3/2', background: '#0f172a' }} />
-        )}
-        <MediaBadge hasVideo={a.has_video} hasImage={a.has_image} />
-      </div>
-      <div style={{ padding: 14 }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, fontSize: 11, color: '#64748b', flexWrap: 'wrap' }}>
-          {a.category && <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{a.category}</span>}
-          {a.category && <span style={{ color: '#475569' }}>·</span>}
-          {/* Video items: replace the meaningless "1 分钟阅读" (computed
-              from the 20-char tweet body) with the actual playback duration
-              read client-side via <video preload="metadata">. Falls back to
-              the read-minutes string while metadata loads / on error so SSR
-              stays non-empty. Non-video items keep the read-time text. */}
-          {a.has_video && a.video_url ? (
-            <VideoDurationBadge src={a.video_url} fallback={`${minutes} 分钟`} />
+    <>
+      <style dangerouslySetInnerHTML={{ __html: CARD_CSS }} />
+      <Link href={`/a/${a.slug}`} className="b1-card" style={{
+        display: 'block',
+        color: X.text,
+        textDecoration: 'none',
+        border: `1px solid ${X.border}`,
+        borderRadius: 8,
+        overflow: 'hidden',
+        background: X.surface,
+      }}>
+        <div style={{ position: 'relative', aspectRatio: '16 / 9' }}>
+          {thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={thumb} alt={cleanTitle} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', background: X.surfaceSoft, display: 'block' }} />
           ) : (
-            <span>{minutes} 分钟阅读</span>
+            <div style={{ width: '100%', height: '100%', background: X.surfaceSoft }} />
           )}
-          {date && <><span style={{ color: '#475569' }}>·</span><span>{date}</span></>}
+          {/* HD/视频/图片 corner pill — top-left */}
+          <CornerMediaBadge hasVideo={a.has_video} hasImage={a.has_image} />
+          {/* Duration overlay — bottom-right (video only) */}
+          {a.has_video && a.video_url && (
+            <span style={{
+              position: 'absolute', right: 6, bottom: 6,
+              padding: '2px 7px', borderRadius: 3,
+              background: 'rgba(0,0,0,0.78)', color: '#fff',
+              fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+              lineHeight: 1.4,
+            }}>
+              <VideoDurationBadge src={a.video_url} fallback={`${minutes}:00`} />
+            </span>
+          )}
         </div>
-        {/* Summary <p> intentionally not rendered in the card grid. The
-            classify-title agent typically copies the post text into both
-            `title` and `summary`, so the line below the H2 usually echoed
-            the headline (or worse, leaked emoji / hashtag chains that
-            displayTitle didn't reach in time). The H2 + meta row is enough
-            for browse — readers click through for detail. The `row` layout
-            above keeps its summary because it's used in admin/list contexts
-            with more horizontal room. */}
-        <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0, lineHeight: 1.4, color: '#e2e8f0' }}>{cleanTitle}</h2>
-      </div>
-    </Link>
+        <div style={{ padding: '10px 12px 12px' }}>
+          <h2 className="b1-card-title" style={{
+            fontSize: 13, fontWeight: 600, margin: '0 0 6px', lineHeight: 1.45, color: X.text,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            transition: 'color 0.15s',
+          }}>{cleanTitle}</h2>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: X.textMuted, flexWrap: 'wrap' }}>
+            {a.category && <span style={{ color: X.accent, fontWeight: 600 }}>{a.category}</span>}
+            {a.category && date && <span>·</span>}
+            {date && <span>{date}</span>}
+          </div>
+        </div>
+      </Link>
+    </>
   );
 }
 
@@ -142,12 +154,11 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
 // on most systems and looked low-contrast against the dark badge bg — the
 // solid white SVG sits flush with the "图片" label like the video ▶ does.
 function MediaBadge({ hasVideo, hasImage }: { hasVideo: boolean; hasImage: boolean }) {
+  // Row layout (admin list) still uses this chunkier badge. Card grid uses
+  // CornerMediaBadge below for the tighter 91-style HD pill.
   if (!hasVideo && !hasImage) return null;
   const isVideo = hasVideo;
   const label = isVideo ? '视频' : '图片';
-  // Video → red (action / playable); Image → indigo (brand color, matches
-  // active filter chips + 工作台 buttons elsewhere). Both at 0.92 alpha so
-  // the cover thumbnail bleeds through slightly without sacrificing contrast.
   const bg = isVideo ? 'rgba(220, 38, 38, 0.92)' : 'rgba(99, 102, 241, 0.92)';
   return (
     <span style={{
@@ -169,6 +180,31 @@ function MediaBadge({ hasVideo, hasImage }: { hasVideo: boolean; hasImage: boole
       {isVideo ? <PlayIcon /> : <ImageIcon />}
       {label}
     </span>
+  );
+}
+
+// B1 / 91-style compact HD pill for the card grid. Video → 粉红 HD,
+// 纯图 → 半透明黑 IMG. Smaller than MediaBadge so it doesn't compete with
+// the thumbnail when dozens of cards tile the screen.
+function CornerMediaBadge({ hasVideo, hasImage }: { hasVideo: boolean; hasImage: boolean }) {
+  if (!hasVideo && !hasImage) return null;
+  const isVideo = hasVideo;
+  const bg = isVideo ? X.accent : 'rgba(15,23,42,0.85)';
+  const label = isVideo ? 'HD' : 'IMG';
+  return (
+    <span style={{
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      padding: '1px 6px',
+      background: bg,
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: 800,
+      borderRadius: 3,
+      letterSpacing: 0.5,
+      lineHeight: 1.5,
+    }}>{label}</span>
   );
 }
 

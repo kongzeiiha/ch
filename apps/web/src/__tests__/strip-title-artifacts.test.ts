@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripTitleArtifacts, stripSpamLines, stripUrlsFromHtml, cleanTagList, isJunkTag, bodyDuplicatesTitle, displayTitle } from '../lib/strip-urls';
+import { stripTitleArtifacts, stripSpamLines, stripUrlsFromHtml, cleanTagList, isJunkTag, bodyDuplicatesTitle, displayTitle, sanitizeHtml } from '../lib/strip-urls';
 
 describe('stripTitleArtifacts', () => {
   it('strips trailing 关键词《XXX》 at end', () => {
@@ -356,5 +356,75 @@ describe('displayTitle (strict H1 / card cleanup)', () => {
     // separator, not a repeated artifact.
     expect(displayTitle('还得是包臀裙极品小🔥货～撩起头发跪地吃🐔的样子不要太迷人！随后翘起蜜桃美臀后入，第一视角抽插，直接爆肏白虎美穴😍 https://t.co/H66lxl54ec'))
       .toBe('还得是包臀裙极品小货～撩起头发跪地吃的样子不要太迷人！随后翘起蜜桃美臀后入，第一视角抽插，直接爆肏白虎美穴');
+  });
+});
+
+describe('sanitizeHtml', () => {
+  it('strips <script> blocks including content', () => {
+    expect(sanitizeHtml('<p>safe</p><script>alert(1)</script><p>also safe</p>'))
+      .toBe('<p>safe</p><p>also safe</p>');
+  });
+
+  it('strips self-closing <link>/<meta>', () => {
+    expect(sanitizeHtml('<link rel="stylesheet" href="x"><p>ok</p>'))
+      .toBe('<p>ok</p>');
+  });
+
+  it('strips <iframe>', () => {
+    expect(sanitizeHtml('<p>before</p><iframe src="evil"></iframe><p>after</p>'))
+      .toBe('<p>before</p><p>after</p>');
+  });
+
+  it('strips <style> tags including CSS payload', () => {
+    expect(sanitizeHtml('<style>body{display:none}</style><p>body content</p>'))
+      .toBe('<p>body content</p>');
+  });
+
+  it('strips inline event handlers (onclick, onerror)', () => {
+    // Key invariant: no `on*=` handler survives. The regex pass preserves
+    // the source attribute formatting (unquoted attrs stay unquoted), so
+    // assert on the post-strip absence of handlers and untouched non-handler
+    // attributes rather than a brittle exact-string match.
+    const a = sanitizeHtml('<img src=x onerror=alert(1)>');
+    expect(a).not.toMatch(/on\w+=/i);
+    expect(a).toContain('src');
+    const b = sanitizeHtml('<div onclick="alert(1)">x</div>');
+    expect(b).not.toMatch(/on\w+=/i);
+    expect(b).toBe('<div>x</div>');
+    const c = sanitizeHtml('<a href="#" onMouseOver="js">x</a>');
+    expect(c).not.toMatch(/on\w+=/i);
+    expect(c).toContain('href="#"');
+  });
+
+  it('neutralizes javascript: in href/src', () => {
+    expect(sanitizeHtml('<a href="javascript:alert(1)">x</a>'))
+      .toContain('href="#"');
+    expect(sanitizeHtml('<img src="javascript:foo">'))
+      .toContain('src="#"');
+  });
+
+  it('strips srcdoc on iframes that somehow survived', () => {
+    // (iframes themselves are dropped, but srcdoc removal also nukes the
+    // attribute on any other element a bad feed sticks it on.)
+    expect(sanitizeHtml('<div srcdoc="<script>x</script>">y</div>'))
+      .toBe('<div>y</div>');
+  });
+
+  it('passes through safe HTML untouched (semantically)', () => {
+    const safe = '<p>Hello <strong>world</strong> <a href="/a/foo">link</a></p>';
+    expect(sanitizeHtml(safe)).toBe(safe);
+  });
+
+  it('tolerates empty / null input', () => {
+    expect(sanitizeHtml('')).toBe('');
+    expect(sanitizeHtml(null)).toBe('');
+    expect(sanitizeHtml(undefined)).toBe('');
+  });
+
+  it('stripUrlsFromHtml composes sanitizeHtml first', () => {
+    // Confirms the public pipeline (article page calls stripUrlsFromHtml)
+    // gets defense-in-depth without remembering to call sanitize separately.
+    expect(stripUrlsFromHtml('<p>ok</p><script>alert(1)</script>'))
+      .toBe('<p>ok</p>');
   });
 });

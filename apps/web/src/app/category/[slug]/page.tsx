@@ -88,7 +88,7 @@ export default async function CategoryPage(
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
+    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
       <SiteHeader crumb={category} />
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <JsonLd data={collectionPageJsonLd({
@@ -101,8 +101,8 @@ export default async function CategoryPage(
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
         <CategoryNav active={category} />
 
-        <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 14, color: '#e2e8f0' }}>{category}</h1>
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>共 {total} 篇文章</div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 14, color: '#f1f5f9' }}>{category}</h1>
+        <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 16 }}>共 {total} 篇文章</div>
 
         <FilterBar
           basePath={basePath}
@@ -111,7 +111,7 @@ export default async function CategoryPage(
         />
 
         {items.length === 0 ? (
-          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#1e293b', borderRadius: 8 }}>
+          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
             没有匹配的文章 · 试试调整筛选条件
           </p>
         ) : (

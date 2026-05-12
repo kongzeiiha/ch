@@ -16,56 +16,49 @@ export const revalidate = 60;
 
 const TAG_INDEX_DESC = '按标签浏览全站内容,聚合所有标签入口,快速发现感兴趣的话题。涵盖热门精选、最新更新、深度长文等长尾内容。';
 
-// Pill-cloud styling. Three tiers (heavy/medium/light) carry the popularity
-// signal via color/border instead of font size, so density stays uniform.
-// Hover lifts the pill 1px and tints it indigo to give a clear affordance.
+// Pill-cloud styling. B1 风格：深色背景 + 粉红强调。
+// 三档(heavy/medium/light)用边框深浅区分热度。
 const TAG_PILL_CSS = `
 .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag-pill {
   display: inline-flex; align-items: baseline; gap: 4px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 13px;
   line-height: 1.5;
   text-decoration: none;
   border: 1px solid #334155;
-  background: #1e293b;
-  color: #cbd5e1;
-  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  background: #000000;
+  color: #e2e8f0;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 .tag-pill:hover {
-  transform: translateY(-1px);
-  border-color: #818cf8;
-  color: #e0e7ff;
-  background: #312e81;
-  box-shadow: 0 4px 14px -6px rgba(99,102,241,0.55);
+  background: #1a2236;
+  border-color: #dc2626;
 }
-.tag-pill .tag-hash { color: #818cf8; font-weight: 600; }
+.tag-pill .tag-hash { color: #dc2626; font-weight: 700; }
 .tag-pill .tag-count {
-  font-size: 10px;
-  color: #64748b;
+  font-size: 11px;
+  color: #94a3b8;
   font-variant-numeric: tabular-nums;
   margin-left: 2px;
 }
-.tag-pill:hover .tag-count { color: #c7d2fe; }
-.tag-pill:hover .tag-hash  { color: #c7d2fe; }
 
 .tag-pill--heavy {
-  background: linear-gradient(180deg, #4f46e5 0%, #3730a3 100%);
-  border-color: #6366f1;
-  color: #eef2ff;
-  font-weight: 600;
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+  font-weight: 700;
 }
-.tag-pill--heavy .tag-hash  { color: #c7d2fe; }
-.tag-pill--heavy .tag-count { color: #c7d2fe; }
+.tag-pill--heavy .tag-hash  { color: #ffffff; }
+.tag-pill--heavy .tag-count { color: #ffffffaa; }
 .tag-pill--heavy:hover {
-  background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
-  border-color: #a5b4fc;
+  background: #b91c1c;
+  border-color: #b91c1c;
 }
 
 .tag-pill--medium {
-  border-color: #475569;
-  color: #e2e8f0;
+  border-color: #dc2626;
 }
 `;
 
@@ -96,23 +89,20 @@ export default async function TagIndexPage() {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
+    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
       <SiteHeader crumb="标签导航" activeTab="tags" />
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        {/* Kicker label removed — the page name is already in the
-            breadcrumb + the active nav tab. Keep H1 + count line so users
-            still see what they're looking at. */}
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>全部标签</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 6px', color: '#f1f5f9' }}>全部标签</h1>
           <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>
             {tags.length === 0 ? '等内容采集起来后,热门标签会出现在这里' : `共 ${tags.length} 个标签`}
           </p>
         </div>
 
         {tags.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', background: '#1e293b', border: '1px dashed #334155', borderRadius: 8, color: '#94a3b8' }}>
+          <div style={{ padding: 40, textAlign: 'center', background: '#000000', border: '1px dashed #334155', borderRadius: 12, color: '#94a3b8' }}>
             暂无标签
           </div>
         ) : (

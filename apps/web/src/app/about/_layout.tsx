@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { SiteHeader } from '../_components/SiteHeader';
 import { SiteFooter } from '../_components/SiteFooter';
+import { X } from '../_components/theme';
 
 const PAGES = [
   { slug: 'terms',   title: '服务条款' },
@@ -16,7 +17,7 @@ export function AboutShell({ active, title, updated, children }: {
   children: ReactNode;
 }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
+    <div style={{ minHeight: '100vh', background: X.page, color: X.text }}>
       <SiteHeader crumb={title} />
 
       <main style={{
@@ -34,23 +35,23 @@ export function AboutShell({ active, title, updated, children }: {
                 <Link href={`/about/${p.slug}`} style={{
                   display: 'block',
                   padding: '8px 12px',
-                  borderRadius: 6,
-                  background: p.slug === active ? '#1e293b' : 'transparent',
-                  color: p.slug === active ? '#a5b4fc' : '#94a3b8',
+                  borderRadius: 8,
+                  background: p.slug === active ? X.surface : 'transparent',
+                  color: p.slug === active ? X.accent : X.textSecondary,
                   textDecoration: 'none',
                   fontSize: 13,
-                  fontWeight: p.slug === active ? 600 : 400,
-                  borderLeft: p.slug === active ? '3px solid #6366f1' : '3px solid transparent',
+                  fontWeight: p.slug === active ? 700 : 500,
+                  borderLeft: p.slug === active ? `3px solid ${X.accent}` : '3px solid transparent',
                 }}>{p.title}</Link>
               </li>
             ))}
           </ul>
         </aside>
 
-        <article style={{ lineHeight: 1.85, color: '#cbd5e1', fontSize: 15 }}>
-          <header style={{ marginBottom: 28, paddingBottom: 14, borderBottom: '1px solid #334155' }}>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>{title}</h1>
-            <div style={{ fontSize: 12, color: '#64748b' }}>最近更新:{updated}</div>
+        <article style={{ lineHeight: 1.85, color: X.textSecondary, fontSize: 15 }}>
+          <header style={{ marginBottom: 28, paddingBottom: 14, borderBottom: `1px solid ${X.border}` }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 6px', color: X.text }}>{title}</h1>
+            <div style={{ fontSize: 12, color: X.textMuted }}>最近更新:{updated}</div>
           </header>
           {children}
         </article>

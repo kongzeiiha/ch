@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>站点 UI 参考（91 × X 混合风）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0a0e1a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  a { color: inherit; text-decoration: none; }
+  img { display: block; max-width: 100%; }
+  button { font-family: inherit; }
+
+  /* ── Switcher ─────────────────────────── */
+  .switcher { position: sticky; top: 0; z-index: 300; background: #000; border-bottom: 1px solid #1c2334; padding: 12px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .switcher b { color: #94a3b8; font-size: 12px; letter-spacing: 1px; margin-right: 8px; }
+  .switcher button { background: transparent; color: #94a3b8; border: 1px solid #334155; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .switcher button.on { background: #fb7185; color: #fff; border-color: #fb7185; }
+
+  .variant { display: none; }
+  .variant.on { display: block; }
+
+  /* ─────────────────────────────────────── */
+  /*    B1 · 91-style dense grid              */
+  /* ─────────────────────────────────────── */
+  .b1-bar { background: #111827; border-bottom: 1px solid #1f2937; padding: 0 24px; position: sticky; top: 49px; z-index: 50; }
+  .b1-top { display: flex; align-items: center; gap: 16px; padding: 12px 0; }
+  .b1-top .logo { font-size: 20px; font-weight: 900; color: #fb7185; letter-spacing: 1px; }
+  .b1-top .nav { display: flex; gap: 4px; }
+  .b1-top .nav a { padding: 6px 14px; font-size: 13px; color: #94a3b8; border-radius: 6px; font-weight: 600; }
+  .b1-top .nav a.on { background: #fb7185; color: #fff; }
+  .b1-top .search { margin-left: auto; display: flex; }
+  .b1-top .search input { background: #0a0e1a; border: 1px solid #334155; border-radius: 999px 0 0 999px; padding: 7px 14px; color: #e2e8f0; font-size: 13px; width: 260px; border-right: none; }
+  .b1-top .search button { background: #fb7185; color: #fff; border: 1px solid #fb7185; border-radius: 0 999px 999px 0; padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .b1-cats { display: flex; gap: 6px; padding-bottom: 12px; flex-wrap: wrap; }
+  .b1-cats a { padding: 4px 12px; font-size: 12px; color: #cbd5e1; background: #0a0e1a; border: 1px solid #334155; border-radius: 12px; }
+  .b1-cats a.on { background: #fb7185; color: #fff; border-color: #fb7185; }
+
+  .b1-sort { display: flex; gap: 0; padding: 14px 24px; max-width: 1400px; margin: 0 auto; border-bottom: 1px solid #1f2937; }
+  .b1-sort a { padding: 8px 16px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 2px solid transparent; }
+  .b1-sort a.on { color: #fb7185; border-bottom-color: #fb7185; }
+  .b1-sort .right { margin-left: auto; display: flex; gap: 10px; font-size: 12px; color: #64748b; align-items: center; }
+
+  .b1-grid { max-width: 1400px; margin: 0 auto; padding: 20px 24px 60px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px 14px; }
+  .b1-card { background: transparent; cursor: pointer; }
+  .b1-thumb { position: relative; aspect-ratio: 16/9; background: #1e293b; border-radius: 6px; overflow: hidden; }
+  .b1-thumb .grad { position: absolute; inset: 0; }
+  .b1-card:hover .b1-thumb .grad { transform: scale(1.04); }
+  .b1-card .b1-thumb .grad { transition: transform 0.25s; }
+  .b1-duration { position: absolute; right: 6px; bottom: 6px; background: rgba(0,0,0,0.78); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px; font-variant-numeric: tabular-nums; }
+  .b1-hd { position: absolute; left: 6px; top: 6px; background: #fb7185; color: #fff; font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 3px; letter-spacing: 0.5px; }
+  .b1-hot { position: absolute; right: 6px; top: 6px; background: #f59e0b; color: #fff; font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 3px; }
+  .b1-views { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,0.78); color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 3px; display: flex; align-items: center; gap: 4px; }
+  .b1-title { margin-top: 8px; font-size: 13px; font-weight: 600; color: #e2e8f0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .b1-card:hover .b1-title { color: #fb7185; }
+  .b1-meta { margin-top: 4px; font-size: 11px; color: #64748b; display: flex; gap: 8px; }
+  .b1-meta .cat { color: #fb7185; font-weight: 600; }
+
+  /* ─────────────────────────────────────── */
+  /*    B2 · X-style three-column feed        */
+  /* ─────────────────────────────────────── */
+  .b2-layout { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 240px minmax(0, 1fr) 320px; gap: 0; min-height: 100vh; }
+  .b2-rail-left { border-right: 1px solid #1f2937; padding: 16px 12px; position: sticky; top: 49px; height: calc(100vh - 49px); }
+  .b2-rail-left .item { display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-radius: 999px; font-size: 16px; font-weight: 500; color: #e2e8f0; }
+  .b2-rail-left .item.on { font-weight: 800; }
+  .b2-rail-left .item:hover { background: #16202c; }
+  .b2-rail-left .icon { font-size: 22px; width: 28px; text-align: center; }
+  .b2-rail-left .post-btn { width: 100%; margin-top: 14px; background: #fb7185; color: #fff; border: none; border-radius: 999px; padding: 14px; font-size: 15px; font-weight: 800; cursor: pointer; }
+
+  .b2-feed { border-right: 1px solid #1f2937; }
+  .b2-feed-head { position: sticky; top: 49px; background: rgba(10,14,26,0.85); backdrop-filter: blur(10px); border-bottom: 1px solid #1f2937; padding: 0 16px; z-index: 10; }
+  .b2-feed-head h2 { margin: 0; padding: 14px 0 0; font-size: 18px; font-weight: 800; color: #f1f5f9; }
+  .b2-feed-tabs { display: flex; margin-top: 14px; }
+  .b2-feed-tabs a { flex: 1; text-align: center; padding: 14px 0; font-size: 14px; font-weight: 600; color: #94a3b8; border-bottom: 3px solid transparent; }
+  .b2-feed-tabs a.on { color: #f1f5f9; border-bottom-color: #fb7185; font-weight: 800; }
+
+  .b2-post { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #1f2937; cursor: pointer; }
+  .b2-post:hover { background: #0f1422; }
+  .b2-post .ava { flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; }
+  .b2-post .body { min-width: 0; flex: 1; }
+  .b2-post .head { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+  .b2-post .head .name { font-weight: 800; color: #f1f5f9; }
+  .b2-post .head .handle { color: #64748b; }
+  .b2-post .head .dot { color: #64748b; }
+  .b2-post .head .time { color: #64748b; }
+  .b2-post .cat { font-size: 12px; color: #fb7185; font-weight: 700; margin-left: auto; }
+  .b2-post .title { font-size: 15px; font-weight: 700; color: #f1f5f9; line-height: 1.4; margin: 4px 0 6px; }
+  .b2-post .text { font-size: 14px; color: #cbd5e1; line-height: 1.55; margin: 0 0 10px; }
+  .b2-post .media { position: relative; aspect-ratio: 16/9; border-radius: 14px; overflow: hidden; background: #1e293b; }
+  .b2-post .media .duration { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,0.78); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; }
+  .b2-post .actions { display: flex; gap: 8px; margin-top: 10px; max-width: 360px; justify-content: space-between; color: #64748b; font-size: 13px; }
+  .b2-post .actions span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .b2-rail-right { padding: 12px 14px; position: sticky; top: 49px; height: calc(100vh - 49px); overflow-y: auto; }
+  .b2-rail-right .search { width: 100%; background: #0f1422; border: 1px solid #1f2937; border-radius: 999px; padding: 10px 16px; color: #e2e8f0; font-size: 14px; margin-bottom: 14px; }
+  .b2-rail-right .block { background: #0f1422; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+  .b2-rail-right .block h3 { margin: 0 0 10px; font-size: 18px; font-weight: 800; color: #f1f5f9; }
+  .b2-trend { padding: 8px 0; cursor: pointer; }
+  .b2-trend:hover { background: #16202c; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+  .b2-trend .kicker { font-size: 11px; color: #64748b; }
+  .b2-trend .name { font-size: 14px; font-weight: 700; color: #f1f5f9; margin: 2px 0; }
+  .b2-trend .meta { font-size: 12px; color: #64748b; }
+
+  /* ─────────────────────────────────────── */
+  /*    B3 · Hybrid (X-feed up + 91-grid down)*/
+  /* ─────────────────────────────────────── */
+  .b3-wrap { max-width: 1400px; margin: 0 auto; padding: 16px 24px 60px; }
+  .b3-mini-feed { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 14px; margin-bottom: 20px; border-bottom: 1px solid #1f2937; scrollbar-width: thin; }
+  .b3-mini-feed .item { flex-shrink: 0; width: 320px; background: #0f1422; border: 1px solid #1f2937; border-radius: 14px; padding: 12px 14px; cursor: pointer; }
+  .b3-mini-feed .item:hover { border-color: #fb7185; }
+  .b3-mini-feed .item .top { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .b3-mini-feed .item .ava { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; }
+  .b3-mini-feed .item .handle { color: #94a3b8; font-size: 12px; }
+  .b3-mini-feed .item .text { font-size: 13px; color: #cbd5e1; margin: 8px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .b3-mini-feed .item .thumb { aspect-ratio: 16/9; border-radius: 8px; background: #1e293b; }
+  .b3-section-head { display: flex; align-items: center; gap: 14px; margin: 24px 0 16px; }
+  .b3-section-head h2 { margin: 0; font-size: 22px; font-weight: 900; color: #f1f5f9; }
+  .b3-section-head .hint { font-size: 12px; color: #64748b; }
+  .b3-section-head .tabs { margin-left: auto; display: flex; gap: 4px; background: #0f1422; padding: 4px; border-radius: 999px; }
+  .b3-section-head .tabs a { padding: 6px 14px; font-size: 12px; color: #94a3b8; font-weight: 600; border-radius: 999px; }
+  .b3-section-head .tabs a.on { background: #fb7185; color: #fff; }
+  .b3-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+</style>
+</head>
+<body>
+
+<div class="switcher">
+  <b>UI 参考（91 × X）</b>
+  <button data-v="b1" class="on">B1 · 91 密集网格</button>
+  <button data-v="b2">B2 · X 三栏信息流</button>
+  <button data-v="b3">B3 · 混合（推荐流 + 网格）</button>
+</div>
+
+<!-- ───────────────────────────── B1 ─────────────────────────────── -->
+<section class="variant on" data-v="b1">
+  <div class="b1-bar">
+    <div class="b1-top">
+      <span class="logo">内容中台</span>
+      <nav class="nav">
+        <a class="on">首页</a>
+        <a>热门</a>
+        <a>视频</a>
+        <a>图集</a>
+        <a>主题</a>
+        <a>标签</a>
+      </nav>
+      <form class="search">
+        <input placeholder="搜索文章 / 标签 / 博主" />
+        <button>搜索</button>
+      </form>
+    </div>
+    <nav class="b1-cats">
+      <a class="on">全部</a>
+      <a>自拍</a>
+      <a>偷拍</a>
+      <a>调教</a>
+      <a>探花</a>
+      <a>剧情</a>
+      <a>福利姬</a>
+      <a>主播</a>
+      <a>同城</a>
+      <a>其他</a>
+    </nav>
+  </div>
+
+  <div class="b1-sort">
+    <a class="on">最新</a>
+    <a>最热</a>
+    <a>本周</a>
+    <a>本月</a>
+    <a>视频时长</a>
+    <div class="right">
+      <span>共 12,438 条</span>
+      <span>·</span>
+      <span style="color:#fb7185">⚙ 筛选</span>
+    </div>
+  </div>
+
+  <div class="b1-grid">
+    <script>/*generated below*/</script>
+    <!-- 16 cards -->
+  </div>
+  <script>
+    (function(){
+      const grid = document.querySelector('section[data-v="b1"] .b1-grid');
+      const tiles = [
+        ['#3730a3','#581c87','自拍','12:34','视频精选 · 周末特辑',  '5.2 万','HD','HOT'],
+        ['#0f766e','#134e4a','调教','08:12','一个被忽略的角落',      '3.1 万','HD',''],
+        ['#9f1239','#7c2d12','偷拍','15:48','街拍合集 No.42',        '8.7 万','HD','HOT'],
+        ['#1e40af','#1e3a8a','探花','06:55','本周三个亮点回顾',      '2.4 万','',''],
+        ['#7e22ce','#581c87','福利姬','22:10','摄影棚直击',           '11 万','HD','HOT'],
+        ['#0e7490','#155e75','剧情','18:33','短剧第七集',             '4.9 万','HD',''],
+        ['#b45309','#92400e','主播','09:21','凌晨直播录像',           '1.8 万','',''],
+        ['#15803d','#166534','同城','11:07','线下采访录',             '9,820','',''],
+        ['#be123c','#9f1239','自拍','04:12','日常分享',               '6,540','',''],
+        ['#4338ca','#3730a3','调教','25:46','深度访谈',               '7.3 万','HD','HOT'],
+        ['#a16207','#854d0e','偷拍','13:55','地铁观察',               '3.8 万','',''],
+        ['#0891b2','#0e7490','探花','07:18','本月最热',               '2.2 万','HD',''],
+        ['#e11d48','#be123c','福利姬','19:42','棚拍现场',              '5.6 万','HD',''],
+        ['#a21caf','#86198f','剧情','16:02','长篇连载',                '4.4 万','',''],
+        ['#0d9488','#0f766e','主播','03:48','简短问候',                '1.1 万','',''],
+        ['#ca8a04','#a16207','同城','21:30','深度访谈',                '6.9 万','HD','HOT'],
+      ];
+      grid.innerHTML = tiles.map(([c1,c2,cat,dur,title,views,hd,hot]) => `
+        <article class="b1-card">
+          <div class="b1-thumb">
+            <div class="grad" style="background:linear-gradient(135deg,${c1},${c2})"></div>
+            ${hd?'<span class="b1-hd">HD</span>':''}
+            ${hot?'<span class="b1-hot">🔥 ${hot}</span>'.replace('${hot}',hot):''}
+            <span class="b1-views">👁 ${views}</span>
+            <span class="b1-duration">▶ ${dur}</span>
+          </div>
+          <div class="b1-title">${title}：${['黄昏前的低语','跨越年代的访谈','街角的回声','安静的旁观者','一段未完的对话'][Math.floor(Math.random()*5)]}</div>
+          <div class="b1-meta"><span class="cat">${cat}</span><span>· ${Math.floor(Math.random()*30)+1} 天前</span></div>
+        </article>
+      `).join('');
+    })();
+  </script>
+</section>
+
+<!-- ───────────────────────────── B2 ─────────────────────────────── -->
+<section class="variant" data-v="b2">
+  <div class="b2-layout">
+    <aside class="b2-rail-left">
+      <div style="padding: 0 14px 16px; font-size: 22px; font-weight: 900; color: #fb7185;">⌂</div>
+      <a class="item on"><span class="icon">⌂</span>首页</a>
+      <a class="item"><span class="icon">🔥</span>热门</a>
+      <a class="item"><span class="icon">▶</span>视频</a>
+      <a class="item"><span class="icon">🖼</span>图集</a>
+      <a class="item"><span class="icon">#</span>标签</a>
+      <a class="item"><span class="icon">📰</span>主题</a>
+      <a class="item"><span class="icon">🔍</span>搜索</a>
+      <a class="item"><span class="icon">⚙</span>设置</a>
+      <button class="post-btn">投稿</button>
+    </aside>
+
+    <main class="b2-feed">
+      <div class="b2-feed-head">
+        <h2>首页</h2>
+        <nav class="b2-feed-tabs">
+          <a class="on">为你推荐</a>
+          <a>最新</a>
+          <a>关注</a>
+        </nav>
+      </div>
+
+      <article class="b2-post">
+        <div class="ava" style="background:linear-gradient(135deg,#fb7185,#be185d)"></div>
+        <div class="body">
+          <div class="head">
+            <span class="name">陈成人视频</span>
+            <span class="handle">@chengrenshipin</span>
+            <span class="dot">·</span>
+            <span class="time">2h</span>
+            <span class="cat">自拍</span>
+          </div>
+          <div class="title">头条要闻：风暴中的回声，深夜里被忽视的真相终于浮上水面</div>
+          <p class="text">一篇关于本周热议焦点的深度回顾，从最初的轶事开始，串联起整个事件链路的关键节点。叙事节奏平缓克制，但读到最后仍能感到余震。</p>
+          <div class="media" style="background:linear-gradient(135deg,#3730a3,#581c87)">
+            <span class="duration">▶ 12:34</span>
+          </div>
+          <div class="actions">
+            <span>💬 142</span>
+            <span>🔁 38</span>
+            <span>♡ 1.2k</span>
+            <span>👁 5.2万</span>
+            <span>↗</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="b2-post">
+        <div class="ava" style="background:linear-gradient(135deg,#0ea5e9,#0c4a6e)"></div>
+        <div class="body">
+          <div class="head">
+            <span class="name">福利姬日报</span>
+            <span class="handle">@fulijidaily</span>
+            <span class="dot">·</span>
+            <span class="time">4h</span>
+            <span class="cat">福利姬</span>
+          </div>
+          <p class="text">摄影棚直击！这次邀请到了行业内三位资深摄影师，分享他们这十年的工作流转变,以及面对算法时代的取舍。⬇️</p>
+          <div class="media" style="background:linear-gradient(135deg,#7e22ce,#581c87)">
+            <span class="duration">▶ 22:10</span>
+          </div>
+          <div class="actions">
+            <span>💬 89</span>
+            <span>🔁 27</span>
+            <span>♡ 924</span>
+            <span>👁 11万</span>
+            <span>↗</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="b2-post">
+        <div class="ava" style="background:linear-gradient(135deg,#10b981,#064e3b)"></div>
+        <div class="body">
+          <div class="head">
+            <span class="name">街拍现场</span>
+            <span class="handle">@streetscope</span>
+            <span class="dot">·</span>
+            <span class="time">7h</span>
+            <span class="cat">偷拍</span>
+          </div>
+          <div class="title">街拍合集 No.42 · 城南旧事</div>
+          <p class="text">挑了 12 张本周拍到最满意的照片，配文是当下的小笔记。这一卷胶片状态意外的好,可能跟周二那场暴雨有关。</p>
+          <div class="media" style="background:linear-gradient(135deg,#9f1239,#7c2d12)">
+            <span class="duration">▶ 15:48</span>
+          </div>
+          <div class="actions">
+            <span>💬 56</span>
+            <span>🔁 14</span>
+            <span>♡ 612</span>
+            <span>👁 8.7万</span>
+            <span>↗</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="b2-post">
+        <div class="ava" style="background:linear-gradient(135deg,#f59e0b,#92400e)"></div>
+        <div class="body">
+          <div class="head">
+            <span class="name">深夜电台</span>
+            <span class="handle">@latenightradio</span>
+            <span class="dot">·</span>
+            <span class="time">12h</span>
+            <span class="cat">主播</span>
+          </div>
+          <p class="text">凌晨直播录像已上传。今晚的话题是「为什么我们离不开旧设备」,从我的 iPhone 6 开始说起。完整版 1 小时,精剪版 9 分钟。</p>
+          <div class="media" style="background:linear-gradient(135deg,#b45309,#92400e)">
+            <span class="duration">▶ 09:21</span>
+          </div>
+          <div class="actions">
+            <span>💬 31</span>
+            <span>🔁 8</span>
+            <span>♡ 287</span>
+            <span>👁 1.8万</span>
+            <span>↗</span>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <aside class="b2-rail-right">
+      <input class="search" placeholder="🔍 搜索文章 / 标签 / 博主" />
+      <div class="block">
+        <h3>热门标签</h3>
+        <div class="b2-trend"><div class="kicker">#自拍</div><div class="name">日常分享</div><div class="meta">2,341 篇文章</div></div>
+        <div class="b2-trend"><div class="kicker">#调教</div><div class="name">访谈实录</div><div class="meta">1,892 篇文章</div></div>
+        <div class="b2-trend"><div class="kicker">#偷拍</div><div class="name">街角观察</div><div class="meta">1,564 篇文章</div></div>
+        <div class="b2-trend"><div class="kicker">#探花</div><div class="name">深度长文</div><div class="meta">1,103 篇文章</div></div>
+        <div class="b2-trend"><div class="kicker">#福利姬</div><div class="name">棚拍周更</div><div class="meta">982 篇文章</div></div>
+      </div>
+      <div class="block">
+        <h3>推荐博主</h3>
+        <div class="b2-trend" style="display:flex;align-items:center;gap:10px">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#fb7185,#be185d);flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div class="name">陈成人视频</div>
+            <div class="meta">@chengrenshipin · 39 篇</div>
+          </div>
+          <button style="background:#fb7185;color:#fff;border:none;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">关注</button>
+        </div>
+        <div class="b2-trend" style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#0ea5e9,#0c4a6e);flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div class="name">福利姬日报</div>
+            <div class="meta">@fulijidaily · 27 篇</div>
+          </div>
+          <button style="background:#fb7185;color:#fff;border:none;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">关注</button>
+        </div>
+        <div class="b2-trend" style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#10b981,#064e3b);flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div class="name">街拍现场</div>
+            <div class="meta">@streetscope · 18 篇</div>
+          </div>
+          <button style="background:#fb7185;color:#fff;border:none;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">关注</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ───────────────────────────── B3 ─────────────────────────────── -->
+<section class="variant" data-v="b3">
+  <div class="b1-bar">
+    <div class="b1-top">
+      <span class="logo">内容中台</span>
+      <nav class="nav">
+        <a class="on">首页</a>
+        <a>热门</a>
+        <a>视频</a>
+        <a>图集</a>
+        <a>主题</a>
+      </nav>
+      <form class="search">
+        <input placeholder="搜索文章 / 标签 / 博主" />
+        <button>搜索</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="b3-wrap">
+    <!-- X-style mini feed at the top -->
+    <div class="b3-mini-feed">
+      <div class="item">
+        <div class="top">
+          <div class="ava" style="background:linear-gradient(135deg,#fb7185,#be185d)"></div>
+          <div>
+            <div style="font-weight:800;font-size:13px;color:#f1f5f9">陈成人视频</div>
+            <div class="handle">@chengrenshipin · 2h</div>
+          </div>
+        </div>
+        <div class="text">头条要闻：风暴中的回声,深夜里被忽视的真相终于浮上水面...</div>
+        <div class="thumb" style="background:linear-gradient(135deg,#3730a3,#581c87)"></div>
+      </div>
+      <div class="item">
+        <div class="top">
+          <div class="ava" style="background:linear-gradient(135deg,#0ea5e9,#0c4a6e)"></div>
+          <div>
+            <div style="font-weight:800;font-size:13px;color:#f1f5f9">福利姬日报</div>
+            <div class="handle">@fulijidaily · 4h</div>
+          </div>
+        </div>
+        <div class="text">摄影棚直击！这次邀请到了行业内三位资深摄影师...</div>
+        <div class="thumb" style="background:linear-gradient(135deg,#7e22ce,#581c87)"></div>
+      </div>
+      <div class="item">
+        <div class="top">
+          <div class="ava" style="background:linear-gradient(135deg,#10b981,#064e3b)"></div>
+          <div>
+            <div style="font-weight:800;font-size:13px;color:#f1f5f9">街拍现场</div>
+            <div class="handle">@streetscope · 7h</div>
+          </div>
+        </div>
+        <div class="text">街拍合集 No.42 · 城南旧事</div>
+        <div class="thumb" style="background:linear-gradient(135deg,#9f1239,#7c2d12)"></div>
+      </div>
+      <div class="item">
+        <div class="top">
+          <div class="ava" style="background:linear-gradient(135deg,#f59e0b,#92400e)"></div>
+          <div>
+            <div style="font-weight:800;font-size:13px;color:#f1f5f9">深夜电台</div>
+            <div class="handle">@latenightradio · 12h</div>
+          </div>
+        </div>
+        <div class="text">凌晨直播录像已上传。今晚的话题是「为什么我们离不开旧设备」...</div>
+        <div class="thumb" style="background:linear-gradient(135deg,#b45309,#92400e)"></div>
+      </div>
+    </div>
+
+    <!-- 91-style grid section -->
+    <div class="b3-section-head">
+      <h2>最新</h2>
+      <span class="hint">12,438 条</span>
+      <nav class="tabs">
+        <a class="on">最新</a>
+        <a>最热</a>
+        <a>视频</a>
+        <a>图集</a>
+      </nav>
+    </div>
+
+    <div class="b3-grid" id="b3grid"></div>
+    <script>
+      (function(){
+        const g = document.getElementById('b3grid');
+        const tiles = [
+          ['#3730a3','#581c87','自拍','12:34'],
+          ['#0f766e','#134e4a','调教','08:12'],
+          ['#9f1239','#7c2d12','偷拍','15:48'],
+          ['#1e40af','#1e3a8a','探花','06:55'],
+          ['#7e22ce','#581c87','福利姬','22:10'],
+          ['#0e7490','#155e75','剧情','18:33'],
+          ['#b45309','#92400e','主播','09:21'],
+          ['#15803d','#166534','同城','11:07'],
+          ['#be123c','#9f1239','自拍','04:12'],
+          ['#4338ca','#3730a3','调教','25:46'],
+          ['#a16207','#854d0e','偷拍','13:55'],
+          ['#0891b2','#0e7490','探花','07:18'],
+        ];
+        g.innerHTML = tiles.map(([c1,c2,cat,dur]) => `
+          <article class="b1-card">
+            <div class="b1-thumb">
+              <div class="grad" style="background:linear-gradient(135deg,${c1},${c2})"></div>
+              <span class="b1-hd">HD</span>
+              <span class="b1-views">👁 ${(Math.random()*10+1).toFixed(1)}万</span>
+              <span class="b1-duration">▶ ${dur}</span>
+            </div>
+            <div class="b1-title">${cat}专题：${['黄昏前的低语','跨越年代的访谈','街角的回声','安静的旁观者','一段未完的对话','凌晨四点的电台'][Math.floor(Math.random()*6)]}</div>
+            <div class="b1-meta"><span class="cat">${cat}</span><span>· ${Math.floor(Math.random()*30)+1} 天前</span></div>
+          </article>
+        `).join('');
+      })();
+    </script>
+  </div>
+</section>
+
+<script>
+  const buttons = document.querySelectorAll('.switcher button');
+  const variants = document.querySelectorAll('.variant');
+  buttons.forEach(b => b.addEventListener('click', () => {
+    buttons.forEach(x => x.classList.toggle('on', x === b));
+    variants.forEach(v => v.classList.toggle('on', v.dataset.v === b.dataset.v));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }));
+</script>
+</body>
+</html>

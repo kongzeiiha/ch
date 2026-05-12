@@ -172,11 +172,20 @@ export async function deleteObjects(keys: string[]): Promise<number> {
   return deleted;
 }
 
+export interface UploadedVideo {
+  /** Public MinIO URL of the uploaded file. */
+  url: string;
+  /** Playback duration in seconds — parsed from the mp4 mvhd box. NULL when
+   *  the file isn't mp4, the moov atom is at the end and got truncated, or
+   *  parsing failed. */
+  durationSec: number | null;
+}
+
 export async function uploadVideoFromUrl(
   sourceUrl: string,
   key: string,
   opts: { headers?: Record<string, string> } = {},
-): Promise<string | null> {
+): Promise<UploadedVideo | null> {
   const axios = (await import('axios')).default;
   try {
     const res = await axios.get<ArrayBuffer>(sourceUrl, {
@@ -203,7 +212,8 @@ export async function uploadVideoFromUrl(
         CacheControl: 'public, max-age=31536000, immutable',
       }),
     );
-    return `${endpoint}/${bucket}/${key}`;
+    const durationSec = readMp4DurationSec(buffer);
+    return { url: `${endpoint}/${bucket}/${key}`, durationSec };
   } catch (e: any) {
     const msg = e?.response?.status
       ? `${e.response.status} ${e.response.statusText ?? ''}`
@@ -213,4 +223,60 @@ export async function uploadVideoFromUrl(
     console.warn(`[video] download/upload failed for ${sourceUrl}: ${msg}`);
     return null;
   }
+}
+
+/**
+ * Inline MP4 duration parser. Walks the ISO BMFF box tree to find the moov
+ * atom, then its mvhd (movie header) child, which carries `timescale` and
+ * `duration` fields. Duration in seconds = duration_ticks / timescale.
+ *
+ * Spec ref: ISO/IEC 14496-12, §8.2.2 (Movie Header Box).
+ *
+ * Returns null when:
+ *   - file isn't mp4 (no moov found)
+ *   - mvhd missing
+ *   - any read goes past the buffer (truncated download / mp4 with moov at
+ *     end that wasn't fully buffered)
+ */
+function readMp4DurationSec(buf: Buffer): number | null {
+  try {
+    const moov = findBox(buf, 0, buf.length, 'moov');
+    if (!moov) return null;
+    const mvhd = findBox(buf, moov.dataStart, moov.dataEnd, 'mvhd');
+    if (!mvhd) return null;
+    // mvhd payload: version(1) + flags(3) + …
+    const version = buf.readUInt8(mvhd.dataStart);
+    let timescale: number;
+    let duration: number;
+    if (version === 0) {
+      // v0: CT(4) MT(4) timescale(4) duration(4)
+      timescale = buf.readUInt32BE(mvhd.dataStart + 4 + 4 + 4);
+      duration  = buf.readUInt32BE(mvhd.dataStart + 4 + 4 + 4 + 4);
+    } else {
+      // v1: CT(8) MT(8) timescale(4) duration(8)
+      timescale = buf.readUInt32BE(mvhd.dataStart + 4 + 8 + 8);
+      duration  = Number(buf.readBigUInt64BE(mvhd.dataStart + 4 + 8 + 8 + 4));
+    }
+    if (!timescale || !duration) return null;
+    return Math.round(duration / timescale);
+  } catch {
+    return null;
+  }
+}
+
+/** Locate a box by 4-char type within a byte range. Returns the box's payload
+ *  start/end (i.e. past the 8-byte size+type header). */
+function findBox(buf: Buffer, start: number, end: number, type: string): { dataStart: number; dataEnd: number } | null {
+  let off = start;
+  while (off + 8 <= end) {
+    const size = buf.readUInt32BE(off);
+    const t = buf.toString('latin1', off + 4, off + 8);
+    if (size === 0) return null;          // box runs to EOF — unsupported here
+    if (size === 1) return null;          // 64-bit largesize — unsupported, rare
+    const next = off + size;
+    if (next > end) return null;
+    if (t === type) return { dataStart: off + 8, dataEnd: next };
+    off = next;
+  }
+  return null;
 }

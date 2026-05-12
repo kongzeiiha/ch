@@ -27,7 +27,7 @@ export default function DmcaPage() {
       </Ul>
 
       <H2>2. 联系方式</H2>
-      <P>邮箱:<a href={`mailto:${CONTACT_EMAIL}`} style={{ color: '#a5b4fc' }}>{CONTACT_EMAIL}</a></P>
+      <P>邮箱:<a href={`mailto:${CONTACT_EMAIL}`} style={{ color: '#dc2626' }}>{CONTACT_EMAIL}</a></P>
       <P>请将邮件主题命名为「DMCA 下架请求 - 您的姓名」,以便快速分流。</P>
 
       <H2>3. 处理时限</H2>

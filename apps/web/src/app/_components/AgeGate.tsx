@@ -29,45 +29,48 @@ export function AgeGate({ exitUrl }: { exitUrl: string }) {
     <div role="dialog" aria-modal="true" aria-labelledby="age-gate-title"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: '#020617e6',
+        background: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 20,
       }}>
       <div style={{
         maxWidth: 420,
-        background: '#1e293b',
-        border: '1px solid #334155',
-        borderRadius: 10,
+        background: '#000000',
+        border: '1px solid #1f2937',
+        borderRadius: 16,
         padding: '28px 28px 22px',
         color: '#e2e8f0',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
       }}>
-        <div id="age-gate-title" style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+        <div id="age-gate-title" style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>
           年龄确认
         </div>
-        <p style={{ fontSize: 14, color: '#cbd5e1', lineHeight: 1.65, margin: '0 0 18px' }}>
+        <p style={{ fontSize: 15, color: '#94a3b8', lineHeight: 1.6, margin: '0 0 18px' }}>
           本站内容包含部分仅适合成年人浏览的素材。继续浏览即表示您已年满 18 周岁,
-          并自愿接受本站的 <a href="/about/terms" style={{ color: '#a5b4fc' }}>服务条款</a> 与
-          <a href="/about/privacy" style={{ color: '#a5b4fc' }}> 隐私政策</a>。
+          并自愿接受本站的 <a href="/about/terms" style={{ color: '#dc2626', textDecoration: 'none' }}>服务条款</a> 与
+          <a href="/about/privacy" style={{ color: '#dc2626', textDecoration: 'none' }}> 隐私政策</a>。
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={accept} style={{
             flex: 1,
-            padding: '10px 0',
-            background: '#6366f1',
+            padding: '12px 0',
+            background: '#dc2626',
             border: 'none',
-            borderRadius: 6,
-            color: '#fff',
-            fontSize: 14,
-            fontWeight: 600,
+            borderRadius: 9999,
+            color: '#ffffff',
+            fontSize: 15,
+            fontWeight: 700,
             cursor: 'pointer',
           }}>我已年满 18 岁</button>
           <a href={exitUrl} style={{
-            padding: '10px 14px',
+            padding: '12px 16px',
             background: 'transparent',
             border: '1px solid #334155',
-            borderRadius: 6,
-            color: '#94a3b8',
-            fontSize: 13,
+            borderRadius: 9999,
+            color: '#e2e8f0',
+            fontSize: 14,
+            fontWeight: 600,
             textDecoration: 'none',
             display: 'inline-flex',
             alignItems: 'center',

@@ -126,13 +126,20 @@ export async function getLatest(opts: { limit?: number; offset?: number } = {}):
   return exec();
 }
 
-/** Length bucket used by category/search filters. Boundaries derived from
- *  ~200 zh-chars/min reading speed: <1000 ≈ <5 min, 3000 ≈ <15 min. */
+/** Length bucket — unifies "reading time" (text articles) and "playback
+ *  time" (video posts) under one filter. Boundaries:
+ *    short  < 5 min  → text < 1000 chars  OR  video duration <  300s
+ *    medium 5-15 min → text < 3000 chars  OR  video duration <  900s
+ *    long   > 15 min → text ≥ 3000 chars  OR  video duration ≥  900s
+ *  Reading speed used: ~200 zh-chars/min. */
 export type LengthBucket = 'short' | 'medium' | 'long';
-export const LENGTH_BUCKETS: Record<LengthBucket, { min: number; max: number | null; label: string }> = {
-  short:  { min: 0,    max: 1000,  label: '短文(<5 分钟)' },
-  medium: { min: 1000, max: 3000,  label: '中篇(5-15 分钟)' },
-  long:   { min: 3000, max: null,  label: '长文(>15 分钟)' },
+export const LENGTH_BUCKETS: Record<
+  LengthBucket,
+  { min: number; max: number | null; minSec: number; maxSec: number | null; label: string }
+> = {
+  short:  { min: 0,    max: 1000,  minSec: 0,   maxSec: 300,  label: '短(<5 分钟)' },
+  medium: { min: 1000, max: 3000,  minSec: 300, maxSec: 900,  label: '中(5-15 分钟)' },
+  long:   { min: 3000, max: null,  minSec: 900, maxSec: null, label: '长(>15 分钟)' },
 };
 
 export type DateBucket = '7d' | '30d' | '90d' | 'all';
@@ -183,10 +190,33 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
   } else if (f.media === 'image') {
     where.push(`JSON_LENGTH(r.media_urls) > 0 AND COALESCE(JSON_LENGTH(r.video_urls), 0) = 0`);
   }
+  // 时长 buckets unify text and video. An item passes when EITHER:
+  //   - it has a video duration that falls inside the bucket (minSec…maxSec)
+  //   - it has NO video AND its text length falls inside the bucket (min…max)
+  // Without the video branch, X video posts (content ≈ 20 chars) never made
+  // it into any bucket and the "深度长文" / "深度长视频" tab was empty.
   if (f.length) {
     const b = LENGTH_BUCKETS[f.length];
-    where.push(`CHAR_LENGTH(COALESCE(i.content, '')) >= $${p++}`); params.push(b.min);
-    if (b.max != null) { where.push(`CHAR_LENGTH(COALESCE(i.content, '')) < $${p++}`); params.push(b.max); }
+    const branches: string[] = [];
+    // Video branch
+    let vBranch = `(i.duration_sec IS NOT NULL AND i.duration_sec >= $${p++}`;
+    params.push(b.minSec);
+    if (b.maxSec != null) {
+      vBranch += ` AND i.duration_sec < $${p++}`;
+      params.push(b.maxSec);
+    }
+    vBranch += ')';
+    branches.push(vBranch);
+    // Text branch (only when there's no video to fall back to)
+    let tBranch = `(i.duration_sec IS NULL AND CHAR_LENGTH(COALESCE(i.content, '')) >= $${p++}`;
+    params.push(b.min);
+    if (b.max != null) {
+      tBranch += ` AND CHAR_LENGTH(COALESCE(i.content, '')) < $${p++}`;
+      params.push(b.max);
+    }
+    tBranch += ')';
+    branches.push(tBranch);
+    where.push(`(${branches.join(' OR ')})`);
   }
   if (f.date && DATE_BUCKETS[f.date].days != null) {
     where.push(`i.published_at >= DATE_SUB(NOW(), INTERVAL $${p++} DAY)`);
@@ -202,17 +232,38 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
 
   const whereSql = where.join(' AND ');
 
+  // Dedup-by-title: 同源博主常用同一句固定标题(如 "Chudai#反差")发不同的
+  // 推文,数据库层面是不同 raw_items + 不同 cover,但卡片网格里看着像
+  // 重复。用 ROW_NUMBER() OVER (PARTITION BY title) 保留每个标题分组里
+  // 当前排序下排名第一的那条,空标题用 id 兜底(保证每条都通过)。
+  const dedupKey = `COALESCE(NULLIF(TRIM(i.title), ''), CAST(i.id AS CHAR))`;
+  const outerOrderBy = f.sort === 'hot'
+    ? 't.pv_30d DESC, t.published_at DESC'
+    : 't.published_at DESC';
+
   const [items, totalRows] = await Promise.all([
     query<ArticleCardRow>(
-      `SELECT ${ARTICLE_COLS}
-       ${ARTICLE_FROM}
-       WHERE ${whereSql}
-       ORDER BY ${orderBy}
+      `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
+              t.cover_url, t.cover_sizes, t.category, t.tags,
+              t.published_at, t.source, t.cover_fallback, t.video_url,
+              t.has_video, t.has_image, t.content_length
+       FROM (
+         SELECT ${ARTICLE_COLS}, i.pv_30d,
+                ROW_NUMBER() OVER (
+                  PARTITION BY ${dedupKey}
+                  ORDER BY ${orderBy}
+                ) AS dedup_rn
+         ${ARTICLE_FROM}
+         WHERE ${whereSql}
+       ) t
+       WHERE t.dedup_rn = 1
+       ORDER BY ${outerOrderBy}
        LIMIT $${p++} OFFSET $${p++}`,
       [...params, limit, offset],
     ),
     query<{ n: number }>(
-      `SELECT COUNT(*) AS n ${ARTICLE_FROM}
+      `SELECT COUNT(DISTINCT ${dedupKey}) AS n
+       ${ARTICLE_FROM}
        WHERE ${whereSql}`,
       params,
     ),
@@ -239,9 +290,20 @@ export async function search(opts: FeedFilter & { q?: string }): Promise<{ items
   if (opts.tag)      { where.push(`JSON_CONTAINS(i.tags, JSON_QUOTE($${p++}))`);     params.push(opts.tag); }
   if (opts.keyword)  { where.push(`JSON_CONTAINS(i.keywords, JSON_QUOTE($${p++}))`); params.push(opts.keyword); }
   if (opts.length) {
+    // Same dual-bucket logic as getFiltered — text OR video duration.
     const b = LENGTH_BUCKETS[opts.length];
-    where.push(`CHAR_LENGTH(COALESCE(i.content, '')) >= $${p++}`); params.push(b.min);
-    if (b.max != null) { where.push(`CHAR_LENGTH(COALESCE(i.content, '')) < $${p++}`); params.push(b.max); }
+    const branches: string[] = [];
+    let vBranch = `(i.duration_sec IS NOT NULL AND i.duration_sec >= $${p++}`;
+    params.push(b.minSec);
+    if (b.maxSec != null) { vBranch += ` AND i.duration_sec < $${p++}`; params.push(b.maxSec); }
+    vBranch += ')';
+    branches.push(vBranch);
+    let tBranch = `(i.duration_sec IS NULL AND CHAR_LENGTH(COALESCE(i.content, '')) >= $${p++}`;
+    params.push(b.min);
+    if (b.max != null) { tBranch += ` AND CHAR_LENGTH(COALESCE(i.content, '')) < $${p++}`; params.push(b.max); }
+    tBranch += ')';
+    branches.push(tBranch);
+    where.push(`(${branches.join(' OR ')})`);
   }
   if (opts.date && DATE_BUCKETS[opts.date].days != null) {
     where.push(`i.published_at >= DATE_SUB(NOW(), INTERVAL $${p++} DAY)`);
@@ -249,18 +311,35 @@ export async function search(opts: FeedFilter & { q?: string }): Promise<{ items
   }
   const whereSql = where.join(' AND ');
 
+  // Title-level dedup mirroring getFiltered — same query keeps showing the
+  // same "Chudai#反差" 4 times under /search?q=Chudai otherwise. PARTITION
+  // by trimmed title (id fallback for blanks) and pick the highest-relevance
+  // row in each group.
+  const dedupKey = `COALESCE(NULLIF(TRIM(i.title), ''), CAST(i.id AS CHAR))`;
+
   const [items, totalRows] = await Promise.all([
     query<ArticleCardRow>(
-      `SELECT ${ARTICLE_COLS},
-              MATCH(i.title, i.summary, i.content) AGAINST ($1 IN NATURAL LANGUAGE MODE) AS rel
-       ${ARTICLE_FROM}
-       WHERE ${whereSql}
-       ORDER BY rel DESC
+      `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
+              t.cover_url, t.cover_sizes, t.category, t.tags,
+              t.published_at, t.source, t.cover_fallback, t.video_url,
+              t.has_video, t.has_image, t.content_length
+       FROM (
+         SELECT ${ARTICLE_COLS},
+                MATCH(i.title, i.summary, i.content) AGAINST ($1 IN NATURAL LANGUAGE MODE) AS rel,
+                ROW_NUMBER() OVER (
+                  PARTITION BY ${dedupKey}
+                  ORDER BY MATCH(i.title, i.summary, i.content) AGAINST ($1 IN NATURAL LANGUAGE MODE) DESC
+                ) AS dedup_rn
+         ${ARTICLE_FROM}
+         WHERE ${whereSql}
+       ) t
+       WHERE t.dedup_rn = 1
+       ORDER BY t.rel DESC
        LIMIT $${p++} OFFSET $${p++}`,
       [...params, limit, offset],
     ),
     query<{ n: number }>(
-      `SELECT COUNT(*) AS n ${ARTICLE_FROM}
+      `SELECT COUNT(DISTINCT ${dedupKey}) AS n ${ARTICLE_FROM}
        WHERE ${whereSql}`,
       params,
     ),

@@ -379,9 +379,59 @@ export function stripLLMTails(text: string): string {
   return out;
 }
 
+/**
+ * Defense-in-depth HTML sanitizer for content rendered via
+ * `dangerouslySetInnerHTML`. The article body comes from upstream RSS / API
+ * feeds we don't control — a compromised or hostile source could inject
+ * `<script>`, event handlers, or `javascript:` URLs that would execute in
+ * our origin.
+ *
+ * Conservative regex-based pass. We considered isomorphic-dompurify (real
+ * DOM parser via jsdom) but its server bundle drags ~5MB of jsdom + WHATWG
+ * fixtures into every Next.js route's chunks, breaking the build with
+ * `ENOENT browser/default-stylesheet.css`. The threat model here is RSS-
+ * sourced HTML (not user-controlled), so a strict regex denylist is enough:
+ *
+ *   1. Drop entire "dangerous" tag blocks (script/iframe/style/object/embed/
+ *      form/link/meta/base/svg) including their inner content
+ *   2. Strip every `on*=` event handler attribute regardless of host element
+ *   3. Replace `javascript:` / `vbscript:` / `data:` in href/src/action/
+ *      formaction/xlink:href with a "#" so the attribute survives but goes
+ *      nowhere harmful
+ *   4. Drop `srcdoc` outright
+ *
+ * Anything that looks remotely suspicious is dropped — false positives just
+ * mean a slightly uglier render, false negatives are XSS. The compliance
+ * agent should screen ingested HTML upstream; this is the last-line defense.
+ */
+const DANGEROUS_TAGS = ['script', 'iframe', 'style', 'object', 'embed', 'form', 'link', 'meta', 'base', 'svg'];
+
+export function sanitizeHtml(html: string | null | undefined): string {
+  if (!html) return '';
+  let out = html;
+  // 1. Strip entire dangerous tag blocks. Non-greedy match keeps adjacent
+  //    <script>...</script>...<script>...</script> from being collapsed into
+  //    one over-eager removal.
+  for (const tag of DANGEROUS_TAGS) {
+    out = out.replace(new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}\\s*>`, 'gi'), '');
+    // Self-closing / never-closed variants: `<link rel="x">`, `<meta …>`.
+    out = out.replace(new RegExp(`<${tag}\\b[^>]*\\/?>(?![\\s\\S]*<\\/${tag})`, 'gi'), '');
+  }
+  // 2. Drop inline event handlers (`on*=`) regardless of element.
+  out = out.replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  // 3. Neutralize unsafe URI schemes — replace the value with "#" so the
+  //    attribute parses but does nothing. Keeps the attribute name in place
+  //    so existing CSS/layout that targets `a[href]` still applies.
+  out = out.replace(/\s(href|src|action|formaction|xlink:href)\s*=\s*("|')\s*(?:javascript|vbscript|data):[^"']*\2/gi, ' $1=$2#$2');
+  // 4. Drop `srcdoc` — lets <iframe>-like elements embed arbitrary HTML.
+  out = out.replace(/\ssrcdoc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  return out;
+}
+
 export function stripUrlsFromHtml(html: string | null | undefined): string {
   if (!html) return '';
-  return html
+  // Sanitize FIRST so the rest of the pipeline operates on safe HTML.
+  return sanitizeHtml(html)
     // Drop <a> wrapping http/https — keep the inner text? Usually it's the URL
     // itself, so dropping the whole tag is fine and saves a regex pass.
     .replace(/<a\s+[^>]*href=["']https?:\/\/[^"']+["'][^>]*>[\s\S]*?<\/a>/gi, '')

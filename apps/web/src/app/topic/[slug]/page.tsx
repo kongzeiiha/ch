@@ -82,6 +82,17 @@ export default async function TopicPage(
   };
 
   const { items, total } = await getFiltered(merged);
+
+  // Soft-404 guard for unknown keyword topics. The keyword scheme is
+  // open-ended (any `/topic/keyword-<anything>` resolves to a TopicDef),
+  // so without this an attacker-fed URL would 200 with 0 articles and
+  // pollute Google's index with low-quality long-tail. Themes/source
+  // topics aren't affected — their resolveTopic() already 404s on miss.
+  // We only 404 when there's no URL-level filter; a filter active means
+  // the user narrowed it themselves and might want to widen back.
+  const hasFilter = !!(searchParams.tag || searchParams.length || searchParams.date || searchParams.sort);
+  if (topic.kind === 'keyword' && total === 0 && !hasFilter) notFound();
+
   const basePath = `/topic/${params.slug}`;
 
   const crumbs = [
@@ -90,7 +101,7 @@ export default async function TopicPage(
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
+    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
       <SiteHeader crumb={topic.title} activeTab="topics" />
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <JsonLd data={collectionPageJsonLd({
@@ -103,10 +114,8 @@ export default async function TopicPage(
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
         {topic.kind === 'theme' && <ThemeTabs active={topic.slug} />}
 
-        {/* Kicker (KIND_LABEL) removed — the breadcrumb + ThemeTabs above
-            already place the user. H1 + description line carry the rest. */}
         <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 6px', color: '#f1f5f9' }}>
             {topic.kind === 'keyword' ? `#${topic.title}` : topic.title}
           </h1>
           <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>{topic.description} · 共 {total} 篇</p>
@@ -115,7 +124,7 @@ export default async function TopicPage(
         <FilterBar basePath={basePath} current={searchParams} />
 
         {items.length === 0 ? (
-          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#1e293b', borderRadius: 8 }}>
+          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
             暂无文章
           </p>
         ) : (

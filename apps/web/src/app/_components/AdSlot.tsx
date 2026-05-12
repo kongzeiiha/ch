@@ -15,12 +15,12 @@ export function AdSlot({ name }: { name: SlotName }) {
   return (
     <div data-ad-slot={name} style={{
       border: '1px dashed #334155',
-      borderRadius: 6,
+      borderRadius: 12,
       padding: '14px 16px',
-      color: '#475569',
-      fontSize: 11,
+      color: '#64748b',
+      fontSize: 12,
       textAlign: 'center',
-      background: '#0f172a',
+      background: '#000000',
       letterSpacing: 0.5,
     }}>
       AD · {name}

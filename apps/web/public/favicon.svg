@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 堆叠卡片 logo — 与 SiteHeader 内嵌 SVG 完全同构. 三层圆角方块 -->
+  <!-- 错位向右下方堆叠, 透明度 32% → 62% → 100% 营造层级感. -->
+  <rect x="3"  y="3"  width="18" height="18" rx="3.5" fill="#dc2626" fill-opacity="0.32"/>
+  <rect x="7"  y="7"  width="18" height="18" rx="3.5" fill="#dc2626" fill-opacity="0.62"/>
+  <rect x="11" y="11" width="18" height="18" rx="3.5" fill="#dc2626"/>
+</svg>

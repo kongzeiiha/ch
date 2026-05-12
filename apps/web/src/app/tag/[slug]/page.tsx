@@ -64,7 +64,7 @@ export default async function TagPage(
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
+    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
       <SiteHeader crumb={`#${tag}`} activeTab="tags" />
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <JsonLd data={collectionPageJsonLd({
@@ -75,20 +75,18 @@ export default async function TagPage(
       })} />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        {/* Kicker "标签" removed — the # prefix on the H1 already conveys
-            this is a tag page, and the breadcrumb shows the same context. */}
         <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: '#e2e8f0' }}>#{tag}</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 6px', color: '#f1f5f9' }}>#{tag}</h1>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
             <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>共 {total} 篇</p>
-            <Link href="/tag" style={{ fontSize: 13, color: '#a5b4fc', textDecoration: 'none' }}>查看全部标签 →</Link>
+            <Link href="/tag" style={{ fontSize: 13, color: '#dc2626', textDecoration: 'none' }}>查看全部标签 →</Link>
           </div>
         </div>
 
         <FilterBar basePath={basePath} current={{ ...searchParams, tag: undefined }} />
 
         {items.length === 0 ? (
-          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#1e293b', borderRadius: 8 }}>
+          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
             没有匹配的文章
           </p>
         ) : (

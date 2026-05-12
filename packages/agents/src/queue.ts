@@ -5,6 +5,15 @@ const connection = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', 
   maxRetriesPerRequest: null,
 });
 
+/** Shared Redis client — reuse for non-queue features (PV dedup, rate limits)
+ *  to avoid spinning up extra connections. Note BullMQ requires
+ *  `maxRetriesPerRequest: null` so this client inherits that — for SET NX with
+ *  EX it's fine; very lossy `INCR` scenarios may want their own retry-enabled
+ *  client instead. */
+export function getRedis(): Redis {
+  return connection;
+}
+
 export const QUEUE_NAMES = {
   sourceScoring: 'source-scoring',
   ingestion: 'ingestion',
