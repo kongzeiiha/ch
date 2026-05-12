@@ -215,12 +215,18 @@ export async function uploadVideoFromUrl(
     const durationSec = readMp4DurationSec(buffer);
     return { url: `${endpoint}/${bucket}/${key}`, durationSec };
   } catch (e: any) {
-    const msg = e?.response?.status
-      ? `${e.response.status} ${e.response.statusText ?? ''}`
-      : e?.code === 'ERR_FR_MAX_CONTENT_LENGTH_EXCEEDED' || e?.message?.includes('maxContentLength')
-        ? `too large (>${MAX_VIDEO_BYTES} bytes)`
+    const tooLarge = e?.code === 'ERR_FR_MAX_CONTENT_LENGTH_EXCEEDED'
+      || e?.message?.includes('maxContentLength');
+    // "too large" 是预期的硬限保护(>200MB 视频跳过),不是 bug,降级到 debug.
+    // 真正的下载失败(网络 / 4xx / 5xx)仍然保留 warn 以触发关注。
+    if (tooLarge) {
+      console.debug(`[video] skipped oversized (>${MAX_VIDEO_BYTES} bytes): ${sourceUrl}`);
+    } else {
+      const msg = e?.response?.status
+        ? `${e.response.status} ${e.response.statusText ?? ''}`
         : e?.message ?? String(e);
-    console.warn(`[video] download/upload failed for ${sourceUrl}: ${msg}`);
+      console.warn(`[video] download/upload failed for ${sourceUrl}: ${msg}`);
+    }
     return null;
   }
 }

@@ -153,8 +153,14 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
         { jobId: `classify-title__${persisted.itemId}`, removeOnComplete: true },
       );
     } catch (e: any) {
-      // 23505 = unique_violation (dedupe_key race from concurrent fetches)
-      if (e?.code === '23505') {
+      // 重复主键 = dedupe_key 命中 (并发 fetch 撞同一条 raw_item 是常态,不是 bug)
+      //   - PG: SQLSTATE 23505 (unique_violation), 旧迁移前的代码
+      //   - MySQL: code 'ER_DUP_ENTRY' (errno 1062), 当前 stack
+      // 两种都吞掉、计入 dupUrl,不再误打到 warn 日志。
+      const isDup = e?.code === '23505'
+        || e?.code === 'ER_DUP_ENTRY'
+        || e?.errno === 1062;
+      if (isDup) {
         stats.dupUrl++;
       } else {
         stats.errors++;

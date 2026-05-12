@@ -4,6 +4,20 @@ const STATIC_EXPORT = process.env.STATIC_EXPORT === '1';
 const nextConfig = {
   reactStrictMode: true,
   devIndicators: false,
+  // Allow the production deploy host (and any extra ALLOWED_DEV_ORIGINS env
+  // values) to fetch /_next/* assets in dev. Without this Next 15+ warns on
+  // every cross-origin asset request from 3333.lq.qrxsrg03.work — and a
+  // future major will outright block them. ENV-driven so we don't hard-code
+  // any specific deploy host into the repo.
+  allowedDevOrigins: [
+    ...(process.env.ALLOWED_DEV_ORIGINS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+    '3333.lq.qrxsrg03.work',
+    'localhost',
+    '127.0.0.1',
+  ],
   // Compile workspace packages through Next's own SWC instead of relying on
   // their pre-built dist/. Avoids "Cannot read properties of undefined" errors
   // from webpack mis-resolving ESM workspace exports, and means changes in

@@ -15,6 +15,18 @@ const CARD_CSS = `
   .b1-card:hover .b1-card-title { color: ${X.accent}; }
 `;
 
+/** Seconds → "M:SS" / "H:MM:SS" — matches the YouTube/Tube glance format
+ *  readers recognize. Shared between the bottom-right thumbnail overlay
+ *  and the row-layout meta line so they stay in sync. */
+function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+
 // For raw social posts, the title agent often regurgitates the source text
 // into both `title` and `summary` (with maybe a `@source` tail), so the card
 // shows the same sentence twice. Treat the summary as redundant whenever the
@@ -38,6 +50,13 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
   const rawCover = a.cover_sizes?.card ?? a.cover_url ?? a.cover_fallback ?? null;
   const thumb = proxiedImage(rawCover, a.source_id);
   const minutes = readMinutes(a.content_length);
+  // Prefer server-side duration_sec (populated by ffprobe during ingestion) —
+  // ships ready SSR-clean. Fall back to client-side <video> metadata only when
+  // DB has no duration (legacy / unprobed items). Avoids the "1 分钟" stuck
+  // fallback that 跨域 / 慢网 production users were seeing.
+  const dbDuration = a.duration_sec != null && a.duration_sec > 0
+    ? formatDuration(a.duration_sec)
+    : null;
   const date = a.published_at ? new Date(a.published_at).toLocaleDateString('zh-CN') : null;
   // Many feeds embed `https://t.co/xxx` inside the title/summary — strip for
   // a cleaner card. displayTitle does the full display-grade cleanup: URL +
@@ -83,8 +102,14 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
           <div style={{ fontSize: 13, color: X.textSecondary, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {a.category && <span style={{ color: X.accent, fontWeight: 600 }}>{a.category}</span>}
             {date && <span>{date}</span>}
-            {a.has_video && a.video_url ? (
-              <VideoDurationBadge src={a.video_url} fallback={`${minutes} 分钟`} />
+            {a.has_video ? (
+              dbDuration ? (
+                <span>{dbDuration}</span>
+              ) : a.video_url ? (
+                <VideoDurationBadge src={a.video_url} fallback={`${minutes} 分钟`} />
+              ) : (
+                <span>{minutes} 分钟</span>
+              )
             ) : (
               <span>{minutes} 分钟阅读</span>
             )}
@@ -115,8 +140,18 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
           )}
           {/* HD/视频/图片 corner pill — top-left */}
           <CornerMediaBadge hasVideo={a.has_video} hasImage={a.has_image} />
-          {/* Duration overlay — bottom-right (video only) */}
-          {a.has_video && a.video_url && (
+          {/* Duration overlay — bottom-right (video only). Uses DB
+              duration_sec when available (SSR-clean, instant); falls back to
+              client-side <video preload="metadata"> only when DB is empty. */}
+          {a.has_video && (dbDuration ? (
+            <span style={{
+              position: 'absolute', right: 6, bottom: 6,
+              padding: '2px 7px', borderRadius: 3,
+              background: 'rgba(0,0,0,0.78)', color: '#fff',
+              fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+              lineHeight: 1.4,
+            }}>{dbDuration}</span>
+          ) : a.video_url ? (
             <span style={{
               position: 'absolute', right: 6, bottom: 6,
               padding: '2px 7px', borderRadius: 3,
@@ -126,7 +161,7 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
             }}>
               <VideoDurationBadge src={a.video_url} fallback={`${minutes}:00`} />
             </span>
-          )}
+          ) : null)}
         </div>
         <div style={{ padding: '10px 12px 12px' }}>
           <h2 className="b1-card-title" style={{

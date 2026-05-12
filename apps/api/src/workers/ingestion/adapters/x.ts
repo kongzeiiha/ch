@@ -2,6 +2,13 @@ import axios from 'axios';
 import { AdapterAuthError, type SourceAdapter, type SourceRow, type RawCandidate } from './types.js';
 import { resolveAuth } from './auth.js';
 
+// Tracks whether we've already logged the SearchTimeline → playwright
+// fallback. The direct GraphQL path returns 404 for every search now (x has
+// gated it behind x-client-transaction-id) so this fired on every keyword
+// search → flooded the log. Switch to once-per-process to keep the signal
+// visible without the noise.
+let searchTimelineFallbackLogged = false;
+
 /**
  * X (Twitter) adapter — replays the public web client's GraphQL calls using
  * the logged-in session's cookie. No OAuth, no paid API.
@@ -587,8 +594,13 @@ export async function searchUsersByKeyword(opts: {
   }
   if (res.status === 404 || res.status === 410) {
     // All direct-axios paths are gated by x-client-transaction-id now.
-    // Drive a real headless browser instead — slower but works.
-    console.warn('[x] SearchTimeline 404 on direct path — falling back to playwright');
+    // Drive a real headless browser instead — slower but works. Only log
+    // the fallback once per process — every search hits this path so the
+    // log was repeating on every cron tick.
+    if (!searchTimelineFallbackLogged) {
+      console.warn('[x] SearchTimeline direct path returns 404 — using playwright for all subsequent searches (this notice prints once per process)');
+      searchTimelineFallbackLogged = true;
+    }
     return searchUsersByKeywordViaBrowser(opts);
   }
   if (res.status !== 200) {

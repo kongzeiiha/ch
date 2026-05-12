@@ -13,12 +13,21 @@ interface GA4Row {
   avg_duration: number;
 }
 
+// Analytics pull runs on a recurring cron (BullMQ scheduler) — without this
+// guard, every tick prints the "not configured" warning, which floods the
+// log on dev/staging deployments that legitimately don't have GA4 hooked up.
+// Only emit on the first miss per process; subsequent silent no-ops.
+let ga4MissReported = false;
+
 async function fetchGA4Yesterday(): Promise<GA4Row[]> {
   const propertyId = process.env.GA4_PROPERTY_ID;
   const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
   if (!propertyId || !credPath) {
-    console.warn('[analytics] GA4_PROPERTY_ID or GOOGLE_APPLICATION_CREDENTIALS not set — skipping GA4 pull');
+    if (!ga4MissReported) {
+      console.warn('[analytics] GA4_PROPERTY_ID or GOOGLE_APPLICATION_CREDENTIALS not set — skipping GA4 pull (this notice prints once per process)');
+      ga4MissReported = true;
+    }
     return [];
   }
 

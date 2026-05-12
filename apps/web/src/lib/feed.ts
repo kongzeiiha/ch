@@ -27,10 +27,15 @@ export interface ArticleCardRow {
    *  badge on cards and the 视频/图片 filtered sections on the landing. */
   has_video: boolean;
   has_image: boolean;
-  /** First video URL (raw_items.video_urls[0]) — used by the card to load
-   *  `<video preload="metadata">` and read the real playback duration on the
-   *  client instead of showing "1 分钟阅读" derived from a 20-char tweet body. */
+  /** First video URL (raw_items.video_urls[0]) — kept for the article detail
+   *  player. Cards no longer need this for duration because we now ship
+   *  `duration_sec` from the DB directly. */
   video_url: string | null;
+  /** Real playback duration in seconds, server-rendered from items.duration_sec.
+   *  Populated by the ingestion pipeline via ffprobe on each crawled MP4 — so
+   *  cards render the correct "5:32" SSR-clean without waiting for a client
+   *  video metadata round trip (which 跨域/慢网 上 often stalls on fallback). */
+  duration_sec: number | null;
   category: string | null;
   tags: string[];
   published_at: string | null;
@@ -48,7 +53,7 @@ export interface TagCount { tag: string; count: number }
 const ARTICLE_COLS = `
   i.id, i.slug, i.title, i.summary, i.source_id,
   i.cover_url, i.cover_sizes, i.category, i.tags,
-  i.published_at,
+  i.published_at, i.duration_sec,
   s.name AS source,
   JSON_UNQUOTE(JSON_EXTRACT(r.media_urls, '$[0]')) AS cover_fallback,
   JSON_UNQUOTE(JSON_EXTRACT(r.video_urls, '$[0]')) AS video_url,
@@ -245,7 +250,7 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
     query<ArticleCardRow>(
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
-              t.published_at, t.source, t.cover_fallback, t.video_url,
+              t.published_at, t.duration_sec, t.source, t.cover_fallback, t.video_url,
               t.has_video, t.has_image, t.content_length
        FROM (
          SELECT ${ARTICLE_COLS}, i.pv_30d,
@@ -321,7 +326,7 @@ export async function search(opts: FeedFilter & { q?: string }): Promise<{ items
     query<ArticleCardRow>(
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
-              t.published_at, t.source, t.cover_fallback, t.video_url,
+              t.published_at, t.duration_sec, t.source, t.cover_fallback, t.video_url,
               t.has_video, t.has_image, t.content_length
        FROM (
          SELECT ${ARTICLE_COLS},
@@ -457,6 +462,7 @@ function normalize(r: any): ArticleCardRow {
     has_video: Boolean(Number(r.has_video ?? 0)),
     has_image: Boolean(Number(r.has_image ?? 0)),
     video_url: r.video_url ?? null,
+    duration_sec: r.duration_sec != null ? Number(r.duration_sec) : null,
     category: r.category,
     tags,
     published_at: r.published_at,
