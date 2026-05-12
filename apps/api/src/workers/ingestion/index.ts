@@ -41,7 +41,14 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
     [sourceId],
   );
   const source = rows[0];
-  if (!source) throw new Error(`source ${sourceId} not found or inactive`);
+  if (!source) {
+    // 源被删除或停用后,BullMQ 队列里残留的 in-flight job 进来会落到这里。
+    // 不应当 throw —— 那样会触发 BullMQ 重试 + 在 agent_runs 写 failed,
+    // 还会拉高 LLM 失败率告警。返回空 stats 让 job 静默成功完成,孤儿
+    // 任务自然 drain。
+    console.debug(`[ingestion] source ${sourceId} not found or inactive — orphan job acked`);
+    return { candidates: 0, ingested: 0, dupUrl: 0, dupContent: 0, cleanFail: 0, errors: 0 };
+  }
 
   const adapter = adapterFor(source.platform);
   let candidates: Awaited<ReturnType<typeof adapter.fetch>> = [];
