@@ -42,6 +42,8 @@ export interface ArticleCardRow {
   source: string | null;
   /** content character count, used for the 时长 bucket */
   content_length: number;
+  /** 累计点赞数 — 由 /like/:slug 端点维护,卡片角标 / 文章页 LikeButton 都读这列。 */
+  likes?: number;
 }
 
 export interface TagCount { tag: string; count: number }
@@ -72,16 +74,20 @@ export async function getHot(opts: { limit?: number; days?: number } = {}): Prom
   const limit = opts.limit ?? 8;
   const days = opts.days ?? 7;
   return cached(`hot:${limit}:${days}`, HOT_TTL, async () => {
-    const rows = await query<ArticleCardRow & { pv: number }>(
-      `SELECT ${ARTICLE_COLS},
-              COALESCE(SUM(a.pv), 0) AS pv
+    // 与 getFiltered(sort=hot)同一权重公式: pv * 0.5 + likes * 0.5
+    // 这里 pv 用 N 天滚动聚合(live SUM),而非 pv_30d 物化列 —
+    // 首页"近 7 天热门精选"想要更实时的反应,值得多花一次 aggregate。
+    const rows = await query<ArticleCardRow & { pv: number; hot_score: number }>(
+      `SELECT ${ARTICLE_COLS}, i.likes,
+              COALESCE(SUM(a.pv), 0) AS pv,
+              (COALESCE(SUM(a.pv), 0) * 0.5 + i.likes * 0.5) AS hot_score
        ${ARTICLE_FROM}
        LEFT JOIN analytics_daily a
          ON a.item_id = i.id
         AND a.date >= DATE_SUB(CURDATE(), INTERVAL $1 DAY)
        WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
        GROUP BY i.id
-       ORDER BY pv DESC, i.published_at DESC
+       ORDER BY hot_score DESC, i.published_at DESC
        LIMIT $2`,
       [days, limit],
     );
@@ -228,11 +234,14 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
     params.push(DATE_BUCKETS[f.date].days);
   }
 
-  // Hot sort reads the materialized i.pv_30d column (refreshed once per
-  // analytics pull). Earlier versions ran a correlated SUM(pv) subquery
-  // here, which forced a filesort over every matching row.
+  // "最热"排序公式: hot_score = pv_30d * 0.5 + likes * 0.5
+  //   - pv_30d 是 30 天滚动 PV(由 analytics worker 每小时刷新)
+  //   - likes 是全站累计点赞(由 /like/:slug 端点幂等更新)
+  //   - 公式权重由产品策略决定:浏览贡献和情感投票各占一半
+  // 平局时退回到 published_at 倒序保证稳定排序。
+  const hotScore = '(i.pv_30d * 0.5 + i.likes * 0.5)';
   const orderBy = f.sort === 'hot'
-    ? 'i.pv_30d DESC, i.published_at DESC'
+    ? `${hotScore} DESC, i.published_at DESC`
     : 'i.published_at DESC';
 
   const whereSql = where.join(' AND ');
@@ -243,7 +252,7 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
   // 当前排序下排名第一的那条,空标题用 id 兜底(保证每条都通过)。
   const dedupKey = `COALESCE(NULLIF(TRIM(i.title), ''), CAST(i.id AS CHAR))`;
   const outerOrderBy = f.sort === 'hot'
-    ? 't.pv_30d DESC, t.published_at DESC'
+    ? 't.hot_score DESC, t.published_at DESC'
     : 't.published_at DESC';
 
   const [items, totalRows] = await Promise.all([
@@ -251,9 +260,10 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
               t.published_at, t.duration_sec, t.source, t.cover_fallback, t.video_url,
-              t.has_video, t.has_image, t.content_length
+              t.has_video, t.has_image, t.content_length, t.likes
        FROM (
-         SELECT ${ARTICLE_COLS}, i.pv_30d,
+         SELECT ${ARTICLE_COLS}, i.pv_30d, i.likes,
+                ${hotScore} AS hot_score,
                 ROW_NUMBER() OVER (
                   PARTITION BY ${dedupKey}
                   ORDER BY ${orderBy}

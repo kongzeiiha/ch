@@ -39,6 +39,7 @@ const { deriveRulesFromExamples } = await import('./derive-rules.js');
 const { registerAdminAuth } = await import('./admin-auth.js');
 const { registerMediaProxy } = await import('./media-proxy.js');
 const { registerSiteAnalytics } = await import('./site-analytics.js');
+const { registerSiteLikes } = await import('./site-likes.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
 
@@ -88,6 +89,8 @@ async function main(): Promise<void> {
   await registerMediaProxy(app);
   // 公开 PV 埋点(POST /pv/:slug),路径不带 /admin 所以不会被 admin auth 拦截。
   registerSiteAnalytics(app);
+  // 公开点赞端点(/like/:slug、/likes/:slug)。和 PV 同样不走 admin auth。
+  registerSiteLikes(app);
 
   await registerAdmin(app);
   await registerInfra(app);
@@ -100,6 +103,24 @@ async function main(): Promise<void> {
   await registerPipelineAdmin(app);
   await registerFeedbackAdmin(app);
   await registerAnalyticsAdmin(app);
+
+  // Sweep zombie agent_runs left behind by a previous process death. `withRun`
+  // does INSERT 'running' → run fn → UPDATE 'success/failed' with no `finally`,
+  // so a pm2 restart / OOM / SIGKILL between those steps leaves the row stuck
+  // forever. 5 minutes is well above the longest real LLM agent (compliance
+  // is the slowest ≈ 60s), so anything older is provably abandoned.
+  {
+    const { query } = await import('@ch/db');
+    const swept = await query<{ n: number }>(
+      `UPDATE agent_runs SET status='failed',
+         error='zombie: process died before job finished',
+         finished_at=NOW(),
+         latency_ms=TIMESTAMPDIFF(MILLISECOND, started_at, NOW())
+       WHERE status='running' AND started_at < NOW() - INTERVAL 5 MINUTE`,
+    ).catch(() => [{ n: 0 }]);
+    void swept; // mysql2 UPDATE doesn't return affectedRows via query<T>; cosmetic only.
+    app.log.info('[boot] zombie agent_runs sweep done');
+  }
 
   // In production, run workers in a separate process via `start:worker`.
   // Set DISABLE_WORKERS=1 to decouple HTTP from queue processing.

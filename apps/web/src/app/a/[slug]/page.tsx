@@ -14,6 +14,7 @@ import { CTAModule } from '../../_components/CTAModule';
 import { SiteFooter } from '../../_components/SiteFooter';
 import { ImageLightbox } from '../../_components/ImageLightbox';
 import { PvBeacon } from '../../_components/PvBeacon';
+import { LikeButton } from '../../_components/LikeButton';
 
 // Scoped overrides so RSS-cleaned content_html (which often carries inline
 // light-theme styles) blends into the B1 dark reader. Targets only the
@@ -80,6 +81,8 @@ interface Article {
   url: string;
   media_urls: string[];
   video_urls: string[];
+  /** 已点赞总数 — SSR 时直读列。客户端 LikeButton 挂载后会自校验。 */
+  likes: number;
 }
 
 async function loadArticle(slug: string): Promise<Article | null> {
@@ -87,7 +90,7 @@ async function loadArticle(slug: string): Promise<Article | null> {
     `SELECT i.id, i.slug, i.title, i.summary, i.content, i.content_html,
             i.category, i.tags, i.keywords, i.cover_url, i.cover_sizes,
             i.published_at, s.name AS source, i.source_id, r.url,
-            r.media_urls, r.video_urls
+            r.media_urls, r.video_urls, i.likes
      FROM items i
      JOIN sources s ON s.id = i.source_id
      JOIN raw_items r ON r.id = i.raw_item_id
@@ -342,9 +345,15 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
         <h1 style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.3, marginBottom: 8, color: '#f1f5f9' }}>{displayTitle(a.title) || (a.category ? `${a.category} · 无标题内容` : '无标题内容')}</h1>
 
-        <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {a.published_at && <span>{new Date(a.published_at).toLocaleDateString('zh-CN')}</span>}
           <span>· {minutes} 分钟阅读</span>
+        </div>
+
+        {/* 点赞按钮 — 客户端组件,挂载后自查 likes / liked 状态,显示乐观更新。
+            SSR 时直接拿 items.likes,刷新页面立刻看见当前总数,不依赖 JS. */}
+        <div style={{ marginBottom: 24 }}>
+          <LikeButton slug={a.slug} initialLikes={a.likes ?? 0} />
         </div>
 
         <div style={{ marginBottom: 20 }}>
@@ -413,15 +422,39 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
             {galleryVideos.length > 1 && <SectionLabel>视频 · {galleryVideos.length}</SectionLabel>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {galleryVideos.map((v, i) => (
-                <video
-                  key={i}
-                  src={proxiedMedia(v.src) ?? v.src}
-                  controls
-                  preload="metadata"
-                  playsInline
-                  poster={proxiedImage(v.poster, a.source_id)}
-                  style={{ width: '100%', maxWidth: 960, height: 'auto', maxHeight: 720, borderRadius: 12, background: '#000000', display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
-                />
+                // Each video gets a relative wrapper so we can pin the
+                // LikeButton overlay to its bottom-right. Only the FIRST
+                // video carries the overlay — multiple buttons would compete
+                // for the same items.likes counter and confuse the user.
+                <div key={i} style={{ position: 'relative', maxWidth: 960, marginLeft: 'auto', marginRight: 'auto', width: '100%' }}>
+                  <video
+                    src={proxiedMedia(v.src) ?? v.src}
+                    controls
+                    preload="metadata"
+                    playsInline
+                    poster={proxiedImage(v.poster, a.source_id)}
+                    style={{ width: '100%', maxHeight: 720, height: 'auto', borderRadius: 12, background: '#000000', display: 'block' }}
+                  />
+                  {i === 0 && (
+                    // Right-bottom overlay. `bottom: 60px` keeps it clear of
+                    // the native controls strip (~48px) when the user hovers
+                    // / plays. backdrop-blur + translucent bg so it stays
+                    // readable on both dark and bright video frames.
+                    <div style={{
+                      position: 'absolute',
+                      right: 12,
+                      bottom: 60,
+                      zIndex: 2,
+                      padding: 4,
+                      borderRadius: 9999,
+                      background: 'rgba(0, 0, 0, 0.45)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                    }}>
+                      <LikeButton slug={a.slug} initialLikes={a.likes ?? 0} />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </section>

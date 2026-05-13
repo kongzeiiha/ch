@@ -59,9 +59,21 @@ beforeEach(() => {
 });
 
 describe('ingestSource', () => {
-  it('throws when source not found', async () => {
+  it('returns zero stats when source not found (orphan-job tolerant)', async () => {
+    // ingestion/index.ts deliberately doesn't throw on a missing source —
+    // BullMQ retains in-flight jobs after a source is deleted/paused, and
+    // rejecting would mark those jobs as failed and trip the alert threshold.
+    // Returning an all-zero stats object lets the queue drain quietly.
     mockQuery.mockResolvedValueOnce([]); // no source
-    await expect(ingestSource('missing')).rejects.toThrow('not found or inactive');
+    const stats = await ingestSource('missing');
+    expect(stats).toEqual({
+      candidates: 0,
+      ingested: 0,
+      dupUrl: 0,
+      dupContent: 0,
+      cleanFail: 0,
+      errors: 0,
+    });
   });
 
   it('returns authFail stats when adapter throws AdapterAuthError', async () => {
