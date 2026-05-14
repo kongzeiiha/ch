@@ -43,7 +43,10 @@ export interface ArticleCardRow {
   /** content character count, used for the 时长 bucket */
   content_length: number;
   /** 累计点赞数 — 由 /like/:slug 端点维护,卡片角标 / 文章页 LikeButton 都读这列。 */
-  likes?: number;
+  likes: number;
+  /** 30 天滚动 PV — items.pv_30d 物化列,由 analytics worker 每小时刷。
+   *  卡片在 meta 行展示,可以让用户在列表页看到热度信号。 */
+  pv_30d: number;
 }
 
 export interface TagCount { tag: string; count: number }
@@ -56,6 +59,7 @@ const ARTICLE_COLS = `
   i.id, i.slug, i.title, i.summary, i.source_id,
   i.cover_url, i.cover_sizes, i.category, i.tags,
   i.published_at, i.duration_sec,
+  i.pv_30d, i.likes,
   s.name AS source,
   JSON_UNQUOTE(JSON_EXTRACT(r.media_urls, '$[0]')) AS cover_fallback,
   JSON_UNQUOTE(JSON_EXTRACT(r.video_urls, '$[0]')) AS video_url,
@@ -78,7 +82,7 @@ export async function getHot(opts: { limit?: number; days?: number } = {}): Prom
     // 这里 pv 用 N 天滚动聚合(live SUM),而非 pv_30d 物化列 —
     // 首页"近 7 天热门精选"想要更实时的反应,值得多花一次 aggregate。
     const rows = await query<ArticleCardRow & { pv: number; hot_score: number }>(
-      `SELECT ${ARTICLE_COLS}, i.likes,
+      `SELECT ${ARTICLE_COLS},
               COALESCE(SUM(a.pv), 0) AS pv,
               (COALESCE(SUM(a.pv), 0) * 0.5 + i.likes * 0.5) AS hot_score
        ${ARTICLE_FROM}
@@ -260,9 +264,9 @@ export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRo
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
               t.published_at, t.duration_sec, t.source, t.cover_fallback, t.video_url,
-              t.has_video, t.has_image, t.content_length, t.likes
+              t.has_video, t.has_image, t.content_length, t.pv_30d, t.likes
        FROM (
-         SELECT ${ARTICLE_COLS}, i.pv_30d, i.likes,
+         SELECT ${ARTICLE_COLS},
                 ${hotScore} AS hot_score,
                 ROW_NUMBER() OVER (
                   PARTITION BY ${dedupKey}
@@ -478,6 +482,8 @@ function normalize(r: any): ArticleCardRow {
     published_at: r.published_at,
     source: r.source ?? null,
     content_length: Number(r.content_length ?? 0),
+    likes: Number(r.likes ?? 0),
+    pv_30d: Number(r.pv_30d ?? 0),
   };
 }
 

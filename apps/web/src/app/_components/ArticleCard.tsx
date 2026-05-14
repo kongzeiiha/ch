@@ -27,6 +27,63 @@ function formatDuration(seconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
+/** 1234 → "1.2k", 5678901 → "5.7M". Keeps the card meta line compact when
+ *  the corpus accumulates real traffic. Sub-1k counts render exact. */
+function formatCount(n: number): string {
+  if (!n || n < 1000) return String(n ?? 0);
+  if (n < 10000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  if (n < 1_000_000) return Math.round(n / 1000) + 'k';
+  return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+}
+
+/** Inline play/like counts. SVG glyphs (not emoji) so cross-OS rendering is
+ *  consistent. Each metric gets its own color so the eye scans them as two
+ *  distinct dimensions instead of one muted-grey blob:
+ *    - 播放量 → sky blue (#38bdf8), a calm "informational" tone
+ *    - 点赞   → accent red (X.accent), matches the LikeButton's filled state
+ *  Hides when both are zero so cold-start cards don't show `0 · 0`. */
+const PV_COLOR = '#38bdf8';
+const LIKE_COLOR = X.accent;
+
+function CardStats({ pv, likes, sep }: { pv: number; likes: number; sep?: boolean }) {
+  if (!pv && !likes) return null;
+  return (
+    <>
+      {sep && <span style={{ color: X.borderStrong }}>·</span>}
+      {pv > 0 && (
+        <span
+          title={`${pv} 次播放`}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            color: PV_COLOR, fontWeight: 600,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={12} height={12} aria-hidden style={{ flexShrink: 0 }}>
+            <path d="M12 5c-5 0-9 4.4-10 7 1 2.6 5 7 10 7s9-4.4 10-7c-1-2.6-5-7-10-7Zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9Zm0-2a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="currentColor"/>
+          </svg>
+          {formatCount(pv)}
+        </span>
+      )}
+      {likes > 0 && (
+        <span
+          title={`${likes} 点赞`}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            color: LIKE_COLOR, fontWeight: 600,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={12} height={12} aria-hidden style={{ flexShrink: 0 }}>
+            <path d="M12 21s-7-4.35-7-10.5C5 7.42 7.42 5 10.5 5c1.74 0 3.31.81 4.5 2.09C16.19 5.81 17.76 5 19.5 5 22.58 5 25 7.42 25 10.5 25 16.65 12 21 12 21z" transform="translate(-1.5,0)" fill="currentColor"/>
+          </svg>
+          {formatCount(likes)}
+        </span>
+      )}
+    </>
+  );
+}
+
 // For raw social posts, the title agent often regurgitates the source text
 // into both `title` and `summary` (with maybe a `@source` tail), so the card
 // shows the same sentence twice. Treat the summary as redundant whenever the
@@ -99,7 +156,7 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
               {cleanSummary}
             </p>
           )}
-          <div style={{ fontSize: 13, color: X.textSecondary, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, color: X.textSecondary, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {a.category && <span style={{ color: X.accent, fontWeight: 600 }}>{a.category}</span>}
             {date && <span>{date}</span>}
             {a.has_video ? (
@@ -113,6 +170,7 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
             ) : (
               <span>{minutes} 分钟阅读</span>
             )}
+            <CardStats pv={a.pv_30d} likes={a.likes} />
           </div>
         </div>
       </Link>
@@ -173,6 +231,7 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
             {a.category && <span style={{ color: X.accent, fontWeight: 600 }}>{a.category}</span>}
             {a.category && date && <span>·</span>}
             {date && <span>{date}</span>}
+            <CardStats pv={a.pv_30d} likes={a.likes} sep={!!(a.category || date)} />
           </div>
         </div>
       </Link>
