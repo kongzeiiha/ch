@@ -14,13 +14,13 @@ export function AdSlot({ name }: { name: SlotName }) {
   if (process.env.AD_SLOT_PLACEHOLDERS !== 'on') return null;
   return (
     <div data-ad-slot={name} style={{
-      border: '1px dashed #334155',
+      border: '1px dashed #cfd9de',
       borderRadius: 12,
       padding: '14px 16px',
-      color: '#64748b',
+      color: '#536471',
       fontSize: 12,
       textAlign: 'center',
-      background: '#000000',
+      background: '#ffffff',
       letterSpacing: 0.5,
     }}>
       AD · {name}

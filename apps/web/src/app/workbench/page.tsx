@@ -518,11 +518,11 @@ export default function WorkbenchPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e7e9ea', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
 
       {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, padding: '10px 16px', borderRadius: 8, background: toast.ok ? '#052e16' : '#450a0a', border: `1px solid ${toast.ok ? '#16a34a' : '#dc2626'}`, color: toast.ok ? '#86efac' : '#fca5a5', fontSize: 13, maxWidth: 360, boxShadow: '0 4px 20px #0008' }}>
+        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, padding: '10px 16px', borderRadius: 8, background: toast.ok ? '#052e16' : '#450a0a', border: `1px solid ${toast.ok ? '#16a34a' : '#1d9bf0'}`, color: toast.ok ? '#86efac' : '#fca5a5', fontSize: 13, maxWidth: 360, boxShadow: '0 4px 20px #0008' }}>
           {toast.msg}
         </div>
       )}
@@ -535,26 +535,26 @@ export default function WorkbenchPage() {
         <div onClick={() => setRefreshFailModal(null)}
           style={{ position: 'fixed', inset: 0, background: '#000c', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: '#1e293b', border: '1px solid #dc2626', borderRadius: 12, padding: 18, maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', gap: 10, cursor: 'default' }}>
+            style={{ background: '#1e293b', border: '1px solid #1d9bf0', borderRadius: 12, padding: 18, maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', gap: 10, cursor: 'default' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#fca5a5' }}>⚠ 刷新失败 · {refreshFailModal.name}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: '#71767b', marginTop: 2 }}>
                   reason: <code style={{ color: '#fbbf24' }}>{refreshFailModal.reason}</code>
                   {refreshFailModal.detail && <> · {refreshFailModal.detail}</>}
                 </div>
               </div>
               <button onClick={() => setRefreshFailModal(null)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 22, cursor: 'pointer' }}>✕</button>
+                style={{ background: 'none', border: 'none', color: '#71767b', fontSize: 22, cursor: 'pointer' }}>✕</button>
             </div>
-            <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6, padding: '6px 10px', background: '#0f172a', borderRadius: 6 }}>
+            <div style={{ fontSize: 11, color: '#71767b', lineHeight: 1.6, padding: '6px 10px', background: '#0f172a', borderRadius: 6 }}>
               这是 Playwright 失败那一刻的页面截图。X 多半在登录流程里加了挑战页(2FA / 异常登录确认 / 邮件验证码 / Arkose captcha 等),自动登录无法继续。
               <br />
-              <strong style={{ color: '#cbd5e1' }}>处理建议</strong>:无痕窗口手工登录一次解决挑战 → 复制新 cookie → 凭证池 → 编辑 → 粘贴 cookie + 状态改 active(会自动重置 3 连败计数)。
+              <strong style={{ color: '#e7e9ea' }}>处理建议</strong>:无痕窗口手工登录一次解决挑战 → 复制新 cookie → 凭证池 → 编辑 → 粘贴 cookie + 状态改 active(会自动重置 3 连败计数)。
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={refreshFailModal.screenshotDataUrl} alt="X login screenshot at failure"
-              style={{ maxWidth: '85vw', maxHeight: '70vh', borderRadius: 6, border: '1px solid #334155', objectFit: 'contain', background: '#000' }} />
+              style={{ maxWidth: '85vw', maxHeight: '70vh', borderRadius: 6, border: '1px solid #3e4144', objectFit: 'contain', background: '#000' }} />
           </div>
         </div>
       )}
@@ -562,13 +562,13 @@ export default function WorkbenchPage() {
       {/* Item history modal */}
       {historyModal && historyModal.item && (
         <div style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setHistoryModal(null)}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: 24, maxWidth: 700, width: '90%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: '#1e293b', border: '1px solid #3e4144', borderRadius: 12, padding: 24, maxWidth: 700, width: '90%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 15 }}>追踪历史：{String(historyModal.item.title ?? historyModal.item.id)}</div>
-              <button onClick={() => setHistoryModal(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+              <button onClick={() => setHistoryModal(null)} style={{ background: 'none', border: 'none', color: '#71767b', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
-              状态: <strong style={{ color: '#e2e8f0' }}>{String(historyModal.item.status)}</strong>
+            <div style={{ fontSize: 12, color: '#71767b', marginBottom: 12 }}>
+              状态: <strong style={{ color: '#e7e9ea' }}>{String(historyModal.item.status)}</strong>
               {historyModal.item.category ? <> {' · '} 分类: <span style={{ color: '#93c5fd' }}>{String(historyModal.item.category)}</span></> : null}
               {' · '} slug: {String(historyModal.item.slug ?? '—')}
               {' · '} 创建: {String(historyModal.item.created_at ?? '').slice(0, 19)}
@@ -597,9 +597,9 @@ export default function WorkbenchPage() {
             {/* Tags / keywords */}
             {Array.isArray(historyModal.item.tags) && (historyModal.item.tags as string[]).length > 0 && (
               <div style={{ marginBottom: 8, display: 'flex', gap: 4, flexWrap: 'wrap', fontSize: 11 }}>
-                <span style={{ color: '#64748b', marginRight: 4 }}>标签：</span>
+                <span style={{ color: '#71767b', marginRight: 4 }}>标签：</span>
                 {(historyModal.item.tags as string[]).map((t) => (
-                  <span key={t} style={{ padding: '1px 7px', borderRadius: 10, background: '#1e293b', color: '#cbd5e1', border: '1px solid #334155' }}>{t}</span>
+                  <span key={t} style={{ padding: '1px 7px', borderRadius: 10, background: '#1e293b', color: '#e7e9ea', border: '1px solid #3e4144' }}>{t}</span>
                 ))}
               </div>
             )}
@@ -613,10 +613,10 @@ export default function WorkbenchPage() {
                 borderLeft: '3px solid #6366f1',
                 borderRadius: 4,
                 fontSize: 13,
-                color: '#cbd5e1',
+                color: '#e7e9ea',
                 lineHeight: 1.7,
               }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>摘要</div>
+                <div style={{ fontSize: 11, color: '#71767b', marginBottom: 4 }}>摘要</div>
                 {String(historyModal.item.summary)}
               </div>
             ) : null}
@@ -624,13 +624,13 @@ export default function WorkbenchPage() {
             {/* Full content (collapsible) */}
             {historyModal.item.content ? (
               <details style={{ marginBottom: 14, background: '#0f172a', borderRadius: 6, padding: '8px 12px' }}>
-                <summary style={{ cursor: 'pointer', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 12, color: '#71767b', fontWeight: 600 }}>
                   全文（{String(historyModal.item.content).length} 字）· 点击展开
                 </summary>
                 <div style={{
                   marginTop: 10,
                   fontSize: 12.5,
-                  color: '#cbd5e1',
+                  color: '#e7e9ea',
                   lineHeight: 1.75,
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
@@ -643,14 +643,14 @@ export default function WorkbenchPage() {
             ) : null}
 
             {/* Runs history */}
-            <div style={{ fontSize: 11, color: '#64748b', margin: '14px 0 6px', fontWeight: 600 }}>处理历史</div>
+            <div style={{ fontSize: 11, color: '#71767b', margin: '14px 0 6px', fontWeight: 600 }}>处理历史</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {historyModal.runs.map(r => (
                 <div key={r.id} style={{ display: 'flex', gap: 10, padding: '8px 10px', background: '#0f172a', borderRadius: 6, fontSize: 12, alignItems: 'flex-start' }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 3, background: r.status === 'success' ? '#22c55e' : r.status === 'running' ? '#3b82f6' : '#ef4444' }} />
-                  <span style={{ minWidth: 160, color: '#94a3b8' }}>{r.agent}</span>
-                  <span style={{ color: '#64748b' }}>{r.started_at.slice(0, 19)}</span>
-                  <span style={{ color: '#94a3b8' }}>{r.latency_ms ? `${r.latency_ms}ms` : ''}</span>
+                  <span style={{ minWidth: 160, color: '#71767b' }}>{r.agent}</span>
+                  <span style={{ color: '#71767b' }}>{r.started_at.slice(0, 19)}</span>
+                  <span style={{ color: '#71767b' }}>{r.latency_ms ? `${r.latency_ms}ms` : ''}</span>
                   <span style={{ color: '#a78bfa' }}>{r.cost_usd ? `$${Number(r.cost_usd).toFixed(5)}` : ''}</span>
                   {r.error && <span style={{ color: '#f87171', flex: 1 }}>{r.error}</span>}
                 </div>
@@ -658,7 +658,7 @@ export default function WorkbenchPage() {
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button onClick={() => rerun(String(historyModal.item.id))}
-                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #334155', background: '#1e293b', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #3e4144', background: '#1e293b', color: '#71767b', fontSize: 12, cursor: 'pointer' }}>
                 重跑
               </button>
               <button onClick={() => rollback(String(historyModal.item.id), String(historyModal.item.title ?? ''))}
@@ -672,15 +672,15 @@ export default function WorkbenchPage() {
 
       {/* ── Header ── */}
       <header style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 100 }}>
-        <Link href="/" style={{ color: '#e2e8f0', textDecoration: 'none', fontSize: 16, fontWeight: 800 }}>内容中台</Link>
-        <span style={{ color: '#334155' }}>/</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>流水线工作台</span>
+        <Link href="/" style={{ color: '#e7e9ea', textDecoration: 'none', fontSize: 16, fontWeight: 800 }}>内容中台</Link>
+        <span style={{ color: '#3e4144' }}>/</span>
+        <span style={{ fontSize: 13, color: '#71767b' }}>流水线工作台</span>
         <input
           type="date"
           value={sprintStart}
           onChange={handleSprintChange}
           aria-label="冲刺开始日期"
-          style={{ fontSize: 12, background: '#1e293b', border: '1px solid #334155', borderRadius: 4, padding: '2px 6px', color: '#94a3b8', colorScheme: 'dark' }}
+          style={{ fontSize: 12, background: '#1e293b', border: '1px solid #3e4144', borderRadius: 4, padding: '2px 6px', color: '#71767b', colorScheme: 'dark' }}
         />
 
         {state?.globalStop && (
@@ -690,17 +690,17 @@ export default function WorkbenchPage() {
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#475569' }}>总计 <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong> 条</span>
-          <span style={{ fontSize: 12, color: '#475569' }}>队列 <strong style={{ color: queueBusy > 0 ? '#fbbf24' : '#64748b' }}>{queueBusy}</strong></span>
+          <span style={{ fontSize: 12, color: '#475569' }}>总计 <strong style={{ color: '#e7e9ea' }}>{totalItems}</strong> 条</span>
+          <span style={{ fontSize: 12, color: '#475569' }}>队列 <strong style={{ color: queueBusy > 0 ? '#fbbf24' : '#71767b' }}>{queueBusy}</strong></span>
           <span style={{ fontSize: 12, color: '#475569' }}>成本 <strong style={{ color: '#a78bfa' }}>${totalCost.toFixed(4)}</strong></span>
-          <Link href="/admin" style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none', padding: '4px 10px', border: '1px solid #334155', borderRadius: 6 }} title="按 Day 分页的验收后台">Admin →</Link>
-          <Link href="/" style={{ fontSize: 12, color: '#94a3b8', textDecoration: 'none', padding: '4px 10px', border: '1px solid #334155', borderRadius: 6 }}>站点 →</Link>
+          <Link href="/admin" style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none', padding: '4px 10px', border: '1px solid #3e4144', borderRadius: 6 }} title="按 Day 分页的验收后台">Admin →</Link>
+          <Link href="/" style={{ fontSize: 12, color: '#71767b', textDecoration: 'none', padding: '4px 10px', border: '1px solid #3e4144', borderRadius: 6 }}>站点 →</Link>
           <button
             onClick={async () => {
               await fetch('/api/auth/logout', { method: 'POST' });
               window.location.href = '/login';
             }}
-            style={{ fontSize: 12, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+            style={{ fontSize: 12, color: '#71767b', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
           >退出</button>
 
           {state?.globalStop
@@ -800,7 +800,7 @@ export default function WorkbenchPage() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 24px' }}>
               <button onClick={() => setAuthBannerDismissed(true)}
                 title="本会话内隐藏告警"
-                style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: 11, cursor: 'pointer', padding: '4px 0' }}>
+                style={{ background: 'transparent', border: 'none', color: '#71767b', fontSize: 11, cursor: 'pointer', padding: '4px 0' }}>
                 ✕ 本次隐藏
               </button>
             </div>
@@ -816,7 +816,7 @@ export default function WorkbenchPage() {
             <button key={t} onClick={() => setTab(t)} style={{
               padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer',
               fontSize: 13, fontWeight: tab === t ? 700 : 400,
-              color: tab === t ? '#e2e8f0' : '#475569',
+              color: tab === t ? '#e7e9ea' : '#475569',
               borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
             }}>{labels[t]}</button>
           );

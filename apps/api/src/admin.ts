@@ -863,6 +863,55 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // 「首条置顶若是广告则过滤掉」事件的可观测性端点。
+  // 列出最近被跳过的源 + 命中的关键词,方便运营看哪些源经常出广告。
+  //   limit  默认 50,最大 500
+  //   source_id  可选,按源过滤
+  //   since      可选 ISO 日期串(YYYY-MM-DD)
+  app.get<{ Querystring: { limit?: string; source_id?: string; since?: string } }>(
+    '/admin/ingestion/ad-skipped',
+    async (req) => {
+      const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 500);
+      const where: string[] = [];
+      const params: unknown[] = [];
+      if (req.query.source_id) { params.push(req.query.source_id); where.push(`a.source_id = $${params.length}`); }
+      if (req.query.since)     { params.push(req.query.since);     where.push(`a.occurred_at >= $${params.length}`); }
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      params.push(limit);
+
+      // skips:逐条事件
+      const skips = await query(
+        `SELECT a.id, a.source_id, s.name AS source_name, s.platform,
+                a.item_url, a.item_title, a.matched_tokens, a.occurred_at
+         FROM ingestion_ad_skips a
+         JOIN sources s ON s.id = a.source_id
+         ${whereSql}
+         ORDER BY a.occurred_at DESC
+         LIMIT $${params.length}`,
+        params,
+      );
+
+      // bySource:每源累计被跳次数排行(过去 30 天),帮运营定位"广告大户"
+      const bySource = await query(
+        `SELECT s.id, s.name, s.platform, COUNT(a.id) AS skip_count,
+                MAX(a.occurred_at) AS last_skipped_at
+         FROM ingestion_ad_skips a
+         JOIN sources s ON s.id = a.source_id
+         WHERE a.occurred_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY s.id
+         ORDER BY skip_count DESC, last_skipped_at DESC
+         LIMIT 20`,
+      );
+
+      // total:全表计数(给前端显示"共 X 条")
+      const [countRow] = await query<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM ingestion_ad_skips`,
+      );
+
+      return { skips, bySource, total: Number(countRow?.count ?? 0), limit };
+    },
+  );
+
   // Peek at the latest ingested items
   app.get('/admin/items', async (req) => {
     const q = (req.query as any) ?? {};

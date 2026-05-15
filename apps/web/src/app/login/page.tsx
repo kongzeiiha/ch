@@ -40,28 +40,28 @@ function LoginForm() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#000000',
+      background: '#ffffff',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
     }}>
       <div style={{
         width: 360,
-        background: '#000000',
-        border: '1px solid #1f2937',
+        background: '#ffffff',
+        border: '1px solid #eff3f4',
         borderRadius: 16,
         padding: '36px 32px',
       }}>
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#0f1419', marginBottom: 4 }}>
             内容中台
           </div>
-          <div style={{ fontSize: 13, color: '#94a3b8' }}>请登录以继续</div>
+          <div style={{ fontSize: 13, color: '#536471' }}>请登录以继续</div>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
+            <label style={{ display: 'block', fontSize: 12, color: '#536471', marginBottom: 6, fontWeight: 600 }}>
               用户名
             </label>
             <input
@@ -74,10 +74,10 @@ function LoginForm() {
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                background: '#000000',
-                border: '1px solid #334155',
+                background: '#ffffff',
+                border: '1px solid #cfd9de',
                 borderRadius: 8,
-                color: '#e2e8f0',
+                color: '#0f1419',
                 fontSize: 14,
                 padding: '10px 14px',
                 outline: 'none',
@@ -86,7 +86,7 @@ function LoginForm() {
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
+            <label style={{ display: 'block', fontSize: 12, color: '#536471', marginBottom: 6, fontWeight: 600 }}>
               密码
             </label>
             <input
@@ -98,10 +98,10 @@ function LoginForm() {
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                background: '#000000',
-                border: '1px solid #334155',
+                background: '#ffffff',
+                border: '1px solid #cfd9de',
                 borderRadius: 8,
-                color: '#e2e8f0',
+                color: '#0f1419',
                 fontSize: 14,
                 padding: '10px 14px',
                 outline: 'none',
@@ -129,7 +129,7 @@ function LoginForm() {
             style={{
               width: '100%',
               padding: '11px 0',
-              background: loading ? '#334155' : '#dc2626',
+              background: loading ? '#cfd9de' : '#1d9bf0',
               border: 'none',
               borderRadius: 9999,
               color: '#fff',

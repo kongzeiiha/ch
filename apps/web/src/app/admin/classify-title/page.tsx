@@ -40,10 +40,10 @@ async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
   return r.json();
 }
 
-const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: 16 };
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#94a3b8', borderBottom: '1px solid #334155', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
-const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #334155', verticalAlign: 'top', color: '#e2e8f0' };
-const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #334155', borderRadius: 6, background: 'transparent', color: '#94a3b8', cursor: 'pointer' };
+const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #3e4144', borderRadius: 8, padding: 16 };
+const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#71767b', borderBottom: '1px solid #3e4144', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
+const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #3e4144', verticalAlign: 'top', color: '#e7e9ea' };
+const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #3e4144', borderRadius: 6, background: 'transparent', color: '#71767b', cursor: 'pointer' };
 const btnPrimary: React.CSSProperties = { ...btn, background: '#6366f1', color: '#fff', borderColor: '#6366f1', fontWeight: 600 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -54,16 +54,16 @@ const STATUS_LABEL: Record<string, string> = {
 function Tile({ label, value, hint, accent }: { label: string; value: React.ReactNode; hint?: string; accent?: string }) {
   return (
     <div style={card}>
-      <div style={{ color: '#64748b', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 700, marginTop: 6, color: accent ?? '#e2e8f0' }}>{value}</div>
-      {hint && <div style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>{hint}</div>}
+      <div style={{ color: '#71767b', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, marginTop: 6, color: accent ?? '#e7e9ea' }}>{value}</div>
+      {hint && <div style={{ color: '#71767b', fontSize: 11, marginTop: 4 }}>{hint}</div>}
     </div>
   );
 }
 
 function Pill({ children, color, fg }: { children: React.ReactNode; color?: string; fg?: string }) {
   return (
-    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: color ?? '#334155', color: fg ?? '#cbd5e1', marginRight: 4, marginBottom: 2, display: 'inline-block', fontWeight: 500 }}>
+    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: color ?? '#3e4144', color: fg ?? '#e7e9ea', marginRight: 4, marginBottom: 2, display: 'inline-block', fontWeight: 500 }}>
       {children}
     </span>
   );
@@ -243,13 +243,13 @@ export default function Day3Page() {
   const titledTotal = classifiedTotal - (countByStatus.CLASSIFIED ?? 0);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e7e9ea', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
       <header style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 100 }}>
-        <span style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 800 }}>内容中台</span>
-        <span style={{ color: '#334155' }}>/</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>分类与标题</span>
+        <span style={{ color: '#e7e9ea', fontSize: 16, fontWeight: 800 }}>内容中台</span>
+        <span style={{ color: '#3e4144' }}>/</span>
+        <span style={{ fontSize: 13, color: '#71767b' }}>分类与标题</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link>
+          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e7e9ea', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link>
           <button style={btn} disabled={busy} onClick={() => bulk('classify-all', '分类')}>批量分类 (INGESTED)</button>
           <button style={btnPrimary} disabled={busy} onClick={() => bulk('title-all', '标题')}>批量生成标题 (CLASSIFIED)</button>
         </div>
@@ -273,7 +273,7 @@ export default function Day3Page() {
         {/* Category distribution — pills are filter chips */}
         {stats && stats.by_category.length > 0 && (
           <section style={{ ...card, marginBottom: 16 }}>
-            <h3 style={{ margin: '0 0 10px', fontSize: 13, color: '#cbd5e1', fontWeight: 600 }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: 13, color: '#e7e9ea', fontWeight: 600 }}>
               分类分布 <span style={{ color: '#475569', fontWeight: 400, fontSize: 11 }}>· 点击切换筛选</span>
             </h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -297,7 +297,7 @@ export default function Day3Page() {
               {categoryFilter && (
                 <button
                   onClick={() => setCategoryFilter('')}
-                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 10, background: 'transparent', border: '1px solid #475569', color: '#94a3b8', cursor: 'pointer' }}>
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 10, background: 'transparent', border: '1px solid #475569', color: '#71767b', cursor: 'pointer' }}>
                   清除分类筛选 ✕
                 </button>
               )}
@@ -310,7 +310,7 @@ export default function Day3Page() {
             "how many in THIS category". Covers the full pipeline so users
             whose data has already moved past TITLED can still find it. */}
         <div style={{ marginBottom: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: '#64748b' }}>状态筛选:</span>
+          <span style={{ fontSize: 12, color: '#71767b' }}>状态筛选:</span>
           {['', 'INGESTED', 'CLASSIFIED', 'TITLED', 'COVERED', 'COMPLIANCE_PASS', 'PUBLISHED', 'DISTRIBUTED'].map((s) => {
             const count = s === '' ? (stats?.total ?? 0) : (countByStatus[s] ?? 0);
             const active = filter === s;
@@ -337,7 +337,7 @@ export default function Day3Page() {
             );
           })}
           {(filter || categoryFilter) && (
-            <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>
+            <span style={{ fontSize: 11, color: '#71767b', marginLeft: 8 }}>
               {loadingItems ? '加载中…' : `命中 ${visibleItems.length} 条`}
               {hiddenIds.size > 0 && <span style={{ color: '#475569' }}> · 已隐藏 {hiddenIds.size} 条重跑中</span>}
               {categoryFilter && <> · 分类 <code style={{ color: '#93c5fd' }}>{categoryFilter}</code></>}
@@ -379,7 +379,7 @@ export default function Day3Page() {
                           placeholder="标题"
                           style={{
                             background: '#0f172a', border: '1px solid #6366f1', borderRadius: 6,
-                            padding: '6px 10px', color: '#e2e8f0', fontSize: 13, lineHeight: 1.5,
+                            padding: '6px 10px', color: '#e7e9ea', fontSize: 13, lineHeight: 1.5,
                             outline: 'none', resize: 'vertical', fontFamily: 'inherit',
                           }}
                         />
@@ -393,12 +393,12 @@ export default function Day3Page() {
                           }}
                           placeholder="摘要（可选）"
                           style={{
-                            background: '#0f172a', border: '1px solid #334155', borderRadius: 6,
-                            padding: '6px 10px', color: '#cbd5e1', fontSize: 12, lineHeight: 1.5,
+                            background: '#0f172a', border: '1px solid #3e4144', borderRadius: 6,
+                            padding: '6px 10px', color: '#e7e9ea', fontSize: 12, lineHeight: 1.5,
                             outline: 'none', resize: 'vertical', fontFamily: 'inherit',
                           }}
                         />
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: '#64748b' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: '#71767b' }}>
                           <button style={btnPrimary} disabled={!!busyId[it.id]} onClick={() => saveEdit(it)}>
                             {busyId[it.id] ? '保存中…' : '保存'}
                           </button>
@@ -411,9 +411,9 @@ export default function Day3Page() {
                         <div style={{ fontWeight: 500, marginBottom: 2, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             {it.title ? (
-                              <a href={it.url} target="_blank" rel="noreferrer" style={{ color: '#e2e8f0', textDecoration: 'none' }}>{it.title}</a>
+                              <a href={it.url} target="_blank" rel="noreferrer" style={{ color: '#e7e9ea', textDecoration: 'none' }}>{it.title}</a>
                             ) : (
-                              <span style={{ color: '#64748b' }}>(无标题)</span>
+                              <span style={{ color: '#71767b' }}>(无标题)</span>
                             )}
                           </div>
                           <button
@@ -421,23 +421,23 @@ export default function Day3Page() {
                             title="编辑标题 / 摘要(不会清空下游;PUBLISHED 文章会同步刷 ISR)"
                             style={{
                               flexShrink: 0,
-                              background: 'transparent', border: '1px solid #334155', borderRadius: 4,
-                              padding: '1px 6px', color: '#94a3b8', fontSize: 11, cursor: 'pointer',
+                              background: 'transparent', border: '1px solid #3e4144', borderRadius: 4,
+                              padding: '1px 6px', color: '#71767b', fontSize: 11, cursor: 'pointer',
                               lineHeight: 1.4,
                             }}>
                             ✎ 编辑
                           </button>
                         </div>
-                        {it.summary && <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>{it.summary}</div>}
+                        {it.summary && <div style={{ color: '#71767b', fontSize: 12, lineHeight: 1.5 }}>{it.summary}</div>}
                         <div style={{ color: '#475569', fontSize: 11, marginTop: 4 }}>{it.source} · {it.slug ?? '—'}</div>
                       </>
                     )}
                   </td>
                   <td style={td}>
-                    {it.category ? <Pill color="#1e3a8a" fg="#93c5fd">{it.category}</Pill> : <span style={{ color: '#64748b' }}>—</span>}
+                    {it.category ? <Pill color="#1e3a8a" fg="#93c5fd">{it.category}</Pill> : <span style={{ color: '#71767b' }}>—</span>}
                   </td>
                   <td style={{ ...td, maxWidth: 260 }}>
-                    {it.tags?.length ? it.tags.map((t) => <Pill key={t} color="#3b0764" fg="#d8b4fe">{t}</Pill>) : <span style={{ color: '#64748b' }}>—</span>}
+                    {it.tags?.length ? it.tags.map((t) => <Pill key={t} color="#3b0764" fg="#d8b4fe">{t}</Pill>) : <span style={{ color: '#71767b' }}>—</span>}
                   </td>
                   <td style={td}>
                     <code style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: '#0f172a', color: '#a5b4fc' }}>
@@ -465,7 +465,7 @@ export default function Day3Page() {
               })}
               {visibleItems.length === 0 && (
                 <tr>
-                  <td style={{ ...td, color: '#64748b' }} colSpan={5}>
+                  <td style={{ ...td, color: '#71767b' }} colSpan={5}>
                     {loadingItems
                       ? '加载中…'
                       : (filter || categoryFilter)
@@ -480,7 +480,7 @@ export default function Day3Page() {
 
         {/* Recent runs */}
         <section style={{ ...card, padding: 0, overflow: 'hidden' }}>
-          <h3 style={{ margin: 0, padding: 14, fontSize: 13, borderBottom: '1px solid #334155', color: '#cbd5e1', fontWeight: 600 }}>
+          <h3 style={{ margin: 0, padding: 14, fontSize: 13, borderBottom: '1px solid #3e4144', color: '#e7e9ea', fontWeight: 600 }}>
             最近 Agent 执行记录(classify-title)
           </h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -500,22 +500,22 @@ export default function Day3Page() {
                 const colors: Record<string, [string, string]> = {
                   success: ['#14532d', '#86efac'], failed: ['#7f1d1d', '#fca5a5'], running: ['#78350f', '#fbbf24'],
                 };
-                const [bg, fg] = colors[r.status] ?? ['#1e293b', '#94a3b8'];
+                const [bg, fg] = colors[r.status] ?? ['#1e293b', '#71767b'];
                 return (
                   <tr key={r.id}>
                     <td style={td}><code style={{ fontSize: 11, color: '#a5b4fc' }}>{r.agent}</code></td>
                     <td style={td}>
                       <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600, background: bg, color: fg }}>{label}</span>
                     </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>{r.latency_ms ? `${r.latency_ms} ms` : '—'}</td>
+                    <td style={{ ...td, color: '#71767b' }}>{r.latency_ms ? `${r.latency_ms} ms` : '—'}</td>
                     <td style={{ ...td, color: '#a78bfa' }}>{r.cost_usd ? `$${Number(r.cost_usd).toFixed(6)}` : '—'}</td>
-                    <td style={{ ...td, color: '#94a3b8' }}>{new Date(r.started_at).toLocaleString()}</td>
+                    <td style={{ ...td, color: '#71767b' }}>{new Date(r.started_at).toLocaleString()}</td>
                     <td style={{ ...td, color: '#fca5a5', fontSize: 11, maxWidth: 260, fontFamily: 'ui-monospace, monospace' }}>{r.error ?? ''}</td>
                   </tr>
                 );
               })}
               {(stats?.recent_runs?.length ?? 0) === 0 && (
-                <tr><td style={{ ...td, color: '#64748b' }} colSpan={6}>暂无执行记录 — 点击上方「批量分类」或「批量生成标题」</td></tr>
+                <tr><td style={{ ...td, color: '#71767b' }} colSpan={6}>暂无执行记录 — 点击上方「批量分类」或「批量生成标题」</td></tr>
               )}
             </tbody>
           </table>

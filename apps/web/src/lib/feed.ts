@@ -189,6 +189,24 @@ export interface FeedFilter {
 }
 
 export async function getFiltered(f: FeedFilter): Promise<{ items: ArticleCardRow[]; total: number }> {
+  // Cache key only when the filter is "reasonable" — long-tail keyword/source
+  // combos would blow up Redis key cardinality. The home/category/tag/topic
+  // pages all stay inside the cacheable set: tag/category/keyword/media/sort
+  // + small limit/offset. Anything with `source` / `sourceId` / `length` /
+  // `date` / large offset bypasses the cache and hits MySQL directly.
+  const limit = f.limit ?? 24;
+  const offset = f.offset ?? 0;
+  const cacheable =
+    !f.source && !f.sourceId && !f.length && !f.date &&
+    limit <= 50 && offset <= 200;
+  if (cacheable) {
+    const key = `filtered:${f.sort ?? 'latest'}:${f.media ?? ''}:${f.tag ?? ''}:${f.category ?? ''}:${f.keyword ?? ''}:${limit}:${offset}`;
+    return cached(key, HOT_TTL, () => getFilteredUncached(f));
+  }
+  return getFilteredUncached(f);
+}
+
+async function getFilteredUncached(f: FeedFilter): Promise<{ items: ArticleCardRow[]; total: number }> {
   const limit = f.limit ?? 24;
   const offset = f.offset ?? 0;
   const where: string[] = ["i.status IN ('PUBLISHED','DISTRIBUTED')"];
@@ -397,6 +415,32 @@ export async function getTopTags(limit = 30): Promise<TagCount[]> {
       .filter((r) => !isJunkTag(r.tag))
       .slice(0, limit)
       .map((r) => ({ tag: r.tag, count: Number(r.count) }));
+  });
+}
+
+/** 右侧 rail 推荐采集源 — 按已发布文章数倒序。
+ *  X.com 风格的 "Who to follow" 块,但我们这里展示数据采集源。
+ *  缓存窗口和 tags 一致(60s 起步),源列表的变化频率比标签还要低。 */
+export interface SourceCount {
+  id: string;
+  name: string;
+  platform: string;
+  article_count: number;
+}
+export async function getTopSources(limit = 5): Promise<SourceCount[]> {
+  return cached(`sources:${limit}`, HOT_TTL, async () => {
+    const rows = await query<{ id: string; name: string; platform: string; article_count: number }>(
+      `SELECT s.id, s.name, s.platform, COUNT(i.id) AS article_count
+       FROM sources s
+       JOIN items i ON i.source_id = s.id
+        AND i.status IN ('PUBLISHED','DISTRIBUTED')
+       WHERE s.status = 'active'
+       GROUP BY s.id
+       ORDER BY article_count DESC
+       LIMIT $1`,
+      [limit],
+    );
+    return rows.map((r) => ({ ...r, article_count: Number(r.article_count) }));
   });
 }
 

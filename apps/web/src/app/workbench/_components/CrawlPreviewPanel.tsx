@@ -16,9 +16,9 @@ function PageBtn({
         padding: '5px 10px',
         minWidth: 32,
         borderRadius: 6,
-        border: '1px solid ' + (active ? '#6366f1' : '#334155'),
+        border: '1px solid ' + (active ? '#6366f1' : '#3e4144'),
         background: active ? '#6366f1' : 'transparent',
-        color: disabled ? '#334155' : active ? '#fff' : '#94a3b8',
+        color: disabled ? '#3e4144' : active ? '#fff' : '#71767b',
         fontSize: 12,
         fontWeight: active ? 600 : 400,
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -79,22 +79,22 @@ export function CrawlPreviewPanel({
     DISTRIBUTED:       { label: '已分发',     bg: '#16a34a33', fg: '#86efac' },
     COMPLIANCE_PASS:   { label: '待发布',     bg: '#0ea5e933', fg: '#7dd3fc' },
     COMPLIANCE_REVIEW: { label: '人工待审',   bg: '#f59e0b33', fg: '#fcd34d' },
-    COMPLIANCE_FAIL:   { label: '合规拦截',   bg: '#dc262633', fg: '#fca5a5' },
-    COVERED:           { label: '封面已生成', bg: '#64748b33', fg: '#cbd5e1' },
-    TITLED:            { label: '标题已生成', bg: '#64748b33', fg: '#cbd5e1' },
-    CLASSIFIED:        { label: '已分类',     bg: '#64748b33', fg: '#cbd5e1' },
-    INGESTED:          { label: '已采集',     bg: '#33415544', fg: '#94a3b8' },
+    COMPLIANCE_FAIL:   { label: '合规拦截',   bg: '#1d9bf033', fg: '#fca5a5' },
+    COVERED:           { label: '封面已生成', bg: '#71767b33', fg: '#e7e9ea' },
+    TITLED:            { label: '标题已生成', bg: '#71767b33', fg: '#e7e9ea' },
+    CLASSIFIED:        { label: '已分类',     bg: '#71767b33', fg: '#e7e9ea' },
+    INGESTED:          { label: '已采集',     bg: '#3e414444', fg: '#71767b' },
   };
   const renderStatusBadge = (status: string | null) => {
     if (!status) {
       return (
-        <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 6, background: '#33415544', color: '#64748b' }}
+        <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 6, background: '#3e414444', color: '#71767b' }}
           title="raw_items 行存在,但没有对应的 items 行(去重前已被过滤,或事务异常)">
           未入库
         </span>
       );
     }
-    const meta = STATUS_BADGE[status] ?? { label: status, bg: '#33415544', fg: '#cbd5e1' };
+    const meta = STATUS_BADGE[status] ?? { label: status, bg: '#3e414444', fg: '#e7e9ea' };
     return (
       <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 6, background: meta.bg, color: meta.fg, fontWeight: 600 }}
         title={`items.status = ${status}`}>
@@ -121,7 +121,7 @@ export function CrawlPreviewPanel({
         <select
           value={sourceId}
           onChange={(e) => onSourceChange(e.target.value)}
-          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: 13, minWidth: 240 }}
+          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #3e4144', background: '#1e293b', color: '#e7e9ea', fontSize: 13, minWidth: 240 }}
         >
           <option value="">全部采集源</option>
           {sources.map(s => (
@@ -129,7 +129,7 @@ export function CrawlPreviewPanel({
           ))}
         </select>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#71767b', cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={withMedia}
@@ -141,15 +141,15 @@ export function CrawlPreviewPanel({
 
         <button
           onClick={onRefresh}
-          style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}
+          style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 12, cursor: 'pointer' }}
         >
           ↻ 刷新
         </button>
 
-        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
-          共 <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{total}</span> 条
-          · 本页 <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{totalImages}</span> 张图
-          · <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{totalVideos}</span> 个视频
+        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#71767b' }}>
+          共 <span style={{ color: '#e7e9ea', fontWeight: 600 }}>{total}</span> 条
+          · 本页 <span style={{ color: '#e7e9ea', fontWeight: 600 }}>{totalImages}</span> 张图
+          · <span style={{ color: '#e7e9ea', fontWeight: 600 }}>{totalVideos}</span> 个视频
           · 已上站 <span style={{ color: '#86efac', fontWeight: 600 }}>{publishedCount}</span>/{items.length}
         </div>
       </div>
@@ -159,7 +159,7 @@ export function CrawlPreviewPanel({
       )}
 
       {!loading && items.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 60, color: '#475569', background: '#0f172a', borderRadius: 10, border: '1px dashed #334155' }}>
+        <div style={{ textAlign: 'center', padding: 60, color: '#475569', background: '#0f172a', borderRadius: 10, border: '1px dashed #3e4144' }}>
           暂无数据
         </div>
       )}
@@ -167,15 +167,15 @@ export function CrawlPreviewPanel({
       {/* Items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {items.map(it => (
-          <div key={it.id} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 10, padding: 14 }}>
+          <div key={it.id} style={{ background: '#1e293b', border: '1px solid #3e4144', borderRadius: 10, padding: 14 }}>
             <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 240, fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              <div style={{ flex: 1, minWidth: 240, fontSize: 13, fontWeight: 600, color: '#e7e9ea', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                 title={it.title || it.url || ''}>
                 {it.title || it.url || '(无标题)'}
               </div>
               <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 6, background: '#0ea5e933', color: '#7dd3fc' }}>{it.platform}</span>
               {renderStatusBadge(it.item_status)}
-              <span style={{ fontSize: 11, color: '#64748b' }}>{it.source_name}</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>{it.source_name}</span>
               <span style={{ fontSize: 11, color: '#475569' }}>{fmtTime(it.fetched_at)}</span>
               {(it.item_status === 'PUBLISHED' || it.item_status === 'DISTRIBUTED') && it.item_slug && (
                 <a href={`/a/${it.item_slug}`} target="_blank" rel="noreferrer"
@@ -192,7 +192,7 @@ export function CrawlPreviewPanel({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {images.length > 0 && (
                     <section>
-                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 11, color: '#71767b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ padding: '1px 7px', borderRadius: 6, background: '#22c55e22', color: '#86efac', fontWeight: 600 }}>
                           图片 {images.length}
                         </span>
@@ -203,7 +203,7 @@ export function CrawlPreviewPanel({
                             onClick={() => setPreview({ url, sourceId: it.source_id, title: it.title || it.url || '' })}
                             style={{
                               position: 'relative', aspectRatio: '4/3', borderRadius: 6, overflow: 'hidden',
-                              background: '#0f172a', border: '1px solid #334155', cursor: 'pointer',
+                              background: '#0f172a', border: '1px solid #3e4144', cursor: 'pointer',
                             }}
                             title={url}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -230,7 +230,7 @@ export function CrawlPreviewPanel({
 
                   {videos.length > 0 && (
                     <section>
-                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 11, color: '#71767b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ padding: '1px 7px', borderRadius: 6, background: '#a855f733', color: '#d8b4fe', fontWeight: 600 }}>
                           视频 {videos.length}
                         </span>
@@ -244,9 +244,9 @@ export function CrawlPreviewPanel({
                                 title={`视频:${url}`}
                                 style={{
                                   position: 'relative', aspectRatio: '4/3', borderRadius: 6, overflow: 'hidden',
-                                  background: '#1e293b', border: '1px solid #334155', cursor: 'pointer',
+                                  background: '#1e293b', border: '1px solid #3e4144', cursor: 'pointer',
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  flexDirection: 'column', gap: 6, color: '#94a3b8', fontSize: 11, textDecoration: 'none',
+                                  flexDirection: 'column', gap: 6, color: '#71767b', fontSize: 11, textDecoration: 'none',
                                 }}>
                                 <span style={{ fontSize: 32 }}>🎥</span>
                                 <span>视频(点击打开)</span>
@@ -259,7 +259,7 @@ export function CrawlPreviewPanel({
                               onClick={() => setPreview({ url, sourceId: it.source_id, title: it.title || it.url || '', videoUrl: sidecar })}
                               style={{
                                 position: 'relative', aspectRatio: '4/3', borderRadius: 6, overflow: 'hidden',
-                                background: '#0f172a', border: '1px solid #334155', cursor: 'pointer',
+                                background: '#0f172a', border: '1px solid #3e4144', cursor: 'pointer',
                               }}
                               title={`视频海报 — 点击播放\n${url}`}>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -323,7 +323,7 @@ export function CrawlPreviewPanel({
           <PageBtn label="下一页 ›" disabled={page >= totalPages - 1} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))} />
           <PageBtn label="末页 »" disabled={page >= totalPages - 1} onClick={() => onPageChange(totalPages - 1)} />
 
-          <span style={{ marginLeft: 12, fontSize: 12, color: '#64748b' }}>第 {page + 1} / {totalPages} 页</span>
+          <span style={{ marginLeft: 12, fontSize: 12, color: '#71767b' }}>第 {page + 1} / {totalPages} 页</span>
         </div>
       )}
 
@@ -381,13 +381,13 @@ export function CrawlPreviewPanel({
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '6px 14px', borderRadius: 6,
-                  background: 'transparent', color: '#94a3b8',
-                  border: '1px solid #334155',
+                  background: 'transparent', color: '#71767b',
+                  border: '1px solid #3e4144',
                   fontSize: 12, fontWeight: 500, textDecoration: 'none',
                 }}>
                 ↗ 原始链接
               </a>
-              <div style={{ flex: 1, fontSize: 10.5, color: '#64748b', wordBreak: 'break-all', minWidth: 0 }}>
+              <div style={{ flex: 1, fontSize: 10.5, color: '#71767b', wordBreak: 'break-all', minWidth: 0 }}>
                 {preview.videoUrl ?? preview.url}
               </div>
             </div>

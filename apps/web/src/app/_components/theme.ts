@@ -5,27 +5,27 @@
 // 时整体翻盘。token 名保留 X.* 不重命名,避免 11 个消费者全部 churn —
 // 调色板含义按下面注释对照即可,不再代表 X.com 蓝色。
 export const X = {
-  // 背景 — 整站统一纯黑,卡片靠 border 而非底色区分(避免"卡片浮岛"层级)
-  page:           '#000000',       // 站点主背景
-  surface:        '#000000',       // 卡片 / header bar — 与页面同色,只靠 border 勾边
-  surfaceHover:   '#16181c',       // hover 才微亮,提供反馈
-  surfaceSoft:    '#000000',       // 输入框 / inset section — 同色,靠 border 区分
+  // 背景 — X.com 默认 Light 主题(浏览器不开 dark mode 时看到的就是它)
+  page:           '#ffffff',       // 主背景纯白
+  surface:        '#ffffff',       // 卡片/timeline — 与页面同色,靠 border 勾边
+  surfaceHover:   '#f7f9f9',       // hover 微灰(X timeline post hover)
+  surfaceSoft:    '#f7f9f9',       // 右栏 trend block 软底
+  surfaceInput:   '#eff3f4',       // search input 灰底
 
-  // 边框
-  border:         '#2f3336',       // X.com 风极淡分割线
-  borderStrong:   '#536471',       // chip / input / 强调边框
+  // 边框 — X.com 的 hairline
+  border:         '#eff3f4',       // post 分隔 / block 描边
+  borderStrong:   '#cfd9de',       // input 描边 / 强调
 
   // 文本
-  text:           '#e2e8f0',       // 主文字
-  textSecondary:  '#94a3b8',       // 次级(meta、时间、来源)
-  textMuted:      '#64748b',       // 三级(占位、淡说明)
+  text:           '#0f1419',       // 主文字 near-black
+  textSecondary:  '#536471',       // 次级 meta(handle、time、count)
+  textMuted:      '#536471',       // X 只有一档次级灰
 
-  // 主题色 — 红色
-  // 选 red-600(#dc2626)而非 red-500,和 danger(#ef4444)拉开半档亮度避免混淆
-  accent:         '#dc2626',       // 主红
-  accentHover:    '#b91c1c',       // hover 更深
-  accentBg:       '#dc26261a',     // 10% 半透明,active/选中底色
-  accentBgStrong: '#dc262633',     // 20% 半透明
+  // 主题色 — X 标志蓝(深浅主题一致)
+  accent:         '#1d9bf0',       // X blue
+  accentHover:    '#1a8cd8',       // hover 略深
+  accentBg:       '#1d9bf01a',     // 10% 半透明,active/选中底色
+  accentBgStrong: '#1d9bf033',     // 20% 半透明
 
   // 状态色
   success:        '#10b981',

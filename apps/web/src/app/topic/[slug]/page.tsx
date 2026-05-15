@@ -4,13 +4,13 @@ import { getFiltered, type LengthBucket, type DateBucket } from '../../../lib/fe
 import { SITE_NAME, SITE_URL } from '../../../lib/db';
 import { breadcrumbJsonLd, collectionPageJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
 import { resolveTopic, type TopicKind } from '../../_data/topics';
-import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
-import { ArticleCard } from '../../_components/ArticleCard';
 import { FilterBar } from '../../_components/FilterBar';
 import { Pagination } from '../../_components/Pagination';
-import { SiteFooter } from '../../_components/SiteFooter';
 import { ThemeTabs } from '../../_components/ThemeTabs';
+import { XLayout } from '../../_components/XLayout';
+import { XFeedHeader } from '../../_components/XFeedHeader';
+import { XPost } from '../../_components/XPost';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,8 +101,7 @@ export default async function TopicPage(
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
-      <SiteHeader crumb={topic.title} activeTab="topics" />
+    <XLayout active="topics">
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <JsonLd data={collectionPageJsonLd({
         name: `${topic.kind === 'keyword' ? `#${topic.title}` : topic.title} - ${SITE_NAME}`,
@@ -110,32 +109,23 @@ export default async function TopicPage(
         url: `${SITE_URL}${basePath}`,
         items: items.slice(0, 20).map((a) => ({ title: a.title, slug: a.slug })),
       })} />
+      <XFeedHeader title={topic.kind === 'keyword' ? `#${topic.title}` : topic.title} back fallbackHref="/" />
 
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
+      <div style={{ padding: '12px 16px 0' }}>
         {topic.kind === 'theme' && <ThemeTabs active={topic.slug} />}
-
-        <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 6px', color: '#f1f5f9' }}>
-            {topic.kind === 'keyword' ? `#${topic.title}` : topic.title}
-          </h1>
-          <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>{topic.description} · 共 {total} 篇</p>
-        </div>
-
+        <p style={{ color: '#536471', margin: '0 0 12px', fontSize: 14 }}>{topic.description} · 共 {total} 篇</p>
         <FilterBar basePath={basePath} current={searchParams} />
+      </div>
 
-        {items.length === 0 ? (
-          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
-            暂无文章
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-            {items.map((a) => <ArticleCard key={a.id} a={a} />)}
-          </div>
-        )}
+      {items.length === 0 ? (
+        <p style={{ color: '#536471', padding: 40, textAlign: 'center' }}>暂无文章</p>
+      ) : (
+        items.map((a) => <XPost key={a.id} a={a} />)
+      )}
 
+      <div style={{ padding: '16px 16px 40px' }}>
         <Pagination basePath={basePath} searchParams={searchParams} page={page} total={total} pageSize={PAGE_SIZE} />
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </XLayout>
   );
 }

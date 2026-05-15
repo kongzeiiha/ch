@@ -20,7 +20,9 @@ import { fileURLToPath } from 'node:url';
 
 const enabled = !!process.env.DATABASE_URL;
 
-describe.skipIf(!enabled)('client integration (real MySQL)', () => {
+// Per-test timeout headroom — DATABASE_URL may point at a remote host where a
+// round-trip is ~1-3s; with multiple queries per test the default 5s blows up.
+describe.skipIf(!enabled)('client integration (real MySQL)', { timeout: 15_000 }, () => {
   let query: typeof import('../client.js').query;
   let execute: typeof import('../client.js').execute;
   let tx: typeof import('../client.js').tx;

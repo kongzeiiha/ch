@@ -32,10 +32,10 @@ interface AnalyticsSummary {
 interface DailyRow { date: string; pv: number; uv: number; revenue: number; }
 interface TopItem { title: string; slug: string | null; pv: number; uv: number; revenue: number; }
 
-const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: 16 };
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#94a3b8', borderBottom: '1px solid #334155', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
-const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #334155', verticalAlign: 'top', color: '#e2e8f0' };
-const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #334155', borderRadius: 6, background: 'transparent', color: '#94a3b8', cursor: 'pointer' };
+const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #3e4144', borderRadius: 8, padding: 16 };
+const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#71767b', borderBottom: '1px solid #3e4144', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
+const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #3e4144', verticalAlign: 'top', color: '#e7e9ea' };
+const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #3e4144', borderRadius: 6, background: 'transparent', color: '#71767b', cursor: 'pointer' };
 const btnPrimary: React.CSSProperties = { ...btn, background: '#6366f1', color: '#fff', borderColor: '#6366f1', fontWeight: 600 };
 const btnGreen:   React.CSSProperties = { ...btn, background: '#16a34a', color: '#fff', borderColor: '#16a34a', fontWeight: 600 };
 const btnViolet:  React.CSSProperties = { ...btn, background: '#7c3aed', color: '#fff', borderColor: '#7c3aed', fontWeight: 600 };
@@ -43,8 +43,8 @@ const btnViolet:  React.CSSProperties = { ...btn, background: '#7c3aed', color: 
 function Tile({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
     <div style={card}>
-      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: accent ?? '#e2e8f0' }}>{value}</div>
+      <div style={{ fontSize: 10, color: '#71767b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: accent ?? '#e7e9ea' }}>{value}</div>
     </div>
   );
 }
@@ -59,7 +59,7 @@ function CopyButton({ text }: { text: string }) {
   };
   return (
     <button onClick={copy}
-      style={{ padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid #334155', background: copied ? '#14532d' : 'transparent', cursor: 'pointer', color: copied ? '#86efac' : '#94a3b8', whiteSpace: 'nowrap' }}>
+      style={{ padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid #3e4144', background: copied ? '#14532d' : 'transparent', cursor: 'pointer', color: copied ? '#86efac' : '#71767b', whiteSpace: 'nowrap' }}>
       {copied ? '已复制' : '复制文案'}
     </button>
   );
@@ -131,16 +131,16 @@ export default function Day6Page() {
 
   const s = distStats ?? { byStatus: {}, byChannel: {}, pendingDistribution: 0 };
   const totalDist = Object.values(s.byStatus).reduce((a, b) => a + b, 0);
-  const sectionTitle: React.CSSProperties = { fontSize: 12, color: '#64748b', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 };
+  const sectionTitle: React.CSSProperties = { fontSize: 12, color: '#71767b', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e7e9ea', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
       <header style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 100 }}>
-        <span style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 800 }}>内容中台</span>
-        <span style={{ color: '#334155' }}>/</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>分发 & Analytics</span>
+        <span style={{ color: '#e7e9ea', fontSize: 16, fontWeight: 800 }}>内容中台</span>
+        <span style={{ color: '#3e4144' }}>/</span>
+        <span style={{ fontSize: 13, color: '#71767b' }}>分发 & Analytics</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
+          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e7e9ea', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
           <button style={btnViolet} disabled={busy} onClick={loadReport}>{busy ? '处理中…' : '生成周报'}</button>
           <button style={btnGreen} disabled={busy} onClick={() => action(`${API}/admin/distribution/analytics-pull`, 'GA4 拉取')}>{busy ? '处理中…' : '拉取 GA4 数据'}</button>
           <button style={btnPrimary} disabled={busy} onClick={() => action(`${API}/admin/distribution/distribute-all`, '批量分发')}>{busy ? '处理中…' : '批量生成推文'}</button>
@@ -164,7 +164,7 @@ export default function Day6Page() {
         </section>
 
         {!loading && tasks.length === 0 ? (
-          <div style={{ ...card, color: '#64748b', textAlign: 'center', fontSize: 14, marginBottom: 32 }}>
+          <div style={{ ...card, color: '#71767b', textAlign: 'center', fontSize: 14, marginBottom: 32 }}>
             暂无分发记录 · 点击「批量生成推文」为已发布文章生成 Twitter 文案
           </div>
         ) : (
@@ -195,7 +195,7 @@ export default function Day6Page() {
                     <td style={{ ...td, color: '#7dd3fc', fontWeight: 500 }}>
                       {t.channel === 'twitter' ? 'X / Twitter' : t.channel}
                     </td>
-                    <td style={{ ...td, color: '#cbd5e1', lineHeight: 1.5, fontSize: 12 }}>
+                    <td style={{ ...td, color: '#e7e9ea', lineHeight: 1.5, fontSize: 12 }}>
                       <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', wordBreak: 'break-word' }}>{t.copy}</pre>
                     </td>
                     <td style={td}>
@@ -224,7 +224,7 @@ export default function Day6Page() {
 
         {daily.length > 0 && (
           <section style={{ ...card, padding: 0, overflow: 'hidden', marginBottom: 24 }}>
-            <h4 style={{ margin: 0, padding: 14, fontSize: 13, color: '#cbd5e1', fontWeight: 600, borderBottom: '1px solid #334155' }}>每日趋势</h4>
+            <h4 style={{ margin: 0, padding: 14, fontSize: 13, color: '#e7e9ea', fontWeight: 600, borderBottom: '1px solid #3e4144' }}>每日趋势</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -237,7 +237,7 @@ export default function Day6Page() {
               <tbody>
                 {daily.map((d) => (
                   <tr key={d.date}>
-                    <td style={{ ...td, color: '#94a3b8' }}>{d.date}</td>
+                    <td style={{ ...td, color: '#71767b' }}>{d.date}</td>
                     <td style={td}>{Number(d.pv).toLocaleString()}</td>
                     <td style={td}>{Number(d.uv).toLocaleString()}</td>
                     <td style={{ ...td, color: '#22c55e' }}>${Number(d.revenue).toFixed(2)}</td>
@@ -250,7 +250,7 @@ export default function Day6Page() {
 
         {topItems.length > 0 && (
           <section style={{ ...card, padding: 0, overflow: 'hidden', marginBottom: 28 }}>
-            <h4 style={{ margin: 0, padding: 14, fontSize: 13, color: '#cbd5e1', fontWeight: 600, borderBottom: '1px solid #334155' }}>Top 10 文章</h4>
+            <h4 style={{ margin: 0, padding: 14, fontSize: 13, color: '#e7e9ea', fontWeight: 600, borderBottom: '1px solid #3e4144' }}>Top 10 文章</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -283,7 +283,7 @@ export default function Day6Page() {
         )}
 
         {daily.length === 0 && !loading && (
-          <div style={{ ...card, color: '#64748b', fontSize: 13, marginBottom: 28 }}>
+          <div style={{ ...card, color: '#71767b', fontSize: 13, marginBottom: 28 }}>
             暂无 Analytics 数据 · 配置 GA4_PROPERTY_ID 和 GOOGLE_APPLICATION_CREDENTIALS 后点击「拉取 GA4 数据」
           </div>
         )}
@@ -296,14 +296,14 @@ export default function Day6Page() {
                 复制 Markdown
               </button>
             </div>
-            <pre style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: 20, fontSize: 13, lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#cbd5e1' }}>
+            <pre style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 8, padding: 20, fontSize: 13, lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#e7e9ea' }}>
               {report}
             </pre>
           </div>
         )}
 
-        <div style={{ marginTop: 24, padding: 14, background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#94a3b8', lineHeight: 1.7 }}>
-          <strong style={{ color: '#cbd5e1' }}>验收要点:</strong>
+        <div style={{ marginTop: 24, padding: 14, background: '#1e293b', border: '1px solid #3e4144', borderRadius: 8, fontSize: 12, color: '#71767b', lineHeight: 1.7 }}>
+          <strong style={{ color: '#e7e9ea' }}>验收要点:</strong>
           点击「批量生成推文」→ 表格出现推文文案 → 点「复制文案」可粘贴到 X/Twitter 手动发布 ·
           GA4 配置好后「拉取 GA4 数据」→ analytics_daily 有数据 → 「生成周报」显示 markdown
         </div>

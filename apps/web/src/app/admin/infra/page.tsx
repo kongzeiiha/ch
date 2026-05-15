@@ -51,7 +51,7 @@ async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
 
 const card: React.CSSProperties = {
   background: '#1e293b',
-  border: '1px solid #334155',
+  border: '1px solid #3e4144',
   borderRadius: 8,
   padding: 16,
 };
@@ -60,8 +60,8 @@ const th: React.CSSProperties = {
   padding: '10px 12px',
   fontSize: 11,
   fontWeight: 600,
-  color: '#94a3b8',
-  borderBottom: '1px solid #334155',
+  color: '#71767b',
+  borderBottom: '1px solid #3e4144',
   background: '#0f172a',
   textTransform: 'uppercase',
   letterSpacing: 0.4,
@@ -69,17 +69,17 @@ const th: React.CSSProperties = {
 const td: React.CSSProperties = {
   padding: '10px 12px',
   fontSize: 13,
-  borderBottom: '1px solid #334155',
+  borderBottom: '1px solid #3e4144',
   verticalAlign: 'top',
-  color: '#e2e8f0',
+  color: '#e7e9ea',
 };
 const btn: React.CSSProperties = {
   padding: '6px 12px',
   fontSize: 12,
-  border: '1px solid #334155',
+  border: '1px solid #3e4144',
   borderRadius: 6,
   background: 'transparent',
-  color: '#94a3b8',
+  color: '#71767b',
   cursor: 'pointer',
 };
 const btnPrimary: React.CSSProperties = {
@@ -114,14 +114,14 @@ function InfraCard({ title, check }: { title: string; check: Check | null | unde
   return (
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <strong style={{ fontSize: 14, color: '#e2e8f0' }}>{title}</strong>
+        <strong style={{ fontSize: 14, color: '#e7e9ea' }}>{title}</strong>
         {check ? <Badge ok={check.ok} /> : <Badge ok={false} label="未知" />}
       </div>
-      <div style={{ marginTop: 10, fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+      <div style={{ marginTop: 10, fontSize: 12, color: '#71767b', lineHeight: 1.6 }}>
         {check ? (
           <>
-            <div>延迟:<span style={{ color: '#cbd5e1' }}>{check.latencyMs} ms</span></div>
-            {check.detail && <div>详情:<span style={{ color: '#cbd5e1' }}>{check.detail}</span></div>}
+            <div>延迟:<span style={{ color: '#e7e9ea' }}>{check.latencyMs} ms</span></div>
+            {check.detail && <div>详情:<span style={{ color: '#e7e9ea' }}>{check.detail}</span></div>}
             {check.error && <div style={{ color: '#fca5a5' }}>错误:{check.error}</div>}
           </>
         ) : (
@@ -173,21 +173,21 @@ export default function Day1Page() {
   }
 
   const totalOk = infra && infra.database.ok && infra.redis.ok && infra.minio.ok ? true : infra ? false : null;
-  const sectionTitle: React.CSSProperties = { fontSize: 12, color: '#64748b', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 };
+  const sectionTitle: React.CSSProperties = { fontSize: 12, color: '#71767b', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e7e9ea', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
       <header style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 100 }}>
-        <span style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 800 }}>内容中台</span>
-        <span style={{ color: '#334155' }}>/</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>基础设施验收</span>
+        <span style={{ color: '#e7e9ea', fontSize: 16, fontWeight: 800 }}>内容中台</span>
+        <span style={{ color: '#3e4144' }}>/</span>
+        <span style={{ fontSize: 13, color: '#71767b' }}>基础设施验收</span>
         {totalOk !== null && (
           <span style={{ marginLeft: 8 }}>
             <Badge ok={totalOk} label={totalOk ? '全部正常' : '存在异常'} />
           </span>
         )}
         <div style={{ marginLeft: 'auto' }}>
-          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={refresh}>↻ 刷新</button>
+          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e7e9ea', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={refresh}>↻ 刷新</button>
         </div>
       </header>
 
@@ -215,14 +215,14 @@ export default function Day1Page() {
             <section style={{ ...card, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, fontSize: 13 }}>
                 <div>
-                  <div style={{ color: '#64748b', fontSize: 11, marginBottom: 4 }}>GROQ_API_KEY</div>
+                  <div style={{ color: '#71767b', fontSize: 11, marginBottom: 4 }}>GROQ_API_KEY</div>
                   {infra.env.hasLLMKey ? <Badge ok label="已配置" /> : <Badge ok={false} label="未配置" />}
                 </div>
                 <div>
-                  <div style={{ color: '#64748b', fontSize: 11, marginBottom: 4 }}>调度器</div>
+                  <div style={{ color: '#71767b', fontSize: 11, marginBottom: 4 }}>调度器</div>
                   <Badge ok={infra.env.scheduler === 'enabled'} label={infra.env.scheduler === 'enabled' ? '已启用' : '已停用'} />
                 </div>
-                <div style={{ gridColumn: '1 / -1', color: '#94a3b8', fontSize: 12, lineHeight: 1.7, paddingTop: 4 }}>
+                <div style={{ gridColumn: '1 / -1', color: '#71767b', fontSize: 12, lineHeight: 1.7, paddingTop: 4 }}>
                   模型配置 —— Large: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.large}</code>
                   &nbsp;· Medium: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.medium}</code>
                   &nbsp;· Small: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 3, color: '#a5b4fc' }}>{infra.env.models.small}</code>
@@ -254,10 +254,10 @@ export default function Day1Page() {
                   <tr key={q.name}>
                     <td style={td}><code style={{ fontSize: 12, color: '#a5b4fc' }}>{q.name}</code></td>
                     <td style={td}>{q.counts.waiting}</td>
-                    <td style={{ ...td, color: q.counts.active > 0 ? '#fbbf24' : '#e2e8f0' }}>{q.counts.active}</td>
-                    <td style={{ ...td, color: '#94a3b8' }}>{q.counts.delayed}</td>
-                    <td style={{ ...td, color: '#94a3b8' }}>{q.counts.completed}</td>
-                    <td style={{ ...td, color: q.counts.failed > 0 ? '#fca5a5' : '#94a3b8', fontWeight: q.counts.failed > 0 ? 600 : 400 }}>
+                    <td style={{ ...td, color: q.counts.active > 0 ? '#fbbf24' : '#e7e9ea' }}>{q.counts.active}</td>
+                    <td style={{ ...td, color: '#71767b' }}>{q.counts.delayed}</td>
+                    <td style={{ ...td, color: '#71767b' }}>{q.counts.completed}</td>
+                    <td style={{ ...td, color: q.counts.failed > 0 ? '#fca5a5' : '#71767b', fontWeight: q.counts.failed > 0 ? 600 : 400 }}>
                       {q.counts.failed}
                     </td>
                     <td style={td}><Badge ok={alive} label={alive ? '在线' : '离线'} /></td>
@@ -265,7 +265,7 @@ export default function Day1Page() {
                 );
               })}
               {queues.length === 0 && (
-                <tr><td style={{ ...td, color: '#64748b' }} colSpan={7}>加载中…</td></tr>
+                <tr><td style={{ ...td, color: '#71767b' }} colSpan={7}>加载中…</td></tr>
               )}
             </tbody>
           </table>
@@ -275,7 +275,7 @@ export default function Day1Page() {
         <h3 style={sectionTitle}>4. LLM 封装 · 实调测试</h3>
         <section style={{ ...card, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 16 }}>
-            <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6 }}>
+            <div style={{ fontSize: 13, color: '#71767b', lineHeight: 1.6 }}>
               调用 Groq 小模型发一条 ping,验证 API key、重试、成本计算、<code style={{ color: '#a5b4fc' }}>agent_runs</code> 审计写入全链路。
             </div>
             <button style={btnPrimary} disabled={llmBusy} onClick={testLlm}>
@@ -299,7 +299,7 @@ export default function Day1Page() {
             </div>
           )}
           {llm && !llm.ok && (
-            <div style={{ background: '#450a0a', border: '1px solid #dc2626', borderRadius: 6, padding: 12, fontSize: 13, color: '#fca5a5' }}>
+            <div style={{ background: '#450a0a', border: '1px solid #1d9bf0', borderRadius: 6, padding: 12, fontSize: 13, color: '#fca5a5' }}>
               <Badge ok={false} label="调用失败" />
               <div style={{ marginTop: 6 }}>{llm.error}</div>
             </div>

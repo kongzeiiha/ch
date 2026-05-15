@@ -170,7 +170,7 @@ export function CredentialsPanel({
       expired: ['#78350f', '#fbbf24'],
       revoked: ['#7f1d1d', '#fca5a5'],
     };
-    const [bg, fg] = colors[s] ?? ['#1e293b', '#94a3b8'];
+    const [bg, fg] = colors[s] ?? ['#1e293b', '#71767b'];
     const label = s === 'active' ? '活跃' : s === 'expired' ? '已过期' : s === 'revoked' ? '已吊销' : s;
     return <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: bg, color: fg, fontWeight: 600 }}>{label}</span>;
   };
@@ -178,8 +178,8 @@ export function CredentialsPanel({
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <span style={{ fontSize: 13, color: '#94a3b8' }}>
-          共 <strong style={{ color: '#e2e8f0' }}>{credentials.length}</strong> 个凭证 ·&nbsp;
+        <span style={{ fontSize: 13, color: '#71767b' }}>
+          共 <strong style={{ color: '#e7e9ea' }}>{credentials.length}</strong> 个凭证 ·&nbsp;
           <span style={{ color: '#22c55e' }}>活跃 {credentials.filter(c => c.status === 'active').length}</span>&nbsp;/
           <span style={{ color: '#fbbf24' }}> 过期 {credentials.filter(c => c.status === 'expired').length}</span>&nbsp;/
           <span style={{ color: '#f87171' }}> 吊销 {credentials.filter(c => c.status === 'revoked').length}</span>
@@ -187,7 +187,7 @@ export function CredentialsPanel({
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={reload}
             title="重新拉取一次列表(只刷新页面数据,不影响任何凭证的 cookie)"
-            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>
+            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 12, cursor: 'pointer' }}>
             ↻ 重新加载列表
           </button>
           <button onClick={() => setShowCreate(true)}
@@ -204,14 +204,14 @@ export function CredentialsPanel({
           return (
             <div key={c.id} style={{
               background: '#1e293b',
-              border: `1px solid ${c.status === 'active' ? '#334155' : '#1e293b'}`,
-              borderLeft: `3px solid ${c.status === 'active' ? '#22c55e' : c.status === 'expired' ? '#d97706' : '#dc2626'}`,
+              border: `1px solid ${c.status === 'active' ? '#3e4144' : '#1e293b'}`,
+              borderLeft: `3px solid ${c.status === 'active' ? '#22c55e' : c.status === 'expired' ? '#d97706' : '#1d9bf0'}`,
               borderRadius: 8, padding: '12px 16px',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 220 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{c.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#e7e9ea' }}>{c.name}</span>
                     <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 8, background: '#0ea5e933', color: '#7dd3fc' }}>{c.platform}</span>
                     {statusBadge(c.status)}
                     {c.has_secret && (
@@ -225,7 +225,7 @@ export function CredentialsPanel({
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 11, color: '#71767b', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     <span>cookie {c.cookie_len > 0 ? `${c.cookie_len} 字符` : '空'}</span>
                     <span>{c.source_count} 个源在用</span>
                     <span>上次使用: {fmt(c.last_used_at)}</span>
@@ -242,12 +242,12 @@ export function CredentialsPanel({
                   {c.has_secret && (
                     <button onClick={() => onRefreshOne(c.id)} disabled={refreshingCredId === c.id}
                       title="用账号密码 stealth 登录刷一次 cookie"
-                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: refreshingCredId === c.id ? '#1e293b' : 'transparent', color: refreshingCredId === c.id ? '#475569' : '#a5b4fc', fontSize: 11, cursor: refreshingCredId === c.id ? 'not-allowed' : 'pointer' }}>
+                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: refreshingCredId === c.id ? '#1e293b' : 'transparent', color: refreshingCredId === c.id ? '#475569' : '#a5b4fc', fontSize: 11, cursor: refreshingCredId === c.id ? 'not-allowed' : 'pointer' }}>
                       {refreshingCredId === c.id ? '刷新中…' : '🔁 立即刷新'}
                     </button>
                   )}
                   <button onClick={() => startEdit(c)}
-                    style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                    style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>
                     编辑
                   </button>
                 </div>
@@ -256,7 +256,7 @@ export function CredentialsPanel({
           );
         })}
         {credentials.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#334155', background: '#0f172a', borderRadius: 10, border: '1px dashed #334155' }}>
+          <div style={{ textAlign: 'center', padding: 40, color: '#3e4144', background: '#0f172a', borderRadius: 10, border: '1px dashed #3e4144' }}>
             暂无凭证 · 点击「+ 新建凭证」
           </div>
         )}
@@ -270,14 +270,14 @@ export function CredentialsPanel({
             style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 12, padding: 22, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#a5b4fc' }}>新建凭证</div>
-              <button onClick={() => !busy && setShowCreate(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+              <button onClick={() => !busy && setShowCreate(false)} style={{ background: 'none', border: 'none', color: '#71767b', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>平台</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>平台</span>
                 <select value={cPlatform} onChange={e => setCPlatform(e.target.value as any)}
-                  style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                  style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, colorScheme: 'dark' }}>
                   <option value="x">X (Twitter)</option>
                   {/* Other platforms hidden until their credential workflows are wired up. */}
                   {/* <option value="knit">knit</option> */}
@@ -286,23 +286,23 @@ export function CredentialsPanel({
                 </select>
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>名字</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>名字</span>
                 <input value={cName} onChange={e => setCName(e.target.value)}
                   placeholder="如 main-x-2026-04"
-                  style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                  style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
               </label>
             </div>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>Cookie(完整 Cookie 头)</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>Cookie(完整 Cookie 头)</span>
               <textarea value={cCookie} onChange={e => setCCookie(e.target.value)} rows={4}
                 placeholder="auth_token=…; ct0=…; …"
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent(可选)</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>User-Agent(可选)</span>
               <input value={cUa} onChange={e => setCUa(e.target.value)}
                 placeholder="Mozilla/5.0 …"
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
             </label>
 
             {cPlatform === 'x' && (
@@ -313,17 +313,17 @@ export function CredentialsPanel({
                 <div style={{ marginTop: 6, padding: '8px 10px', background: '#0f172a', borderRadius: 5, border: '1px solid #312e81' }}>
                   <input value={cSecretUser} onChange={e => setCSecretUser(e.target.value)} autoComplete="off"
                     placeholder="X 用户名 / 邮箱 / 手机号"
-                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, marginBottom: 6 }} />
                   <input type="password" value={cSecretPass} onChange={e => setCSecretPass(e.target.value)} autoComplete="new-password"
                     placeholder="X 密码"
-                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                 </div>
               </details>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
               <button onClick={() => setShowCreate(false)} disabled={busy}
-                style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>取消</button>
+                style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 12, cursor: 'pointer' }}>取消</button>
               <button onClick={create} disabled={busy || !cName.trim() || !cCookie.trim()}
                 style={{ padding: '6px 14px', borderRadius: 5, border: 'none', background: busy || !cName.trim() || !cCookie.trim() ? '#1e293b' : '#6366f1', color: busy || !cName.trim() || !cCookie.trim() ? '#475569' : '#fff', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
                 {busy ? '保存中…' : '保存'}
@@ -341,35 +341,35 @@ export function CredentialsPanel({
             style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 12, padding: 22, maxWidth: 580, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#a5b4fc' }}>编辑凭证</div>
-              <button onClick={() => !busy && closeEdit()} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+              <button onClick={() => !busy && closeEdit()} style={{ background: 'none', border: 'none', color: '#71767b', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#71767b', marginBottom: 12 }}>
               {editing.platform} · 当前 {editing.cookie_len} 字符 cookie · {editing.source_count} 个源在用
             </div>
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>名字</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>名字</span>
               <input value={name} onChange={e => setName(e.target.value)}
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
             </label>
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>Cookie(留空则不动,贴新值会替换并重置 last_auth_check)</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>Cookie(留空则不动,贴新值会替换并重置 last_auth_check)</span>
               <textarea value={cookie} onChange={e => setCookie(e.target.value)} rows={4}
                 placeholder="auth_token=…; ct0=…; …"
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
             </label>
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>User-Agent</span>
               <input value={ua} onChange={e => setUa(e.target.value)}
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
             </label>
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>状态(改成 active 会同时重置自动刷新失败计数)</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>状态(改成 active 会同时重置自动刷新失败计数)</span>
               <select value={status} onChange={e => setStatus(e.target.value as any)}
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, colorScheme: 'dark' }}>
                 <option value="active">active(活跃)</option>
                 <option value="expired">expired(过期,scheduler 会尝试自动刷)</option>
                 <option value="revoked">revoked(吊销,scheduler 跳过)</option>
@@ -382,16 +382,16 @@ export function CredentialsPanel({
                   🔁 自动刷新账密 {editing.has_secret ? `(已绑定 ${editing.secret_username})` : '(未配置)'}
                 </summary>
                 <div style={{ marginTop: 6, padding: '8px 10px', background: '#0f172a', borderRadius: 5, border: '1px solid #312e81' }}>
-                  <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 10, color: '#71767b', marginBottom: 6, lineHeight: 1.5 }}>
                     填了之后,cookie 过期时系统会自动重新登录刷新。两个字段都填才会更新;留空不动。
                     密码用 AES-256-GCM 加密入库。
                   </div>
                   <input value={secretUser} onChange={e => setSecretUser(e.target.value)} autoComplete="off"
                     placeholder="X 用户名 / 邮箱 / 手机号"
-                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, marginBottom: 6 }} />
                   <input type="password" value={secretPass} onChange={e => setSecretPass(e.target.value)} autoComplete="new-password"
                     placeholder={editing.has_secret ? '留空保留旧密码' : 'X 密码'}
-                    style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                    style={{ width: '100%', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, marginBottom: 6 }} />
                   {editing.has_secret && (
                     <button onClick={removeSecret} disabled={busy}
                       style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #7f1d1d', background: 'transparent', color: '#fca5a5', fontSize: 11, cursor: 'pointer' }}>
@@ -409,7 +409,7 @@ export function CredentialsPanel({
               </button>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={closeEdit} disabled={busy}
-                  style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>取消</button>
+                  style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 12, cursor: 'pointer' }}>取消</button>
                 <button onClick={save} disabled={busy}
                   style={{ padding: '6px 14px', borderRadius: 5, border: 'none', background: busy ? '#1e293b' : '#6366f1', color: busy ? '#475569' : '#fff', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
                   {busy ? '保存中…' : '保存'}

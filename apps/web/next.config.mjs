@@ -23,6 +23,18 @@ const nextConfig = {
   // from webpack mis-resolving ESM workspace exports, and means changes in
   // packages/* hot-reload without a separate `tsc -w` watcher.
   transpilePackages: ['@ch/db', '@ch/agents'],
+  // Keep server-only Node packages OUT of the webpack server bundle. Reasons:
+  //   - mysql2 has a native binding fallback and worker_threads — bundling
+  //     produces vendor-chunks/<hashed>.js that pnpm's deep symlink layout
+  //     occasionally fails to resolve at runtime (the "Cannot find module
+  //     vendor-chunks/mysql2@x.y.z_..." we kept hitting).
+  //   - ioredis ships dynamic require + cluster code that webpack mangles.
+  //   - bullmq depends on ioredis + worker_threads, same problem.
+  //   - playwright (used by ingestion adapter via @ch/agents) carries
+  //     browser binaries — never bundle.
+  // Listing them here makes Next `require()` them directly at runtime from
+  // node_modules, so pnpm's exact path resolution always wins.
+  serverExternalPackages: ['mysql2', 'ioredis', 'bullmq', 'playwright', 'playwright-core'],
   // STATIC_EXPORT=1 → emit pure static HTML to apps/web/out/ (no Node needed).
   // Default (dev / regular `next build`) → SSR/ISR mode unchanged.
   ...(STATIC_EXPORT ? {

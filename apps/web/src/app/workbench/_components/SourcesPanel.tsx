@@ -468,8 +468,8 @@ export function SourcesPanel({
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <span style={{ fontSize: 13, color: '#94a3b8' }}>
-          共 <strong style={{ color: '#e2e8f0' }}>{sources.length}</strong> 个来源 ·&nbsp;
+        <span style={{ fontSize: 13, color: '#71767b' }}>
+          共 <strong style={{ color: '#e7e9ea' }}>{sources.length}</strong> 个来源 ·&nbsp;
           <span style={{ color: '#22c55e' }}>活跃 {sources.filter(s => s.status === 'active').length}</span>
           &nbsp;/ <span style={{ color: '#475569' }}>停用 {sources.filter(s => s.status !== 'active').length}</span>
         </span>
@@ -486,7 +486,7 @@ export function SourcesPanel({
             <button
               onClick={toggleAll}
               title="全选当前列表，便于批量删除"
-              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#fca5a5', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #1d9bf0', background: 'transparent', color: '#fca5a5', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <TrashIcon /> 批量删除信源
             </button>
           )}
@@ -494,7 +494,7 @@ export function SourcesPanel({
             <button
               onClick={() => onBulkDelete(sources.filter((s) => selected.has(s.id)))}
               title={`批量删除选中的 ${selected.size} 个采集源`}
-              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#fca5a5', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #1d9bf0', background: 'transparent', color: '#fca5a5', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <TrashIcon /> 批量删除 ({selected.size})
             </button>
           )}
@@ -528,10 +528,10 @@ export function SourcesPanel({
             style={{ background: '#1e293b', border: '1px solid #14532d', borderRadius: 12, padding: 22, maxWidth: 760, width: '100%', maxHeight: '88vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#86efac' }}>🔍 关键词找博主</div>
-              <button onClick={() => !discoverBusy && !discoverImportBusy && setShowDiscover(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+              <button onClick={() => !discoverBusy && !discoverImportBusy && setShowDiscover(false)} style={{ background: 'none', border: 'none', color: '#71767b', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
 
-            <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 14, lineHeight: 1.7 }}>
+            <div style={{ fontSize: 11.5, color: '#71767b', marginBottom: 14, lineHeight: 1.7 }}>
               用 X 的 SearchTimeline · People 接口按关键词搜账号，按粉丝数倒序。勾选后走和「批量导入博主」相同的链路建源 + 触发抓取。
             </div>
 
@@ -543,13 +543,13 @@ export function SourcesPanel({
                 onKeyDown={(e) => e.key === 'Enter' && runDiscover()}
                 placeholder="关键词,如:美食 / AI / 摄影"
                 disabled={discoverBusy}
-                style={{ flex: 1, minWidth: 200, padding: '7px 12px', background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0', borderRadius: 6, fontSize: 13 }}
+                style={{ flex: 1, minWidth: 200, padding: '7px 12px', background: '#0f172a', border: '1px solid #3e4144', color: '#e7e9ea', borderRadius: 6, fontSize: 13 }}
               />
               <select
                 value={discoverCredentialId}
                 onChange={(e) => setDiscoverCredentialId(e.target.value)}
                 disabled={discoverBusy}
-                style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0', borderRadius: 6, fontSize: 12, minWidth: 160 }}>
+                style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #3e4144', color: '#e7e9ea', borderRadius: 6, fontSize: 12, minWidth: 160 }}>
                 <option value="">选择 X 凭证</option>
                 {credentials.filter((c) => c.platform === 'x' && c.status === 'active').map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -563,12 +563,12 @@ export function SourcesPanel({
                 onChange={(e) => setDiscoverLimit(Math.min(50, Math.max(1, Number(e.target.value) || 30)))}
                 disabled={discoverBusy}
                 title="返回条数 1-50"
-                style={{ width: 64, padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0', borderRadius: 6, fontSize: 13 }}
+                style={{ width: 64, padding: '7px 10px', background: '#0f172a', border: '1px solid #3e4144', color: '#e7e9ea', borderRadius: 6, fontSize: 13 }}
               />
               <button
                 onClick={runDiscover}
                 disabled={discoverBusy || !discoverQuery.trim() || !discoverCredentialId}
-                style={{ padding: '7px 18px', background: discoverBusy ? '#334155' : '#14532d', color: '#86efac', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: discoverBusy ? 'wait' : 'pointer' }}>
+                style={{ padding: '7px 18px', background: discoverBusy ? '#3e4144' : '#14532d', color: '#86efac', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: discoverBusy ? 'wait' : 'pointer' }}>
                 {discoverBusy ? '搜索中…' : '搜索'}
               </button>
             </div>
@@ -583,18 +583,18 @@ export function SourcesPanel({
             {discoverResults.length > 0 && (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '12px 0 8px' }}>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                  <div style={{ fontSize: 12, color: '#71767b' }}>
                     找到 <strong style={{ color: '#86efac' }}>{discoverResults.length}</strong> 个账号 · 已选 <strong style={{ color: '#a5b4fc' }}>{discoverSelected.size}</strong>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       onClick={() => setDiscoverSelected(new Set(discoverResults.filter((u) => !u.alreadyImported).map((u) => u.screen_name)))}
-                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>
                       全选可导入
                     </button>
                     <button
                       onClick={() => setDiscoverSelected(new Set())}
-                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                      style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>
                       清除
                     </button>
                   </div>
@@ -639,17 +639,17 @@ export function SourcesPanel({
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{u.name || u.screen_name}</span>
-                            <span style={{ fontSize: 11, color: '#64748b' }}>@{u.screen_name}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#e7e9ea' }}>{u.name || u.screen_name}</span>
+                            <span style={{ fontSize: 11, color: '#71767b' }}>@{u.screen_name}</span>
                             {u.verified && <span style={{ fontSize: 10, padding: '0 6px', borderRadius: 8, background: '#1e3a8a', color: '#93c5fd' }}>verified</span>}
-                            {disabled && <span style={{ fontSize: 10, padding: '0 6px', borderRadius: 8, background: '#1e293b', color: '#64748b' }}>已导入</span>}
+                            {disabled && <span style={{ fontSize: 10, padding: '0 6px', borderRadius: 8, background: '#1e293b', color: '#71767b' }}>已导入</span>}
                           </div>
                           {u.description && (
-                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            <div style={{ fontSize: 11, color: '#71767b', marginTop: 3, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                               {u.description}
                             </div>
                           )}
-                          <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 3 }}>
+                          <div style={{ fontSize: 10.5, color: '#71767b', marginTop: 3 }}>
                             {u.followers_count.toLocaleString()} followers
                           </div>
                         </div>
@@ -658,16 +658,16 @@ export function SourcesPanel({
                   })}
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', borderTop: '1px solid #334155', paddingTop: 12 }}>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', borderTop: '1px solid #3e4144', paddingTop: 12 }}>
                   <button
                     onClick={() => !discoverImportBusy && setShowDiscover(false)}
-                    style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}>
+                    style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 12, cursor: 'pointer' }}>
                     关闭
                   </button>
                   <button
                     onClick={importDiscovered}
                     disabled={discoverImportBusy || discoverSelected.size === 0}
-                    style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: discoverSelected.size === 0 ? '#334155' : '#14532d', color: '#86efac', fontSize: 13, fontWeight: 700, cursor: discoverImportBusy ? 'wait' : discoverSelected.size === 0 ? 'not-allowed' : 'pointer' }}>
+                    style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: discoverSelected.size === 0 ? '#3e4144' : '#14532d', color: '#86efac', fontSize: 13, fontWeight: 700, cursor: discoverImportBusy ? 'wait' : discoverSelected.size === 0 ? 'not-allowed' : 'pointer' }}>
                     {discoverImportBusy ? '导入中…' : `导入选中 ${discoverSelected.size} 个`}
                   </button>
                 </div>
@@ -687,10 +687,10 @@ export function SourcesPanel({
             style={{ background: '#1e293b', border: '1px solid #6366f1', borderRadius: 12, padding: 22, maxWidth: 640, width: '100%', maxHeight: '88vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#a5b4fc' }}>⚡ 批量导入博主</div>
-              <button onClick={() => !batchBusy && setShowBatch(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+              <button onClick={() => !batchBusy && setShowBatch(false)} style={{ background: 'none', border: 'none', color: '#71767b', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
 
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 12, color: '#71767b', marginBottom: 14, lineHeight: 1.6 }}>
               粘贴一批 handle，系统会为每个建一条独立的采集源（共享下面的 cookie / 限制），
               并按 fanout 节奏自动抓取 + 走完分类→标题→封面→合规→发布全流程。
             </div>
@@ -702,9 +702,9 @@ export function SourcesPanel({
                   disabled={batchBusy}
                   style={{
                     flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                    border: '1px solid', borderColor: batchPlatform === p ? '#6366f1' : '#334155',
+                    border: '1px solid', borderColor: batchPlatform === p ? '#6366f1' : '#3e4144',
                     background: batchPlatform === p ? '#312e81' : 'transparent',
-                    color: batchPlatform === p ? '#c7d2fe' : '#64748b', cursor: 'pointer',
+                    color: batchPlatform === p ? '#c7d2fe' : '#71767b', cursor: 'pointer',
                   }}>
                   {p === 'x' ? 'X (Twitter)' : p === 'bluesky' ? 'Bluesky' : 'Reddit'}
                 </button>
@@ -715,7 +715,7 @@ export function SourcesPanel({
             {(batchPlatform === 'x') && (
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>凭证池（推荐）</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>凭证池（推荐）</span>
                   {!showCreateCred && (
                     <button onClick={() => { setShowCreateCred(true); setNewCredName(''); setNewCredCookie(''); setNewCredUA(''); }}
                       disabled={batchBusy}
@@ -728,7 +728,7 @@ export function SourcesPanel({
                   value={batchCredentialId}
                   onChange={e => setBatchCredentialId(e.target.value)}
                   disabled={batchBusy || showCreateCred}
-                  style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                  style={{ width: '100%', background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, colorScheme: 'dark' }}>
                   <option value="">— 不用凭证池（粘贴 cookie 到下方）—</option>
                   {credentials
                     .filter(c => c.platform === batchPlatform)
@@ -750,10 +750,10 @@ export function SourcesPanel({
                   const lastRefresh = c.secret_last_refresh_at ? new Date(c.secret_last_refresh_at).toLocaleString('zh-CN') : '—';
                   const failedSinceLast = (c.secret_consecutive_failures ?? 0) > 0;
                   return (
-                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#64748b' }}>
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#71767b' }}>
                       {c.has_secret ? (
                         <>
-                          <span>账号 <strong style={{ color: '#cbd5e1' }}>{c.secret_username}</strong></span>
+                          <span>账号 <strong style={{ color: '#e7e9ea' }}>{c.secret_username}</strong></span>
                           <span>· 上次刷新 {lastRefresh}</span>
                           {failedSinceLast && (
                             <span style={{ color: '#f87171' }} title={c.secret_last_refresh_error ?? undefined}>
@@ -764,12 +764,12 @@ export function SourcesPanel({
                             onClick={() => refreshCredential(batchCredentialId)}
                             disabled={refreshingCredId === batchCredentialId || batchBusy}
                             title="用账号密码 stealth 登录刷一次 cookie（约 15-30 秒）"
-                            style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 5, border: '1px solid #334155', background: refreshingCredId === batchCredentialId ? '#1e293b' : 'transparent', color: refreshingCredId === batchCredentialId ? '#475569' : '#a5b4fc', fontSize: 11, cursor: refreshingCredId === batchCredentialId ? 'not-allowed' : 'pointer' }}>
+                            style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 5, border: '1px solid #3e4144', background: refreshingCredId === batchCredentialId ? '#1e293b' : 'transparent', color: refreshingCredId === batchCredentialId ? '#475569' : '#a5b4fc', fontSize: 11, cursor: refreshingCredId === batchCredentialId ? 'not-allowed' : 'pointer' }}>
                             {refreshingCredId === batchCredentialId ? '刷新中…' : '🔁 立即刷新'}
                           </button>
                         </>
                       ) : (
-                        <span style={{ color: '#64748b' }}>
+                        <span style={{ color: '#71767b' }}>
                           未配置自动刷新 · 当 cookie 过期时需要手动重新粘贴
                         </span>
                       )}
@@ -777,27 +777,27 @@ export function SourcesPanel({
                   );
                 })()}
                 {showCreateCred && (
-                  <div style={{ marginTop: 8, padding: 10, background: '#0f172a', border: '1px dashed #334155', borderRadius: 6 }}>
+                  <div style={{ marginTop: 8, padding: 10, background: '#0f172a', border: '1px dashed #3e4144', borderRadius: 6 }}>
                     <div style={{ fontSize: 11, color: '#a5b4fc', fontWeight: 600, marginBottom: 6 }}>新建凭证</div>
                     <input
                       value={newCredName}
                       onChange={e => setNewCredName(e.target.value)}
                       placeholder="凭证名（如 main-x-account-2026-04）"
                       disabled={credBusy}
-                      style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                      style={{ width: '100%', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, marginBottom: 6 }} />
                     <textarea
                       value={newCredCookie}
                       onChange={e => setNewCredCookie(e.target.value)}
                       rows={3}
                       placeholder="auth_token=…; ct0=…; …"
                       disabled={credBusy}
-                      style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical', marginBottom: 6 }} />
+                      style={{ width: '100%', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical', marginBottom: 6 }} />
                     <input
                       value={newCredUA}
                       onChange={e => setNewCredUA(e.target.value)}
                       placeholder="User-Agent（可选）"
                       disabled={credBusy}
-                      style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', marginBottom: 8 }} />
+                      style={{ width: '100%', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace', marginBottom: 8 }} />
 
                     {/* Optional auto-refresh secret */}
                     {batchPlatform === 'x' && (
@@ -806,7 +806,7 @@ export function SourcesPanel({
                           🔁 配置自动刷新（X 用户名 + 密码，加密存储）
                         </summary>
                         <div style={{ marginTop: 6, padding: '8px 10px', background: '#1e293b', borderRadius: 5, border: '1px solid #312e81' }}>
-                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, lineHeight: 1.5 }}>
+                          <div style={{ fontSize: 10, color: '#71767b', marginBottom: 6, lineHeight: 1.5 }}>
                             填了之后，cookie 过期时系统会自动用账号密码重新登录刷新。
                             遇到 Arkose / 2FA / 邮件验证码时刷新失败，仍需人工处理。
                             密码用 AES-256-GCM 加密后入库，不会以明文返回。
@@ -817,7 +817,7 @@ export function SourcesPanel({
                             placeholder="X 用户名 / 邮箱 / 手机号"
                             disabled={credBusy}
                             autoComplete="off"
-                            style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, marginBottom: 6 }} />
+                            style={{ width: '100%', background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, marginBottom: 6 }} />
                           <input
                             type="password"
                             value={newCredXPass}
@@ -825,14 +825,14 @@ export function SourcesPanel({
                             placeholder="X 密码"
                             disabled={credBusy}
                             autoComplete="new-password"
-                            style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                            style={{ width: '100%', background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                         </div>
                       </details>
                     )}
 
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                       <button onClick={() => setShowCreateCred(false)} disabled={credBusy}
-                        style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>
+                        style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>
                         取消
                       </button>
                       <button
@@ -887,23 +887,23 @@ export function SourcesPanel({
             {batchPlatform === 'x' && !batchCredentialId && (
               <>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>共享 Cookie（须含 auth_token + ct0）</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>共享 Cookie（须含 auth_token + ct0）</span>
                   <textarea
                     value={batchCookie}
                     onChange={e => setBatchCookie(e.target.value)}
                     rows={3}
                     placeholder="auth_token=…; ct0=…; …"
                     disabled={batchBusy}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
+                    style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }} />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent（可选，与 cookie 抓取的浏览器一致）</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>User-Agent（可选，与 cookie 抓取的浏览器一致）</span>
                   <input
                     value={batchUserAgent}
                     onChange={e => setBatchUserAgent(e.target.value)}
                     placeholder="Mozilla/5.0 (Macintosh; …) Chrome/147.0.0.0"
                     disabled={batchBusy}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+                    style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
                 </label>
               </>
             )}
@@ -912,12 +912,12 @@ export function SourcesPanel({
             {batchPlatform === 'reddit' && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>排序</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>排序</span>
                   <select
                     value={batchRedditSort}
                     onChange={e => setBatchRedditSort(e.target.value as any)}
                     disabled={batchBusy}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                    style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, colorScheme: 'dark' }}>
                     <option value="top">top</option>
                     <option value="hot">hot</option>
                     <option value="new">new</option>
@@ -925,12 +925,12 @@ export function SourcesPanel({
                   </select>
                 </label>
                 <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>时间窗（仅 sort=top）</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>时间窗（仅 sort=top）</span>
                   <select
                     value={batchRedditTime}
                     onChange={e => setBatchRedditTime(e.target.value as any)}
                     disabled={batchBusy || batchRedditSort !== 'top'}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, colorScheme: 'dark' }}>
+                    style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, colorScheme: 'dark' }}>
                     <option value="hour">hour</option>
                     <option value="day">day</option>
                     <option value="week">week</option>
@@ -940,20 +940,20 @@ export function SourcesPanel({
                   </select>
                 </label>
                 <label style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent（可选）</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>User-Agent（可选）</span>
                   <input
                     value={batchUserAgent}
                     onChange={e => setBatchUserAgent(e.target.value)}
                     placeholder="ch-agents/0.1 (+content-pipeline)"
                     disabled={batchBusy}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
+                    style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace' }} />
                 </label>
               </div>
             )}
 
             {/* Handles */}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>
+              <span style={{ fontSize: 11, color: '#71767b' }}>
                 {batchPlatform === 'x'
                   ? '博主 handle 列表（每行一个，自动去 @ / 去重）'
                   : batchPlatform === 'reddit'
@@ -972,28 +972,28 @@ export function SourcesPanel({
                       : 'pfrazee.com\nbsky.app\n…'
                 }
                 disabled={batchBusy}
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical', lineHeight: 1.5 }} />
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'ui-monospace, monospace', resize: 'vertical', lineHeight: 1.5 }} />
             </label>
 
             {/* Knobs */}
             <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#71767b' }}>
                 <span>每次抓取</span>
                 <input
                   type="number" min={1} max={100}
                   value={batchLimit}
                   onChange={e => setBatchLimit(Math.max(1, Math.min(100, Number(e.target.value) || 20)))}
                   disabled={batchBusy}
-                  style={{ width: 70, background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '4px 8px', color: '#e2e8f0', fontSize: 12 }} />
+                  style={{ width: 70, background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '4px 8px', color: '#e7e9ea', fontSize: 12 }} />
                 <span style={{ color: '#475569' }}>条/源</span>
               </label>
               {batchPlatform === 'x' && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#71767b', cursor: 'pointer' }}>
                   <input type="checkbox" checked={batchSkipRetweets} onChange={e => setBatchSkipRetweets(e.target.checked)} disabled={batchBusy} />
                   跳过转推（避免重复入库）
                 </label>
               )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#71767b', cursor: 'pointer' }}>
                 <input type="checkbox" checked={batchTriggerFetch} onChange={e => setBatchTriggerFetch(e.target.checked)} disabled={batchBusy} />
                 立即触发首次采集
               </label>
@@ -1001,7 +1001,7 @@ export function SourcesPanel({
 
             {/* Result */}
             {batchResult && (
-              <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+              <div style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
                 <div style={{ marginBottom: 6 }}>
                   <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ 新建 {batchResult.created.length}</span>
                   <span style={{ color: '#475569', margin: '0 8px' }}>·</span>
@@ -1027,7 +1027,7 @@ export function SourcesPanel({
             {/* Actions */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => !batchBusy && setShowBatch(false)} disabled={batchBusy}
-                style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: batchBusy ? 'not-allowed' : 'pointer' }}>
+                style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 12, cursor: batchBusy ? 'not-allowed' : 'pointer' }}>
                 {batchResult ? '关闭' : '取消'}
               </button>
               <button onClick={submitBatch} disabled={batchBusy}
@@ -1053,25 +1053,25 @@ export function SourcesPanel({
             </div>
             <button
               onClick={() => { setEditingSource(null); setShowAddSource(false); }}
-              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', color: '#71767b', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
               aria-label="关闭">✕</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>名称</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>名称</span>
               <input
                 value={form.name}
                 onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="BBC History Extra"
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>Platform</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>Platform</span>
               <select
                 value={form.platform}
                 onChange={e => setForm(prev => ({ ...prev, platform: e.target.value }))}
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}>
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}>
                 {/* Only X is exposed for new sources right now. Other platforms
                     stay editable for existing rows so we can see/edit them. */}
                 <option value="x">x — Twitter cookie 注入</option>
@@ -1081,32 +1081,32 @@ export function SourcesPanel({
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>ID (slug)</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>ID (slug)</span>
               <input
                 value={form.external_id}
                 onChange={e => setForm(prev => ({ ...prev, external_id: e.target.value }))}
                 placeholder="bbc-history-extra"
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
               />
             </label>
             {form.platform === 'rss' ? (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>Feed URL</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>Feed URL</span>
                 <input
                   value={form.url}
                   onChange={e => setForm(prev => ({ ...prev, url: e.target.value }))}
                   placeholder="https://example.com/feed/"
-                  style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                  style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                 />
               </label>
             ) : (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>站点主页（可选，仅用于显示）</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>站点主页（可选，仅用于显示）</span>
                 <input
                   value={form.url}
                   onChange={e => setForm(prev => ({ ...prev, url: e.target.value }))}
                   placeholder="https://example.com"
-                  style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                  style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                 />
               </label>
             )}
@@ -1124,7 +1124,7 @@ export function SourcesPanel({
                 const invalid = form.ksgIds.split('\n').filter(s => s.trim()).length - validIds.length;
                 return (
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                    <span style={{ fontSize: 11, color: '#71767b' }}>
                       图册 URL 或 ID 列表（每行一个，可直接粘贴 detail 页地址）
                     </span>
                     <textarea
@@ -1143,9 +1143,9 @@ export function SourcesPanel({
                       }}
                       placeholder={'45499\nhttps://uib.2ksg.com/app/#/detail?mode=img&tid=591&sid=&id=78902'}
                       rows={4}
-                      style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical' }}
+                      style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical' }}
                     />
-                    <div style={{ fontSize: 10, color: validIds.length ? '#22c55e' : '#64748b', marginTop: 2 }}>
+                    <div style={{ fontSize: 10, color: validIds.length ? '#22c55e' : '#71767b', marginTop: 2 }}>
                       ✓ 已识别 <strong>{validIds.length}</strong> 个 ID
                       {invalid > 0 && <span style={{ color: '#f87171', marginLeft: 8 }}>· {invalid} 行无法解析</span>}
                     </div>
@@ -1154,28 +1154,28 @@ export function SourcesPanel({
               })()}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>Host</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>Host</span>
                   <input
                     value={form.ksgHost}
                     onChange={e => setForm(prev => ({ ...prev, ksgHost: e.target.value }))}
                     placeholder="uib.2ksg.com"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                   />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>
                     Bucket 种子（找不到会自动探测 0-9）
                   </span>
                   <input
                     value={form.ksgBucket}
                     onChange={e => setForm(prev => ({ ...prev, ksgBucket: e.target.value }))}
                     placeholder="5"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                   />
                 </label>
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>
+                <span style={{ fontSize: 11, color: '#71767b' }}>
                   token 头（从 DevTools 复制）
                   {!form.ksgToken && <span style={{ color: '#f87171', marginLeft: 6 }}>· 必填,空则采集会失败</span>}
                 </span>
@@ -1185,30 +1185,30 @@ export function SourcesPanel({
                   placeholder="6208330590a87f"
                   style={{
                     background: '#020617',
-                    border: `1px solid ${form.ksgToken ? '#334155' : '#7f1d1d'}`,
-                    borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace',
+                    border: `1px solid ${form.ksgToken ? '#3e4144' : '#7f1d1d'}`,
+                    borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace',
                   }}
                 />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>Referer</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>Referer</span>
                 <input
                   value={form.ksgReferer}
                   onChange={e => setForm(prev => ({ ...prev, ksgReferer: e.target.value }))}
                   placeholder="https://uib.2ksg.com/app/"
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                 />
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 12, color: '#cbd5e1', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 12, color: '#e7e9ea', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={form.ksgCrawlList}
                   onChange={e => setForm(prev => ({ ...prev, ksgCrawlList: e.target.checked }))}
                   style={{ accentColor: '#ec4899' }}
                 />
-                <span>同时跟进 data.list[] 里的相关图册（最多 <input type="number" value={form.ksgMaxIds} min={1} max={200} onChange={e => setForm(prev => ({ ...prev, ksgMaxIds: Number(e.target.value) }))} style={{ width: 50, background: '#020617', border: '1px solid #334155', borderRadius: 4, padding: '2px 6px', color: '#e2e8f0', fontSize: 12 }} /> 个）</span>
+                <span>同时跟进 data.list[] 里的相关图册（最多 <input type="number" value={form.ksgMaxIds} min={1} max={200} onChange={e => setForm(prev => ({ ...prev, ksgMaxIds: Number(e.target.value) }))} style={{ width: 50, background: '#020617', border: '1px solid #3e4144', borderRadius: 4, padding: '2px 6px', color: '#e7e9ea', fontSize: 12 }} /> 个）</span>
               </label>
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 8 }}>
+              <div style={{ fontSize: 10, color: '#71767b', marginTop: 8 }}>
                 每个 ID 拉一次 detail.json → 解码 → 抽出图册全部图片。比 SPA 渲染快 10x，稳定 100x。
               </div>
             </div>
@@ -1221,7 +1221,7 @@ export function SourcesPanel({
                 ☁️ knit / Cloudflare 模式 — 借浏览器 cookie 绕过 CF + 自动补全 1..N 张
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>
+                <span style={{ fontSize: 11, color: '#71767b' }}>
                   文章 URL 列表（每行一个，如 https://xx.knit.bid/article/30689/）
                 </span>
                 <textarea
@@ -1229,11 +1229,11 @@ export function SourcesPanel({
                   onChange={e => setForm(prev => ({ ...prev, knitUrls: e.target.value }))}
                   placeholder={'https://xx.knit.bid/article/30689/\nhttps://xx.knit.bid/article/30690/'}
                   rows={4}
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical' }}
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical' }}
                 />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>
+                <span style={{ fontSize: 11, color: '#71767b' }}>
                   Cookie（DevTools → Network → 主请求 → Request Headers → Cookie 整行）
                   {!form.knitCookie && <span style={{ color: '#f87171', marginLeft: 6 }}>· 必填</span>}
                 </span>
@@ -1244,23 +1244,23 @@ export function SourcesPanel({
                   rows={3}
                   style={{
                     background: '#020617',
-                    border: `1px solid ${form.knitCookie ? '#334155' : '#7f1d1d'}`,
-                    borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace', wordBreak: 'break-all', resize: 'vertical',
+                    border: `1px solid ${form.knitCookie ? '#3e4144' : '#7f1d1d'}`,
+                    borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 11, fontFamily: 'monospace', wordBreak: 'break-all', resize: 'vertical',
                   }}
                 />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>
+                <span style={{ fontSize: 11, color: '#71767b' }}>
                   User-Agent（必须和 cookie 配对，CF 会校验）
                 </span>
                 <input
                   value={form.knitUserAgent}
                   onChange={e => setForm(prev => ({ ...prev, knitUserAgent: e.target.value }))}
                   placeholder="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ..."
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace' }}
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 11, fontFamily: 'monospace' }}
                 />
               </label>
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 10, color: '#71767b', marginTop: 4, lineHeight: 1.6 }}>
                 cookie 里 cf_clearance 通常 30 分钟到几小时过期；过期后采集会失败，重抓一次 Cookie 刷新即可。
                 自动从 HTML 第一张图推断 URL 模板，从标题里 "<strong>NN P</strong>" 推断总数，生成 1..N 全部 URL。
               </div>
@@ -1274,7 +1274,7 @@ export function SourcesPanel({
                 🦊 Reddit 公开 JSON API · 无需 OAuth
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>
+                <span style={{ fontSize: 11, color: '#71767b' }}>
                   Subreddit 列表（每行一个，可带或不带 r/）
                 </span>
                 <textarea
@@ -1282,14 +1282,14 @@ export function SourcesPanel({
                   onChange={e => setForm(prev => ({ ...prev, redditSubs: e.target.value }))}
                   placeholder={'EarthPorn\nphotographs\ncosplay'}
                   rows={3}
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical' }}
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical' }}
                 />
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>排序</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>排序</span>
                   <select value={form.redditSort} onChange={e => setForm(prev => ({ ...prev, redditSort: e.target.value as any }))}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}>
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}>
                     <option value="hot">hot</option>
                     <option value="new">new</option>
                     <option value="top">top</option>
@@ -1298,9 +1298,9 @@ export function SourcesPanel({
                 </label>
                 {(form.redditSort === 'top') && (
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>时间范围</span>
+                    <span style={{ fontSize: 11, color: '#71767b' }}>时间范围</span>
                     <select value={form.redditTime} onChange={e => setForm(prev => ({ ...prev, redditTime: e.target.value as any }))}
-                      style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}>
+                      style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}>
                       <option value="hour">hour</option>
                       <option value="day">day</option>
                       <option value="week">week</option>
@@ -1311,19 +1311,19 @@ export function SourcesPanel({
                   </label>
                 )}
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>每个 sub 限数 (1-100)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>每个 sub 限数 (1-100)</span>
                   <input type="number" min={1} max={100} value={form.redditLimit}
                     onChange={e => setForm(prev => ({ ...prev, redditLimit: Number(e.target.value) }))}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                 </label>
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>User-Agent（Reddit 强制要求,留空用默认。机房 IP 容易被屏蔽）</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>User-Agent（Reddit 强制要求,留空用默认。机房 IP 容易被屏蔽）</span>
                 <input value={form.redditUA} onChange={e => setForm(prev => ({ ...prev, redditUA: e.target.value }))}
                   placeholder="ch-agents/0.1 (by /u/yourname)"
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace' }} />
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 11, fontFamily: 'monospace' }} />
               </label>
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 10, color: '#71767b', marginTop: 6, lineHeight: 1.6 }}>
                 注:Reddit 2024 后大量屏蔽机房 IP,从家庭 IP 跑通常没问题。被屏蔽时会触发 authFail 红条提示。
               </div>
             </div>
@@ -1336,35 +1336,35 @@ export function SourcesPanel({
                 🦋 Bluesky · AT Protocol 公开 API
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>采集模式</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>采集模式</span>
                 <select value={form.bskyMode} onChange={e => setForm(prev => ({ ...prev, bskyMode: e.target.value as any }))}
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}>
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}>
                   <option value="author">author — 拉取指定用户的发文</option>
                   <option value="search">search — 关键词/话题搜索</option>
                 </select>
               </label>
               {form.bskyMode === 'author' ? (
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>Handle (e.g. pfrazee.com / natgeo.com)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>Handle (e.g. pfrazee.com / natgeo.com)</span>
                   <input value={form.bskyActor} onChange={e => setForm(prev => ({ ...prev, bskyActor: e.target.value }))}
                     placeholder="pfrazee.com"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace' }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace' }} />
                 </label>
               ) : (
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>搜索词或 #hashtag</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>搜索词或 #hashtag</span>
                   <input value={form.bskyQuery} onChange={e => setForm(prev => ({ ...prev, bskyQuery: e.target.value }))}
                     placeholder="#photography"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                 </label>
               )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>每次拉取数量 (1-100)</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>每次拉取数量 (1-100)</span>
                 <input type="number" min={1} max={100} value={form.bskyLimit}
                   onChange={e => setForm(prev => ({ ...prev, bskyLimit: Number(e.target.value) }))}
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
               </label>
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 10, color: '#71767b', marginTop: 6, lineHeight: 1.6 }}>
                 public.api.bsky.app 完全免费无需 token。author 模式稳定;search 模式可能被防爬限流。
               </div>
             </div>
@@ -1377,26 +1377,26 @@ export function SourcesPanel({
                 🗺️ 站点地图 · 解析 &lt;image:image&gt; 扩展
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>Sitemap URL</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>Sitemap URL</span>
                 <input value={form.sitemapUrl} onChange={e => setForm(prev => ({ ...prev, sitemapUrl: e.target.value }))}
                   placeholder="https://example.com/sitemap-image.xml"
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace' }} />
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace' }} />
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 4 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>最大图数 (1-5000)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>最大图数 (1-5000)</span>
                   <input type="number" min={1} max={5000} value={form.sitemapLimit}
                     onChange={e => setForm(prev => ({ ...prev, sitemapLimit: Number(e.target.value) }))}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>页面 URL 正则 (可选,只跟进匹配的页面)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>页面 URL 正则 (可选,只跟进匹配的页面)</span>
                   <input value={form.sitemapPattern} onChange={e => setForm(prev => ({ ...prev, sitemapPattern: e.target.value }))}
                     placeholder="/blog/|/article/"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace' }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace' }} />
                 </label>
               </div>
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 10, color: '#71767b', marginTop: 6, lineHeight: 1.6 }}>
                 自动识别 sitemap-index(含子 sitemap 列表)并递归。
                 每张图独立成 1 个 raw_item。
               </div>
@@ -1434,7 +1434,7 @@ export function SourcesPanel({
                 </div>
               )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>采集模式</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>采集模式</span>
                 <select
                   value={form.xMode === 'user' && form.xLimit === 20 ? 'user-20' : form.xMode}
                   onChange={e => {
@@ -1446,7 +1446,7 @@ export function SourcesPanel({
                       setForm(prev => ({ ...prev, xMode: v as 'user' | 'search' }));
                     }
                   }}
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}>
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}>
                   <option value="user">user — 拉取指定账号最近发文</option>
                   <option value="user-20">user — 拉取最近的 20 条</option>
                   <option value="search">search — 关键词搜索 Latest</option>
@@ -1454,21 +1454,21 @@ export function SourcesPanel({
               </label>
               {form.xMode === 'user' ? (
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>账号 handle (不带 @)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>账号 handle (不带 @)</span>
                   <input value={form.xScreenName} onChange={e => setForm(prev => ({ ...prev, xScreenName: e.target.value }))}
                     placeholder="natgeo"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace' }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace' }} />
                 </label>
               ) : (
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>搜索词或 #hashtag</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>搜索词或 #hashtag</span>
                   <input value={form.xQuery} onChange={e => setForm(prev => ({ ...prev, xQuery: e.target.value }))}
                     placeholder="#aurora min_faves:10"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                 </label>
               )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>
+                <span style={{ fontSize: 11, color: '#71767b' }}>
                   Cookie{boundCred ? '(凭证池模式留空即可)' : '(必须含 auth_token 和 ct0)'}
                   {!boundCred && <span style={{ color: '#f87171', marginLeft: 6, fontWeight: 600 }}>· 必填</span>}
                 </span>
@@ -1478,15 +1478,15 @@ export function SourcesPanel({
                   rows={3}
                   style={{
                     background: '#020617',
-                    border: `1px solid ${(form.xCookie || boundCred) ? '#334155' : '#7f1d1d'}`,
-                    borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace', wordBreak: 'break-all', resize: 'vertical',
+                    border: `1px solid ${(form.xCookie || boundCred) ? '#3e4144' : '#7f1d1d'}`,
+                    borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 11, fontFamily: 'monospace', wordBreak: 'break-all', resize: 'vertical',
                     opacity: boundCred ? 0.55 : 1,
                   }}
                 />
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>
                     User-Agent {boundCred ? '(凭证池接管)' : '(建议跟你浏览器一致)'}
                     {!boundCred && <span style={{ color: '#f87171', marginLeft: 6, fontWeight: 600 }}>· 必填</span>}
                   </span>
@@ -1494,20 +1494,20 @@ export function SourcesPanel({
                     placeholder={boundCred ? '— 由凭证池接管,留空 —' : 'Mozilla/5.0 ... Chrome/147.0 ...'}
                     style={{
                       background: '#020617',
-                      border: `1px solid ${(form.xUserAgent || boundCred) ? '#334155' : '#7f1d1d'}`,
-                      borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace',
+                      border: `1px solid ${(form.xUserAgent || boundCred) ? '#3e4144' : '#7f1d1d'}`,
+                      borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 11, fontFamily: 'monospace',
                       opacity: boundCred ? 0.55 : 1,
                     }} />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>拉取最近多少条 (1-100)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>拉取最近多少条 (1-100)</span>
                   <input type="number" min={1} max={100} value={form.xLimit}
                     onChange={e => setForm(prev => ({ ...prev, xLimit: Number(e.target.value) }))}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                 </label>
               </div>
               {/* Quick presets: 10 / 20 / 40 / 80 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: '#64748b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: '#71767b' }}>
                 <span>快选:</span>
                 {[10, 20, 40, 80].map(n => (
                   <button
@@ -1516,9 +1516,9 @@ export function SourcesPanel({
                     onClick={() => setForm(prev => ({ ...prev, xLimit: n }))}
                     style={{
                       padding: '2px 10px', borderRadius: 4,
-                      border: `1px solid ${form.xLimit === n ? '#71717a' : '#334155'}`,
+                      border: `1px solid ${form.xLimit === n ? '#71717a' : '#3e4144'}`,
                       background: form.xLimit === n ? '#27272a' : 'transparent',
-                      color: form.xLimit === n ? '#e4e4e7' : '#94a3b8',
+                      color: form.xLimit === n ? '#e4e4e7' : '#71767b',
                       fontSize: 11, cursor: 'pointer', fontWeight: form.xLimit === n ? 600 : 400,
                     }}>
                     {n}
@@ -1528,7 +1528,7 @@ export function SourcesPanel({
                   (X 单次最多 ~40 条;含图比例约 5-30%,实际入库会少于 N)
                 </span>
               </div>
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 6, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 10, color: '#71767b', marginTop: 6, lineHeight: 1.6 }}>
                 Cookie 用 <code>document.cookie</code> 在 <code>x.com</code> 控制台复制。auth_token 通常 30+ 天有效;X 改 GraphQL 时需要更新 opIds。
               </div>
             </div>
@@ -1538,11 +1538,11 @@ export function SourcesPanel({
           {/* HTML 模式三选一 */}
           {form.platform === 'html' && (
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>采集模式</span>
+              <span style={{ fontSize: 11, color: '#71767b' }}>采集模式</span>
               <select
                 value={form.htmlMode}
                 onChange={e => setForm(prev => ({ ...prev, htmlMode: e.target.value as any }))}
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}>
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}>
                 <option value="article">article — 每个 URL = 1 篇文章</option>
                 <option value="per-image">per-image — 每张图独立成一个 item</option>
                 <option value="crawl">crawl — 入口递归爬取（同域名）</option>
@@ -1553,7 +1553,7 @@ export function SourcesPanel({
           {/* article / per-image：URL 列表 */}
           {form.platform === 'html' && form.htmlMode !== 'crawl' && (
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>
+              <span style={{ fontSize: 11, color: '#71767b' }}>
                 文章 URL 列表（每行一个，共 {form.htmlUrls.split('\n').filter(s => s.trim()).length} 条）
               </span>
               <textarea
@@ -1561,7 +1561,7 @@ export function SourcesPanel({
                 onChange={e => setForm(prev => ({ ...prev, htmlUrls: e.target.value }))}
                 placeholder={'https://example.com/article/1\nhttps://example.com/article/2'}
                 rows={5}
-                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'SF Mono, Menlo, monospace', lineHeight: 1.6, resize: 'vertical' }}
+                style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'SF Mono, Menlo, monospace', lineHeight: 1.6, resize: 'vertical' }}
               />
             </label>
           )}
@@ -1573,41 +1573,41 @@ export function SourcesPanel({
                 🕷 爬虫模式 — 从入口页 BFS 同域链接，按 per-image 抽图
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>入口 URL</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>入口 URL</span>
                 <input
                   value={form.crawlEntry}
                   onChange={e => setForm(prev => ({ ...prev, crawlEntry: e.target.value }))}
                   placeholder="https://www.smithsonianmag.com/history/"
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                 />
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>最大深度（0-5）</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>最大深度（0-5）</span>
                   <input
                     type="number" min={0} max={5}
                     value={form.crawlMaxDepth}
                     onChange={e => setForm(prev => ({ ...prev, crawlMaxDepth: Number(e.target.value) }))}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                   />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>最多页数（1-80）</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>最多页数（1-80）</span>
                   <input
                     type="number" min={1} max={80}
                     value={form.crawlMaxPages}
                     onChange={e => setForm(prev => ({ ...prev, crawlMaxPages: Number(e.target.value) }))}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }}
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }}
                   />
                 </label>
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>URL 正则（可选，只跟进匹配的链接）</span>
+                <span style={{ fontSize: 11, color: '#71767b' }}>URL 正则（可选，只跟进匹配的链接）</span>
                 <input
                   value={form.crawlPattern}
                   onChange={e => setForm(prev => ({ ...prev, crawlPattern: e.target.value }))}
                   placeholder="/history/[^/]+-\\d+/$"
-                  style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace' }}
+                  style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace' }}
                 />
               </label>
               <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 8 }}>
@@ -1621,7 +1621,7 @@ export function SourcesPanel({
             <label style={{
               display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8,
               padding: '10px 12px', background: '#0f172a',
-              border: `1px solid ${form.useBrowser ? '#14b8a6' : '#334155'}`,
+              border: `1px solid ${form.useBrowser ? '#14b8a6' : '#3e4144'}`,
               borderRadius: 6, cursor: 'pointer',
             }}>
               <input
@@ -1631,10 +1631,10 @@ export function SourcesPanel({
                 style={{ marginTop: 2, accentColor: '#14b8a6' }}
               />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: form.useBrowser ? '#14b8a6' : '#cbd5e1' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: form.useBrowser ? '#14b8a6' : '#e7e9ea' }}>
                   JS 渲染（浏览器模式）
                 </div>
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 3, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 10, color: '#71767b', marginTop: 3, lineHeight: 1.6 }}>
                   用 headless Chromium 跑 JS 再抓 HTML，适合 SPA / 动态图片站（Vue/React 前端）。
                   <span style={{ color: '#f59e0b' }}>每页慢 3-8 秒。已开启 stealth 反检测(navigator.webdriver / plugins / WebGL 等 17 项 patch)。</span>
                 </div>
@@ -1644,50 +1644,50 @@ export function SourcesPanel({
 
           {/* JS 渲染高级选项 (仅在 useBrowser=true 时显示) */}
           {form.platform === 'html' && form.useBrowser && (
-            <details style={{ marginTop: 8, padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6 }}>
+            <details style={{ marginTop: 8, padding: '8px 12px', background: '#0f172a', border: '1px solid #3e4144', borderRadius: 6 }}>
               <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#14b8a6' }}>
                 浏览器模式高级选项(可选)
               </summary>
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>等待选择器(CSS,渲染完成的标志)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>等待选择器(CSS,渲染完成的标志)</span>
                   <input value={form.htmlWaitFor}
                     onChange={e => setForm(prev => ({ ...prev, htmlWaitFor: e.target.value }))}
                     placeholder="img[src], .article-content, [data-loaded]"
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace' }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12, fontFamily: 'monospace' }} />
                   <span style={{ fontSize: 10, color: '#475569' }}>留空则等 networkidle。SPA 推荐填写。</span>
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>Locale</span>
+                    <span style={{ fontSize: 11, color: '#71767b' }}>Locale</span>
                     <input value={form.htmlLocale}
                       onChange={e => setForm(prev => ({ ...prev, htmlLocale: e.target.value }))}
                       placeholder="en-US 或 zh-CN"
-                      style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                      style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                   </label>
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>Timezone</span>
+                    <span style={{ fontSize: 11, color: '#71767b' }}>Timezone</span>
                     <input value={form.htmlTimezone}
                       onChange={e => setForm(prev => ({ ...prev, htmlTimezone: e.target.value }))}
                       placeholder="America/New_York 或 Asia/Shanghai"
-                      style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 12 }} />
+                      style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 12 }} />
                   </label>
                 </div>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>Cookies (JSON 数组,登录态注入)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>Cookies (JSON 数组,登录态注入)</span>
                   <textarea value={form.htmlCookies}
                     onChange={e => setForm(prev => ({ ...prev, htmlCookies: e.target.value }))}
                     placeholder={'[{"name":"session","value":"xxx","domain":".example.com","path":"/"}]'}
                     rows={3}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }} />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>额外 HTTP 头 (JSON 对象)</span>
+                  <span style={{ fontSize: 11, color: '#71767b' }}>额外 HTTP 头 (JSON 对象)</span>
                   <textarea value={form.htmlExtraHeaders}
                     onChange={e => setForm(prev => ({ ...prev, htmlExtraHeaders: e.target.value }))}
                     placeholder={'{"Authorization": "Bearer ...", "X-Custom": "value"}'}
                     rows={3}
-                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: 5, padding: '6px 10px', color: '#e2e8f0', fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }} />
+                    style={{ background: '#020617', border: '1px solid #3e4144', borderRadius: 5, padding: '6px 10px', color: '#e7e9ea', fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }} />
                 </label>
               </div>
             </details>
@@ -1698,7 +1698,7 @@ export function SourcesPanel({
             <label style={{
               display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8,
               padding: '10px 12px', background: '#0f172a',
-              border: `1px solid ${form.extractAll ? '#a855f7' : '#334155'}`,
+              border: `1px solid ${form.extractAll ? '#a855f7' : '#3e4144'}`,
               borderRadius: 6, cursor: 'pointer',
             }}>
               <input
@@ -1708,10 +1708,10 @@ export function SourcesPanel({
                 style={{ marginTop: 2, accentColor: '#a855f7' }}
               />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: form.extractAll ? '#a855f7' : '#cbd5e1' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: form.extractAll ? '#a855f7' : '#e7e9ea' }}>
                   抓取全部图片（不过滤）
                 </div>
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 3, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 10, color: '#71767b', marginTop: 3, lineHeight: 1.6 }}>
                   绕过尺寸/黑名单/最小描述的过滤，每页最多 500 张；额外解析 srcset 与 &lt;picture&gt;。
                   <span style={{ color: '#f59e0b' }}>会抓到 logo/icon/小图等噪音。</span>
                 </div>
@@ -1798,7 +1798,7 @@ export function SourcesPanel({
             </button>
             <button
               onClick={() => { setEditingSource(null); setShowAddSource(false); }}
-              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 12, cursor: 'pointer' }}>
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 12, cursor: 'pointer' }}>
               取消
             </button>
           </div>
@@ -1822,9 +1822,9 @@ export function SourcesPanel({
             borderTopStyle: 'solid',
             borderRightStyle: 'solid',
             borderBottomStyle: 'solid',
-            borderTopColor: isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b',
-            borderRightColor: isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b',
-            borderBottomColor: isSelected ? '#6366f1' : src.status === 'active' ? '#334155' : '#1e293b',
+            borderTopColor: isSelected ? '#6366f1' : src.status === 'active' ? '#3e4144' : '#1e293b',
+            borderRightColor: isSelected ? '#6366f1' : src.status === 'active' ? '#3e4144' : '#1e293b',
+            borderBottomColor: isSelected ? '#6366f1' : src.status === 'active' ? '#3e4144' : '#1e293b',
             borderLeft: `3px solid ${src.status === 'active' ? '#22c55e' : '#374151'}`,
             borderRadius: 8, padding: '16px 18px',
             opacity: src.status === 'active' ? 1 : 0.55,
@@ -1833,7 +1833,7 @@ export function SourcesPanel({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#e7e9ea', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   {src.name}
                   {src.credential_id && (
                     <span title={`使用凭证池中的 ${src.credential_name}（${src.credential_status ?? '未知状态'}）。cookie 不在源里,运行时从 credentials 表读取。`}
@@ -1852,7 +1852,7 @@ export function SourcesPanel({
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: '#71767b', marginTop: 2 }}>
                   {src.platform} · {src.external_id}
                   {src.last_fetch_at && ` · 最近采集: ${src.last_fetch_at.slice(0, 16)}`}
                 </div>
@@ -1874,32 +1874,32 @@ export function SourcesPanel({
                   }}>
                     <div style={{ textAlign: 'center', minWidth: 36 }}>
                       <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor, lineHeight: 1.1 }}>{score.toFixed(0)}</div>
-                      <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>评分</div>
+                      <div style={{ fontSize: 9, color: '#71767b', marginTop: 1 }}>评分</div>
                     </div>
                     <div style={{ textAlign: 'center', minWidth: 38 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: riskColor, lineHeight: 1.1, padding: '2px 0' }}>{riskLabel}</div>
-                      <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>风险</div>
+                      <div style={{ fontSize: 9, color: '#71767b', marginTop: 1 }}>风险</div>
                     </div>
                     {src.stability !== null && (
                       <div style={{ textAlign: 'center', minWidth: 32 }}>
                         <div style={{ fontSize: 16, fontWeight: 700, color: '#a5b4fc', lineHeight: 1.1 }}>{Number(src.stability).toFixed(0)}</div>
-                        <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>稳定</div>
+                        <div style={{ fontSize: 9, color: '#71767b', marginTop: 1 }}>稳定</div>
                       </div>
                     )}
                   </div>
                 );
               })()}
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button onClick={() => onToggleStatus(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: src.status === 'active' ? '#14532d' : '#1e293b', color: src.status === 'active' ? '#86efac' : '#475569', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+                <button onClick={() => onToggleStatus(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: src.status === 'active' ? '#14532d' : '#1e293b', color: src.status === 'active' ? '#86efac' : '#475569', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
                   {src.status === 'active' ? '活跃' : '停用'}
                 </button>
-                <button onClick={() => onIngest(src)} disabled={src.status !== 'active'} style={{ padding: '4px 10px', borderRadius: 5, border: 'none', background: src.status === 'active' ? '#0ea5e9' : '#1e293b', color: src.status === 'active' ? '#fff' : '#334155', fontSize: 11, cursor: src.status === 'active' ? 'pointer' : 'not-allowed', fontWeight: 600 }}>
+                <button onClick={() => onIngest(src)} disabled={src.status !== 'active'} style={{ padding: '4px 10px', borderRadius: 5, border: 'none', background: src.status === 'active' ? '#0ea5e9' : '#1e293b', color: src.status === 'active' ? '#fff' : '#3e4144', fontSize: 11, cursor: src.status === 'active' ? 'pointer' : 'not-allowed', fontWeight: 600 }}>
                   采集
                 </button>
-                <button onClick={() => startEdit(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>编辑</button>
-                <button onClick={() => onDelete(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>删除</button>
+                <button onClick={() => startEdit(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>编辑</button>
+                <button onClick={() => onDelete(src)} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>删除</button>
                 {selected.size > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', paddingLeft: 4, marginLeft: 2, borderLeft: '1px solid #334155' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', paddingLeft: 4, marginLeft: 2, borderLeft: '1px solid #3e4144' }}>
                     <Checkbox checked={isSelected} onClick={() => toggleOne(src.id)} ariaLabel={`选中 ${src.name}`} />
                   </span>
                 )}
@@ -1909,7 +1909,7 @@ export function SourcesPanel({
           );
         })}
         {sources.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#334155' }}>暂无采集源，点击「+ 添加来源」</div>
+          <div style={{ textAlign: 'center', padding: 40, color: '#3e4144' }}>暂无采集源，点击「+ 添加来源」</div>
         )}
       </div>
     </div>

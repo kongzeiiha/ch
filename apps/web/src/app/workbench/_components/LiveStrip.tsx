@@ -37,9 +37,9 @@ const CATEGORY_PALETTE: Record<string, [string, string]> = {
   '反差':     ['#831843', '#fbcfe8'],
   '文化艺术':     ['#86198f', '#f5d0fe'],
   // '生活方式':     ['#3f6212', '#d9f99d'],
-  '其他':        ['#1e293b', '#94a3b8'],
+  '其他':        ['#1e293b', '#71767b'],
 };
-const DEFAULT_CHIP: [string, string] = ['#1e293b', '#94a3b8'];
+const DEFAULT_CHIP: [string, string] = ['#1e293b', '#71767b'];
 
 export function LiveStrip({
   active, recent, color, onClickItem,
@@ -69,7 +69,7 @@ export function LiveStrip({
   };
 
   return (
-    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #334155', fontSize: 11 }}>
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #3e4144', fontSize: 11 }}>
       {active.length > 0 && (
         <div style={{ marginBottom: recent.length > 0 ? 8 : 0 }}>
           <div style={{ color: color, fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -83,12 +83,12 @@ export function LiveStrip({
               style={{
                 padding: '4px 8px', marginBottom: 2,
                 background: '#0f172a', borderRadius: 4,
-                color: '#cbd5e1',
+                color: '#e7e9ea',
                 cursor: a.itemId ? 'pointer' : 'default',
                 display: 'flex', gap: 8, alignItems: 'center',
                 overflow: 'hidden',
               }}>
-              <span style={{ color: '#64748b', fontSize: 10, flexShrink: 0, minWidth: 28 }}>{fmtSince(a.since)}</span>
+              <span style={{ color: '#71767b', fontSize: 10, flexShrink: 0, minWidth: 28 }}>{fmtSince(a.since)}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label}</span>
             </div>
           ))}
@@ -96,7 +96,7 @@ export function LiveStrip({
       )}
       {recent.length > 0 && (
         <div>
-          <div style={{ color: '#64748b', fontWeight: 600, marginBottom: 4 }}>最近完成 · {recent.length}</div>
+          <div style={{ color: '#71767b', fontWeight: 600, marginBottom: 4 }}>最近完成 · {recent.length}</div>
           {recent.map((r, i) => (
             <div key={i}
               onClick={() => r.item_id && onClickItem(r.item_id)}
@@ -104,7 +104,7 @@ export function LiveStrip({
               style={{
                 padding: r.summary ? '6px 8px' : '4px 8px', marginBottom: 2,
                 background: '#0f172a', borderRadius: 4,
-                color: '#94a3b8',
+                color: '#71767b',
                 cursor: r.item_id ? 'pointer' : 'default',
                 overflow: 'hidden',
                 opacity: r.status === 'success' ? 1 : 0.7,
@@ -114,7 +114,7 @@ export function LiveStrip({
                   width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
                   background: r.status === 'success' ? '#22c55e' : '#ef4444',
                 }} />
-                <span style={{ color: '#64748b', fontSize: 10, flexShrink: 0, minWidth: 42 }}>
+                <span style={{ color: '#71767b', fontSize: 10, flexShrink: 0, minWidth: 42 }}>
                   {r.latency_ms ? `${r.latency_ms}ms` : '—'}
                 </span>
                 {!r.summary && r.category && (() => {
@@ -134,7 +134,7 @@ export function LiveStrip({
                     </span>
                   );
                 })()}
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: r.summary ? '#cbd5e1' : '#94a3b8' }}>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: r.summary ? '#e7e9ea' : '#71767b' }}>
                   {r.summary ?? r.title ?? (r.item_id ? `item ${r.item_id.slice(0, 8)}` : '—')}
                 </span>
               </div>
@@ -143,11 +143,11 @@ export function LiveStrip({
                   {r.movers.map((m, j) => {
                     const delta = m.after - m.before;
                     const arrow = delta > 0 ? '↗' : delta < 0 ? '↘' : '→';
-                    const c = delta > 0 ? '#34d399' : delta < 0 ? '#f87171' : '#64748b';
+                    const c = delta > 0 ? '#34d399' : delta < 0 ? '#f87171' : '#71767b';
                     return (
                       <span key={j} style={{ color: c, whiteSpace: 'nowrap' }}>
-                        {arrow} <span style={{ color: '#cbd5e1' }}>{m.name}</span>
-                        <span style={{ color: '#64748b' }}> {m.before}→{m.after}</span>
+                        {arrow} <span style={{ color: '#e7e9ea' }}>{m.name}</span>
+                        <span style={{ color: '#71767b' }}> {m.before}→{m.after}</span>
                       </span>
                     );
                   })}

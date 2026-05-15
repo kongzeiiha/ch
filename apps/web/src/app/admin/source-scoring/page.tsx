@@ -40,27 +40,27 @@ interface RunRow {
   error: string | null;
 }
 
-const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: 16 };
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#94a3b8', borderBottom: '1px solid #334155', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
-const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #334155', verticalAlign: 'top', color: '#e2e8f0' };
-const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #334155', borderRadius: 6, background: 'transparent', color: '#94a3b8', cursor: 'pointer' };
+const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #3e4144', borderRadius: 8, padding: 16 };
+const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#71767b', borderBottom: '1px solid #3e4144', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
+const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #3e4144', verticalAlign: 'top', color: '#e7e9ea' };
+const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #3e4144', borderRadius: 6, background: 'transparent', color: '#71767b', cursor: 'pointer' };
 const btnPrimary: React.CSSProperties = { ...btn, background: '#7c3aed', color: '#fff', borderColor: '#7c3aed', fontWeight: 600 };
 
 function Tile({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
   return (
     <div style={card}>
-      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 700, color: accent ?? '#e2e8f0' }}>{value}</div>
+      <div style={{ fontSize: 10, color: '#71767b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 700, color: accent ?? '#e7e9ea' }}>{value}</div>
     </div>
   );
 }
 
 function ScoreBar({ score }: { score: number | null }) {
-  if (score === null) return <span style={{ color: '#64748b' }}>—</span>;
+  if (score === null) return <span style={{ color: '#71767b' }}>—</span>;
   const color = score >= 70 ? '#22c55e' : score >= 40 ? '#fbbf24' : '#f87171';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ width: 80, height: 6, background: '#0f172a', borderRadius: 3, overflow: 'hidden', border: '1px solid #334155' }}>
+      <div style={{ width: 80, height: 6, background: '#0f172a', borderRadius: 3, overflow: 'hidden', border: '1px solid #3e4144' }}>
         <div style={{ width: `${score}%`, height: '100%', background: color }} />
       </div>
       <span style={{ fontSize: 12, fontWeight: 700, color, minWidth: 26, textAlign: 'right' }}>{score}</span>
@@ -69,13 +69,13 @@ function ScoreBar({ score }: { score: number | null }) {
 }
 
 function RiskChip({ level }: { level: string | null }) {
-  if (!level) return <span style={{ color: '#64748b' }}>—</span>;
+  if (!level) return <span style={{ color: '#71767b' }}>—</span>;
   const map: Record<string, { bg: string; fg: string; label: string }> = {
     low:    { bg: '#14532d', fg: '#86efac', label: '低' },
     medium: { bg: '#78350f', fg: '#fbbf24', label: '中' },
     high:   { bg: '#7f1d1d', fg: '#fca5a5', label: '高' },
   };
-  const m = map[level] ?? { bg: '#1e293b', fg: '#94a3b8', label: level };
+  const m = map[level] ?? { bg: '#1e293b', fg: '#71767b', label: level };
   return (
     <span style={{ background: m.bg, color: m.fg, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10 }}>
       {m.label}
@@ -88,9 +88,9 @@ function StatusChip({ status }: { status: string }) {
     active:    { bg: '#14532d', fg: '#86efac' },
     paused:    { bg: '#78350f', fg: '#fbbf24' },
     blacklist: { bg: '#7f1d1d', fg: '#fca5a5' },
-    inactive:  { bg: '#1e293b', fg: '#94a3b8' },
+    inactive:  { bg: '#1e293b', fg: '#71767b' },
   };
-  const m = map[status] ?? { bg: '#1e293b', fg: '#94a3b8' };
+  const m = map[status] ?? { bg: '#1e293b', fg: '#71767b' };
   return (
     <span style={{ background: m.bg, color: m.fg, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10 }}>
       {status}
@@ -154,16 +154,16 @@ export default function SourceScoringPage() {
   const paused = stats?.byStatus.paused ?? 0;
   const blacklist = stats?.byStatus.blacklist ?? 0;
   const riskHigh = stats?.byRisk.high ?? 0;
-  const sectionTitle: React.CSSProperties = { fontSize: 12, color: '#64748b', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 };
+  const sectionTitle: React.CSSProperties = { fontSize: 12, color: '#71767b', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e7e9ea', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
       <header style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 100 }}>
-        <span style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 800 }}>内容中台</span>
-        <span style={{ color: '#334155' }}>/</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>Source 评分</span>
+        <span style={{ color: '#e7e9ea', fontSize: 16, fontWeight: 800 }}>内容中台</span>
+        <span style={{ color: '#3e4144' }}>/</span>
+        <span style={{ fontSize: 13, color: '#71767b' }}>Source 评分</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
+          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e7e9ea', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
           <button style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={triggerScore}>
             {busy ? '运行中…' : '立即评分'}
           </button>
@@ -173,9 +173,9 @@ export default function SourceScoringPage() {
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 20px 60px' }}>
         <AdminNav current="source-scoring" />
 
-        <div style={{ ...card, marginBottom: 20, fontSize: 12, color: '#94a3b8', lineHeight: 1.7 }}>
+        <div style={{ ...card, marginBottom: 20, fontSize: 12, color: '#71767b', lineHeight: 1.7 }}>
           每条采集源的得分由 SQL 聚合算出(无 LLM 调用):
-          <span style={{ color: '#cbd5e1' }}>基础 50 分 + 已发布数 ×2 + 新鲜度 ±10 + 近 7 天采集量 + 近 7 天 PV / 收益奖励 − 合规拒/审核惩罚</span>。
+          <span style={{ color: '#e7e9ea' }}>基础 50 分 + 已发布数 ×2 + 新鲜度 ±10 + 近 7 天采集量 + 近 7 天 PV / 收益奖励 − 合规拒/审核惩罚</span>。
           定时任务每天 03:15 UTC 跑一次,按钮可立即手工触发一轮。
         </div>
 
@@ -211,10 +211,10 @@ export default function SourceScoringPage() {
             </thead>
             <tbody>
               {loading && sources.length === 0 && (
-                <tr><td style={{ ...td, color: '#64748b', textAlign: 'center' }} colSpan={7}>加载中…</td></tr>
+                <tr><td style={{ ...td, color: '#71767b', textAlign: 'center' }} colSpan={7}>加载中…</td></tr>
               )}
               {!loading && sources.length === 0 && (
-                <tr><td style={{ ...td, color: '#64748b', textAlign: 'center' }} colSpan={7}>暂无数据</td></tr>
+                <tr><td style={{ ...td, color: '#71767b', textAlign: 'center' }} colSpan={7}>暂无数据</td></tr>
               )}
               {sources.map(s => (
                 <tr key={s.id}>
@@ -227,9 +227,9 @@ export default function SourceScoringPage() {
                   </td>
                   <td style={td}><ScoreBar score={s.score} /></td>
                   <td style={td}><RiskChip level={s.risk_level} /></td>
-                  <td style={{ ...td, color: '#cbd5e1' }}>{s.stability ?? <span style={{ color: '#64748b' }}>—</span>}</td>
+                  <td style={{ ...td, color: '#e7e9ea' }}>{s.stability ?? <span style={{ color: '#71767b' }}>—</span>}</td>
                   <td style={td}><StatusChip status={s.status} /></td>
-                  <td style={{ ...td, color: '#94a3b8' }}>{fmtTime(s.last_fetch_at)}</td>
+                  <td style={{ ...td, color: '#71767b' }}>{fmtTime(s.last_fetch_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -250,7 +250,7 @@ export default function SourceScoringPage() {
             </thead>
             <tbody>
               {runs.length === 0 && (
-                <tr><td style={{ ...td, color: '#64748b', textAlign: 'center' }} colSpan={5}>暂无运行记录</td></tr>
+                <tr><td style={{ ...td, color: '#71767b', textAlign: 'center' }} colSpan={5}>暂无运行记录</td></tr>
               )}
               {runs.map(r => {
                 const colors: Record<string, [string, string]> = {
@@ -259,16 +259,16 @@ export default function SourceScoringPage() {
                   failed:  ['#7f1d1d', '#fca5a5'],
                   running: ['#78350f', '#fbbf24'],
                 };
-                const [bg, fg] = colors[r.status] ?? ['#1e293b', '#94a3b8'];
+                const [bg, fg] = colors[r.status] ?? ['#1e293b', '#71767b'];
                 return (
                   <tr key={r.id}>
-                    <td style={{ ...td, color: '#cbd5e1' }}>{fmtTime(r.started_at)}</td>
+                    <td style={{ ...td, color: '#e7e9ea' }}>{fmtTime(r.started_at)}</td>
                     <td style={td}>
                       <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: bg, color: fg }}>
                         {r.status}
                       </span>
                     </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>{r.latency_ms ? `${r.latency_ms}ms` : '—'}</td>
+                    <td style={{ ...td, color: '#71767b' }}>{r.latency_ms ? `${r.latency_ms}ms` : '—'}</td>
                     <td style={{ ...td, color: '#a78bfa', fontWeight: 600 }}>{r.output?.updated ?? '—'}</td>
                     <td style={{ ...td, fontSize: 11, color: '#fca5a5', fontFamily: 'ui-monospace, monospace' }}>{r.error ?? ''}</td>
                   </tr>

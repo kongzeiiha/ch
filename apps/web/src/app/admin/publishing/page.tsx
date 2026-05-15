@@ -20,18 +20,18 @@ interface PublishedItem {
   published_url: string | null;
 }
 
-const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: 16 };
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#94a3b8', borderBottom: '1px solid #334155', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
-const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #334155', verticalAlign: 'top', color: '#e2e8f0' };
-const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #334155', borderRadius: 6, background: 'transparent', color: '#94a3b8', cursor: 'pointer' };
+const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #3e4144', borderRadius: 8, padding: 16 };
+const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#71767b', borderBottom: '1px solid #3e4144', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
+const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #3e4144', verticalAlign: 'top', color: '#e7e9ea' };
+const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 12, border: '1px solid #3e4144', borderRadius: 6, background: 'transparent', color: '#71767b', cursor: 'pointer' };
 const btnPrimary: React.CSSProperties = { ...btn, background: '#6366f1', color: '#fff', borderColor: '#6366f1', fontWeight: 600 };
 const btnAlt: React.CSSProperties = { ...btn, background: '#7c3aed', color: '#fff', borderColor: '#7c3aed', fontWeight: 600 };
 
 function Tile({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
   return (
     <div style={card}>
-      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: accent ?? '#e2e8f0' }}>{value}</div>
+      <div style={{ fontSize: 10, color: '#71767b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: accent ?? '#e7e9ea' }}>{value}</div>
     </div>
   );
 }
@@ -93,13 +93,13 @@ export default function Day5Page() {
   const total = Object.values(s).reduce((a, b) => a + b, 0);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e7e9ea', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
       <header style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 100 }}>
-        <span style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 800 }}>内容中台</span>
-        <span style={{ color: '#334155' }}>/</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>发布与 Source 评分</span>
+        <span style={{ color: '#e7e9ea', fontSize: 16, fontWeight: 800 }}>内容中台</span>
+        <span style={{ color: '#3e4144' }}>/</span>
+        <span style={{ fontSize: 13, color: '#71767b' }}>发布与 Source 评分</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
+          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e7e9ea', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link><button style={btn} onClick={load}>↻ 刷新</button>
           <button style={btnAlt} disabled={busy} onClick={() => action(`${API}/admin/publishing/score-now`, 'Source评分')}>{busy ? '处理中…' : 'Source 评分'}</button>
           <button style={btnPrimary} disabled={busy} onClick={() => action(`${API}/admin/publishing/publish-all`, '批量发布')}>{busy ? '处理中…' : '批量发布'}</button>
         </div>
@@ -119,17 +119,17 @@ export default function Day5Page() {
           <Tile label="已发布" value={loading ? '…' : published} accent="#22c55e" />
           <Tile label="24h 新发布" value={loading ? '…' : (stats?.publishedLast24h ?? 0)} accent="#0ea5e9" />
           <Tile label="待发布 (合规通过)" value={loading ? '…' : compPass} accent="#fbbf24" />
-          <Tile label="待审核" value={loading ? '…' : compReview} accent="#94a3b8" />
+          <Tile label="待审核" value={loading ? '…' : compReview} accent="#71767b" />
         </section>
 
-        <h3 style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>
+        <h3 style={{ fontSize: 12, color: '#71767b', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>
           最新已发布文章
         </h3>
 
         {loading ? (
-          <div style={{ ...card, color: '#64748b', textAlign: 'center', fontSize: 13 }}>加载中…</div>
+          <div style={{ ...card, color: '#71767b', textAlign: 'center', fontSize: 13 }}>加载中…</div>
         ) : items.length === 0 ? (
-          <div style={{ ...card, color: '#64748b', textAlign: 'center', fontSize: 14 }}>
+          <div style={{ ...card, color: '#71767b', textAlign: 'center', fontSize: 14 }}>
             暂无已发布文章 · 点击「批量发布」将合规通过的文章发布到站点
           </div>
         ) : (
@@ -152,11 +152,11 @@ export default function Day5Page() {
                           {item.title}
                         </a>
                       ) : (
-                        <span style={{ color: '#e2e8f0' }}>{item.title}</span>
+                        <span style={{ color: '#e7e9ea' }}>{item.title}</span>
                       )}
                     </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>{item.category ?? '—'}</td>
-                    <td style={{ ...td, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...td, color: '#71767b' }}>{item.category ?? '—'}</td>
+                    <td style={{ ...td, color: '#71767b', whiteSpace: 'nowrap' }}>
                       {item.published_at ? new Date(item.published_at).toLocaleString('zh-CN') : '—'}
                     </td>
                     <td style={td}>
@@ -169,8 +169,8 @@ export default function Day5Page() {
           </section>
         )}
 
-        <div style={{ marginTop: 24, padding: 14, background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#94a3b8', lineHeight: 1.7 }}>
-          <strong style={{ color: '#cbd5e1' }}>验收要点:</strong> 批量发布 → 文章出现在列表 → 点击标题在站点上打开 → 检查
+        <div style={{ marginTop: 24, padding: 14, background: '#1e293b', border: '1px solid #3e4144', borderRadius: 8, fontSize: 12, color: '#71767b', lineHeight: 1.7 }}>
+          <strong style={{ color: '#e7e9ea' }}>验收要点:</strong> 批量发布 → 文章出现在列表 → 点击标题在站点上打开 → 检查
           <a href="/sitemap.xml" target="_blank" style={{ color: '#60a5fa', margin: '0 4px' }}>sitemap.xml</a>
           包含该 slug → 首页
           <a href="/" target="_blank" style={{ color: '#60a5fa', margin: '0 4px' }}>/</a>

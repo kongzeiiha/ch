@@ -47,10 +47,10 @@ export function ConfirmModal({ req }: { req: ConfirmRequest | null }) {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <span style={{ fontSize: 18 }}>{req.danger ? '⚠️' : '❓'}</span>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{req.title}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#e7e9ea' }}>{req.title}</div>
         </div>
         <div style={{
-          fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 18,
+          fontSize: 13, color: '#e7e9ea', lineHeight: 1.6, marginBottom: 18,
           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
         }}>{req.body}</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -58,8 +58,8 @@ export function ConfirmModal({ req }: { req: ConfirmRequest | null }) {
             onClick={() => close(false)}
             autoFocus
             style={{
-              padding: '7px 16px', borderRadius: 6, border: '1px solid #334155',
-              background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer',
+              padding: '7px 16px', borderRadius: 6, border: '1px solid #3e4144',
+              background: 'transparent', color: '#71767b', fontSize: 12, cursor: 'pointer',
             }}
           >{req.cancelLabel ?? '取消'}</button>
           <button

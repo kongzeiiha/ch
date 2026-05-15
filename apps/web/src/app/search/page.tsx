@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { search, getTopTags, getLatest, type LengthBucket, type DateBucket } from '../../lib/feed';
 import { SITE_NAME, SITE_URL } from '../../lib/db';
-import { SiteHeader } from '../_components/SiteHeader';
-import { ArticleCard } from '../_components/ArticleCard';
 import { FilterBar } from '../_components/FilterBar';
 import { Pagination } from '../_components/Pagination';
-import { SiteFooter } from '../_components/SiteFooter';
+import { XLayout } from '../_components/XLayout';
+import { XFeedHeader } from '../_components/XFeedHeader';
+import { XPost } from '../_components/XPost';
 
 // Search results are intentionally not statically built — the query space is
 // open. Keep them out of the index too (robots noindex) so we don't pollute
@@ -86,10 +86,9 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
   const baseQuery = q ? `?q=${encodeURIComponent(q)}` : '';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
-      <SiteHeader crumb="搜索" activeTab="search" />
-
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
+    <XLayout active="search">
+      <XFeedHeader title="搜索" />
+      <div style={{ padding: '16px' }}>
         {/* 视觉隐藏:H1 仍保留给爬虫和读屏软件,避免页面层级结构残缺 */}
         <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>站内搜索</h1>
 
@@ -104,10 +103,10 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
             style={{
               flex: 1,
               padding: '11px 16px',
-              background: '#000000',
-              border: '1px solid #1f2937',
+              background: '#ffffff',
+              border: '1px solid #eff3f4',
               borderRadius: 9999,
-              color: '#e2e8f0',
+              color: '#0f1419',
               fontSize: 14,
               outline: 'none',
             }}
@@ -117,7 +116,7 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
           )}
           <button type="submit" style={{
             padding: '10px 24px',
-            background: '#dc2626',
+            background: '#1d9bf0',
             border: 'none',
             borderRadius: 9999,
             color: '#ffffff',
@@ -130,16 +129,16 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
         {tags.length > 0 && (
           <section aria-label="热门标签" style={{
             padding: 14,
-            background: '#000000',
-            border: '1px solid #1f2937',
+            background: '#ffffff',
+            border: '1px solid #eff3f4',
             borderRadius: 16,
             marginBottom: 20,
           }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-              <span style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>热门标签</span>
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>共 {tags.length} 个</span>
+              <span style={{ fontSize: 12, color: '#0f1419', fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>热门标签</span>
+              <span style={{ fontSize: 12, color: '#536471' }}>共 {tags.length} 个</span>
               {searchParams.tag && (
-                <Link href={tagHref(null)} style={{ marginLeft: 'auto', fontSize: 13, color: '#dc2626', textDecoration: 'none' }}>
+                <Link href={tagHref(null)} style={{ marginLeft: 'auto', fontSize: 13, color: '#1d9bf0', textDecoration: 'none' }}>
                   清除标签筛选 ×
                 </Link>
               )}
@@ -153,7 +152,7 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
               <details open={!!searchParams.tag && hiddenTags.some((t) => t.tag === searchParams.tag)} style={{ marginTop: 10 }}>
                 <summary style={{
                   fontSize: 13,
-                  color: '#94a3b8',
+                  color: '#536471',
                   cursor: 'pointer',
                   padding: '4px 0',
                   userSelect: 'none',
@@ -177,40 +176,35 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
           current={searchParams}
         />
 
-        {isBrowsing ? (
-          latestForBrowse.length === 0 ? (
-            <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
-              暂无已发布内容
-            </p>
-          ) : (
-            <>
-              <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 12 }}>
-                输入关键词或点击上方筛选可精确查找 · 以下为最新内容
-              </div>
-              <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-                {latestForBrowse.map((a) => <ArticleCard key={a.id} a={a} />)}
-              </div>
-            </>
-          )
-        ) : items.length === 0 ? (
-          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
-            {q ? <>没有匹配「<b style={{ color: '#f1f5f9' }}>{q}</b>」的文章</> : '没有匹配的文章'}
-          </p>
+      </div>
+      {isBrowsing ? (
+        latestForBrowse.length === 0 ? (
+          <p style={{ color: '#536471', padding: 40, textAlign: 'center' }}>暂无已发布内容</p>
         ) : (
           <>
-            <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 12 }}>
-              共 {total} 条结果{q && <> · 关键词「<span style={{ color: '#f1f5f9', fontWeight: 600 }}>{q}</span>」</>}
+            <div style={{ fontSize: 14, color: '#536471', padding: '0 16px 12px' }}>
+              输入关键词或点击上方筛选可精确查找 · 以下为最新内容
             </div>
-            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-              {items.map((a) => <ArticleCard key={a.id} a={a} />)}
-            </div>
+            {latestForBrowse.map((a) => <XPost key={a.id} a={a} />)}
           </>
-        )}
+        )
+      ) : items.length === 0 ? (
+        <p style={{ color: '#536471', padding: 40, textAlign: 'center' }}>
+          {q ? <>没有匹配「<b style={{ color: '#0f1419' }}>{q}</b>」的文章</> : '没有匹配的文章'}
+        </p>
+      ) : (
+        <>
+          <div style={{ fontSize: 14, color: '#536471', padding: '0 16px 12px' }}>
+            共 {total} 条结果{q && <> · 关键词「<span style={{ color: '#0f1419', fontWeight: 600 }}>{q}</span>」</>}
+          </div>
+          {items.map((a) => <XPost key={a.id} a={a} />)}
+        </>
+      )}
 
+      <div style={{ padding: '16px 16px 40px' }}>
         <Pagination basePath={basePath} searchParams={searchParams} page={page} total={total} pageSize={PAGE_SIZE} />
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </XLayout>
   );
 }
 
@@ -225,9 +219,9 @@ function TagPill({ tag, count, active, href }: { tag: string; count: number; act
     <Link href={href} style={{
       padding: '4px 12px',
       borderRadius: 9999,
-      border: `1px solid ${active ? '#dc2626' : '#334155'}`,
-      background: active ? '#dc2626' : '#000000',
-      color: active ? '#ffffff' : '#e2e8f0',
+      border: `1px solid ${active ? '#1d9bf0' : '#cfd9de'}`,
+      background: active ? '#1d9bf0' : '#ffffff',
+      color: active ? '#ffffff' : '#0f1419',
       fontSize: 13,
       fontWeight: active ? 700 : 500,
       textDecoration: 'none',

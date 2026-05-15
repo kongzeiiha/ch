@@ -3,12 +3,12 @@ import Link from 'next/link';
 import { getFiltered, type LengthBucket, type DateBucket } from '../../../lib/feed';
 import { SITE_NAME, SITE_URL } from '../../../lib/db';
 import { breadcrumbJsonLd, collectionPageJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
-import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
-import { ArticleCard } from '../../_components/ArticleCard';
 import { FilterBar } from '../../_components/FilterBar';
 import { Pagination } from '../../_components/Pagination';
-import { SiteFooter } from '../../_components/SiteFooter';
+import { XLayout } from '../../_components/XLayout';
+import { XFeedHeader } from '../../_components/XFeedHeader';
+import { XPost } from '../../_components/XPost';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,8 +64,7 @@ export default async function TagPage(
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
-      <SiteHeader crumb={`#${tag}`} activeTab="tags" />
+    <XLayout active="tags">
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <JsonLd data={collectionPageJsonLd({
         name: `#${tag} - ${SITE_NAME}`,
@@ -73,31 +72,27 @@ export default async function TagPage(
         url: `${SITE_URL}${basePath}`,
         items: items.slice(0, 20).map((a) => ({ title: a.title, slug: a.slug })),
       })} />
+      <XFeedHeader
+        title={`#${tag}`}
+        back
+        fallbackHref="/tag"
+        rightAction={<Link href="/tag" style={{ fontSize: 13, color: '#1d9bf0', textDecoration: 'none' }}>查看全部 →</Link>}
+      />
 
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 6px', color: '#f1f5f9' }}>#{tag}</h1>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>共 {total} 篇</p>
-            <Link href="/tag" style={{ fontSize: 13, color: '#dc2626', textDecoration: 'none' }}>查看全部标签 →</Link>
-          </div>
-        </div>
-
+      <div style={{ padding: '12px 16px 8px', color: '#536471', fontSize: 14 }}>共 {total} 篇</div>
+      <div style={{ padding: '0 16px 12px' }}>
         <FilterBar basePath={basePath} current={{ ...searchParams, tag: undefined }} />
+      </div>
 
-        {items.length === 0 ? (
-          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
-            没有匹配的文章
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-            {items.map((a) => <ArticleCard key={a.id} a={a} />)}
-          </div>
-        )}
+      {items.length === 0 ? (
+        <p style={{ color: '#536471', padding: 40, textAlign: 'center' }}>没有匹配的文章</p>
+      ) : (
+        items.map((a) => <XPost key={a.id} a={a} />)
+      )}
 
+      <div style={{ padding: '16px 16px 40px' }}>
         <Pagination basePath={basePath} searchParams={searchParams} page={page} total={total} pageSize={PAGE_SIZE} />
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </XLayout>
   );
 }

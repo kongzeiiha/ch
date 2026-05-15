@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { getTopTags } from '../../lib/feed';
 import { SITE_NAME, SITE_URL } from '../../lib/db';
 import { breadcrumbJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../lib/seo';
-import { SiteHeader } from '../_components/SiteHeader';
 import { JsonLd } from '../_components/JsonLd';
-import { SiteFooter } from '../_components/SiteFooter';
+import { XLayout } from '../_components/XLayout';
+import { XFeedHeader } from '../_components/XFeedHeader';
 
 // ISR — the tag index aggregates JSON_TABLE over every published article and
 // is one of the most expensive SSR pages once the corpus grows. Tag counts
@@ -27,38 +27,38 @@ const TAG_PILL_CSS = `
   font-size: 13px;
   line-height: 1.5;
   text-decoration: none;
-  border: 1px solid #334155;
-  background: #000000;
-  color: #e2e8f0;
+  border: 1px solid #cfd9de;
+  background: #ffffff;
+  color: #0f1419;
   transition: background 120ms ease, border-color 120ms ease;
 }
 .tag-pill:hover {
-  background: #1a2236;
-  border-color: #dc2626;
+  background: #f7f9f9;
+  border-color: #1d9bf0;
 }
-.tag-pill .tag-hash { color: #dc2626; font-weight: 700; }
+.tag-pill .tag-hash { color: #1d9bf0; font-weight: 700; }
 .tag-pill .tag-count {
   font-size: 11px;
-  color: #94a3b8;
+  color: #536471;
   font-variant-numeric: tabular-nums;
   margin-left: 2px;
 }
 
 .tag-pill--heavy {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: #1d9bf0;
+  border-color: #1d9bf0;
   color: #ffffff;
   font-weight: 700;
 }
 .tag-pill--heavy .tag-hash  { color: #ffffff; }
 .tag-pill--heavy .tag-count { color: #ffffffaa; }
 .tag-pill--heavy:hover {
-  background: #b91c1c;
-  border-color: #b91c1c;
+  background: #1a8cd8;
+  border-color: #1a8cd8;
 }
 
 .tag-pill--medium {
-  border-color: #dc2626;
+  border-color: #1d9bf0;
 }
 `;
 
@@ -89,30 +89,21 @@ export default async function TagIndexPage() {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
-      <SiteHeader crumb="标签导航" activeTab="tags" />
+    <XLayout active="tags">
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
+      <XFeedHeader title="标签导航" />
 
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 6px', color: '#f1f5f9' }}>全部标签</h1>
-          <p style={{ color: '#94a3b8', margin: 0, fontSize: 14 }}>
-            {tags.length === 0 ? '等内容采集起来后,热门标签会出现在这里' : `共 ${tags.length} 个标签`}
-          </p>
-        </div>
+      <div style={{ padding: '16px' }}>
+        <p style={{ color: '#536471', margin: '0 0 16px', fontSize: 14 }}>
+          {tags.length === 0 ? '等内容采集起来后,热门标签会出现在这里' : `共 ${tags.length} 个标签`}
+        </p>
 
         {tags.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', background: '#000000', border: '1px dashed #334155', borderRadius: 12, color: '#94a3b8' }}>
+          <div style={{ padding: 40, textAlign: 'center', border: '1px dashed #cfd9de', borderRadius: 12, color: '#536471' }}>
             暂无标签
           </div>
         ) : (
           <>
-            {/* 3 tiers by count + hover lift. Thresholds match the typical
-                long-tail distribution: a handful of "heavy" head terms (≥8),
-                a "medium" shoulder (3–7), and a "light" long tail. The CSS
-                lives in a scoped <style> block here because the page is a
-                server component (no styled-jsx / 'use client'), and we need
-                :hover transitions which inline styles can't express. */}
             <style>{TAG_PILL_CSS}</style>
             <nav aria-label="全部标签" className="tag-cloud">
               {tags.map((t) => {
@@ -132,8 +123,7 @@ export default async function TagIndexPage() {
             </nav>
           </>
         )}
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </XLayout>
   );
 }

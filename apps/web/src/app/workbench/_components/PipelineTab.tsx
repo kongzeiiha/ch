@@ -115,7 +115,7 @@ export function PipelineTab({
           Cards are sized to fill the vertical real-estate naturally — flex
           with each card claiming an equal share, plus generous padding. */}
       <div style={{
-        background: '#1e293b', border: '1px solid #334155', borderRadius: 12,
+        background: '#1e293b', border: '1px solid #3e4144', borderRadius: 12,
         padding: '18px 14px',
         flex: '0 0 260px', minWidth: 240,
         display: 'flex', flexDirection: 'column',
@@ -168,7 +168,7 @@ export function PipelineTab({
                   }}>#{a.num}</span>
                   <span style={{
                     flex: 1, fontSize: 14, fontWeight: 700,
-                    color: isSel ? '#f1f5f9' : '#cbd5e1',
+                    color: isSel ? '#e7e9ea' : '#e7e9ea',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
                     {a.name}
@@ -246,9 +246,9 @@ export function PipelineTab({
           {/* Stage row */}
           <div style={{
             background: '#1e293b',
-            borderTop: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#334155'}`,
-            borderRight: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#334155'}`,
-            borderBottom: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#334155'}`,
+            borderTop: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#3e4144'}`,
+            borderRight: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#3e4144'}`,
+            borderBottom: `1px solid ${agent.isHumanGate ? '#4c1d95' : stopped ? '#374151' : '#3e4144'}`,
             borderLeft: `4px solid ${stopped ? '#475569' : agent.color}`,
             borderRadius: 10,
             padding: '16px 18px',
@@ -278,8 +278,8 @@ export function PipelineTab({
                     <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 6, background: '#451a03', color: '#fb923c' }}>⏸ 已暂停</span>
                   )}
                 </div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: '#f1f5f9' }}>{agent.name}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{agent.desc}</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: '#e7e9ea' }}>{agent.name}</div>
+                <div style={{ fontSize: 12, color: '#71767b', marginTop: 3 }}>{agent.desc}</div>
               </div>
 
               {/* Controls */}
@@ -291,7 +291,7 @@ export function PipelineTab({
                     onClick={() => setAuto(agent.key, !meta.auto)}
                     style={{
                       padding: '5px 12px', borderRadius: 6, border: '1px solid',
-                      borderColor: meta.auto ? agent.color : '#334155',
+                      borderColor: meta.auto ? agent.color : '#3e4144',
                       background: meta.auto ? `${agent.color}22` : 'transparent',
                       color: meta.auto ? agent.color : '#475569',
                       fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -303,7 +303,7 @@ export function PipelineTab({
                 {/* Pause toggle */}
                 <button
                   onClick={() => setPaused(agent.key, !meta.paused)}
-                  style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #334155', background: meta.paused ? '#451a03' : 'transparent', color: meta.paused ? '#fb923c' : '#475569', fontSize: 12, cursor: 'pointer' }}>
+                  style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #3e4144', background: meta.paused ? '#451a03' : 'transparent', color: meta.paused ? '#fb923c' : '#475569', fontSize: 12, cursor: 'pointer' }}>
                   {meta.paused ? '⏸ 暂停中' : '⏸'}
                 </button>
 
@@ -334,7 +334,7 @@ export function PipelineTab({
                     <div style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>待处理</div>
                     <div style={{
                       fontSize: 24, fontWeight: 800,
-                      color: pendingCnt && pendingCnt > 0 ? agent.color : '#334155',
+                      color: pendingCnt && pendingCnt > 0 ? agent.color : '#3e4144',
                       lineHeight: 1.2, marginTop: 2,
                     }}>
                       {pendingCnt ?? 0}
@@ -346,7 +346,7 @@ export function PipelineTab({
                     <div style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>近 24h 调用</div>
                     <div style={{
                       fontSize: 24, fontWeight: 800,
-                      color: (summary?.total ?? 0) > 0 ? agent.color : '#334155',
+                      color: (summary?.total ?? 0) > 0 ? agent.color : '#3e4144',
                       lineHeight: 1.2, marginTop: 2,
                     }}>
                       {summary?.total ?? 0}
@@ -448,19 +448,19 @@ export function PipelineTab({
                               {item.title || `item ${item.id.slice(0, 8)}`}
                             </div>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 10, color: '#64748b' }}>{item.source}</span>
+                              <span style={{ fontSize: 10, color: '#71767b' }}>{item.source}</span>
                               {tags.map(t => (
                                 <span key={t} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#7f1d1d', color: '#fecaca' }}>{t}</span>
                               ))}
-                              <span style={{ fontSize: 10, color: '#94a3b8' }}>· {triggerLabel}</span>
+                              <span style={{ fontSize: 10, color: '#71767b' }}>· {triggerLabel}</span>
                             </div>
                             {reasonRows.length > 0 && (
                               <div style={{ marginTop: 5, paddingLeft: 8, borderLeft: '2px solid #7f1d1d', display: 'flex', flexDirection: 'column', gap: 2 }}>
                                 {reasonRows.map((rr, idx) => (
-                                  <div key={idx} style={{ fontSize: 10.5, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <div key={idx} style={{ fontSize: 10.5, color: '#e7e9ea', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     <span style={{ color: '#f87171', fontWeight: 600 }}>{rr.label}</span>
                                     <span style={{ color: '#475569' }}> · </span>
-                                    <span style={{ color: '#94a3b8', fontFamily: isBlacklist ? '"JetBrains Mono", Menlo, monospace' : 'inherit' }}>{rr.text}</span>
+                                    <span style={{ color: '#71767b', fontFamily: isBlacklist ? '"JetBrains Mono", Menlo, monospace' : 'inherit' }}>{rr.text}</span>
                                   </div>
                                 ))}
                               </div>
@@ -473,7 +473,7 @@ export function PipelineTab({
                               style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: '#14532d', color: '#86efac', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
                               ✓ 放行
                             </button>
-                            <button onClick={() => showHistory(item.id)} style={{ padding: '4px 12px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
+                            <button onClick={() => showHistory(item.id)} style={{ padding: '4px 12px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
                           </div>
                         </div>
                       );
@@ -525,17 +525,17 @@ export function PipelineTab({
                               {p.title || (p.item_id ? `item ${p.item_id.slice(0, 8)}` : '—')}
                             </div>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
-                              {p.source && <span style={{ fontSize: 10, color: '#64748b' }}>{p.source}</span>}
+                              {p.source && <span style={{ fontSize: 10, color: '#71767b' }}>{p.source}</span>}
                               {tags.map(t => (
                                 <span key={t} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#374151', color: '#9ca3af' }}>
                                   原标签: {t}
                                 </span>
                               ))}
-                              <span style={{ fontSize: 10, color: '#94a3b8' }}>· 操作人 <strong style={{ color: '#cbd5e1' }}>{p.operator ?? 'anonymous'}</strong></span>
-                              <span style={{ fontSize: 10, color: '#64748b' }}>· {fmtAgo(p.finished_at)}</span>
+                              <span style={{ fontSize: 10, color: '#71767b' }}>· 操作人 <strong style={{ color: '#e7e9ea' }}>{p.operator ?? 'anonymous'}</strong></span>
+                              <span style={{ fontSize: 10, color: '#71767b' }}>· {fmtAgo(p.finished_at)}</span>
                             </div>
                             {p.reason && (
-                              <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 3, paddingLeft: 8, borderLeft: '2px solid #14532d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: 10.5, color: '#71767b', marginTop: 3, paddingLeft: 8, borderLeft: '2px solid #14532d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 理由: {p.reason}
                               </div>
                             )}
@@ -550,13 +550,13 @@ export function PipelineTab({
 
             {/* ── COMPLIANCE REVIEW human gate (inline) ── */}
             {agent.key === 'compliance' && reviewItems.length > 0 && (
-              <div style={{ marginTop: 14, borderTop: '1px solid #334155', paddingTop: 12 }}>
+              <div style={{ marginTop: 14, borderTop: '1px solid #3e4144', paddingTop: 12 }}>
                 <div style={{ fontSize: 12, color: '#f59e0b', marginBottom: 8, fontWeight: 600 }}>
                   ⚠ {reviewItems.length} 条待人工审核（机器建议复核）
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
                   {reviewItems.map(item => (
-                    <div key={item.id} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '10px 12px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                    <div key={item.id} style={{ background: '#0f172a', border: '1px solid #3e4144', borderRadius: 8, padding: '10px 12px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                       <div
                         onClick={() => showHistory(item.id)}
                         style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
@@ -564,7 +564,7 @@ export function PipelineTab({
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>
                           {item.title}
                         </div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>来源: {item.source}</div>
+                        <div style={{ fontSize: 11, color: '#71767b', marginBottom: 4 }}>来源: {item.source}</div>
                         {item.risk_tags.length > 0 && (
                           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                             {item.risk_tags.map(t => (
@@ -578,7 +578,7 @@ export function PipelineTab({
                         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: '#78350f', color: '#fde68a', textAlign: 'center' }}>机器: 建议复核</span>
                         <button onClick={() => approveReview(item.id)} style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: '#14532d', color: '#86efac', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>✓ 批准</button>
                         <button onClick={() => rejectReview(item.id)} style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: '#450a0a', color: '#fca5a5', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>✗ 拒绝</button>
-                        <button onClick={() => showHistory(item.id)} style={{ padding: '4px 12px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
+                        <button onClick={() => showHistory(item.id)} style={{ padding: '4px 12px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
                       </div>
                     </div>
                   ))}
@@ -601,13 +601,13 @@ export function PipelineTab({
                         {selectedItems.size > 0 ? `批准选中 ${selectedItems.size} 篇` : `批准全部 ${publishItems.length} 篇`}
                       </button>
                       {selectedItems.size > 0 && (
-                        <button onClick={() => setSelectedItems(new Set())} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>清除选择</button>
+                        <button onClick={() => setSelectedItems(new Set())} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>清除选择</button>
                       )}
                     </>
                   )}
                 </div>
                 {publishItems.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#334155', padding: '10px 0' }}>暂无待发布文章</div>
+                  <div style={{ fontSize: 12, color: '#3e4144', padding: '10px 0' }}>暂无待发布文章</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 240, overflowY: 'auto' }}>
                     {publishItems.map(item => (
@@ -615,13 +615,13 @@ export function PipelineTab({
                         onClick={() => setSelectedItems(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); return n; })}>
                         <input type="checkbox" readOnly checked={selectedItems.has(item.id)} style={{ accentColor: '#7c3aed', flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#e7e9ea', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                           <div style={{ fontSize: 11, color: '#475569' }}>{item.category ?? '—'} · {item.source}</div>
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={e => { e.stopPropagation(); approvePublish([item.id]); }} style={{ padding: '3px 10px', borderRadius: 5, border: 'none', background: '#4c1d95', color: '#ddd6fe', fontSize: 11, cursor: 'pointer' }}>发布</button>
-                          <button onClick={e => { e.stopPropagation(); showHistory(item.id); }} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
-                          <button onClick={e => { e.stopPropagation(); rollback(item.id, item.title); }} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>回滚</button>
+                          <button onClick={e => { e.stopPropagation(); showHistory(item.id); }} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
+                          <button onClick={e => { e.stopPropagation(); rollback(item.id, item.title); }} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>回滚</button>
                         </div>
                       </div>
                     ))}
@@ -637,7 +637,7 @@ export function PipelineTab({
                     <span style={{ fontSize: 10, color: '#475569' }}>近 50 条 · 含已分发</span>
                   </div>
                   {publishedItems.length === 0 ? (
-                    <div style={{ fontSize: 12, color: '#334155', padding: '6px 0' }}>暂无已上站的文章</div>
+                    <div style={{ fontSize: 12, color: '#3e4144', padding: '6px 0' }}>暂无已上站的文章</div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
                       {publishedItems.map(item => (
@@ -646,7 +646,7 @@ export function PipelineTab({
                             {item.status === 'DISTRIBUTED' ? '已分发' : '已上站'}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#e7e9ea', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                             <div style={{ fontSize: 11, color: '#475569' }}>
                               {item.category ?? '—'} · {item.source} · {fmtPublishedAt(item.published_at)}
                             </div>
@@ -658,8 +658,8 @@ export function PipelineTab({
                                 ↗ 查看
                               </a>
                             )}
-                            <button onClick={() => showHistory(item.id)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
-                            <button onClick={() => rollback(item.id, item.title)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>下线</button>
+                            <button onClick={() => showHistory(item.id)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
+                            <button onClick={() => rollback(item.id, item.title)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>下线</button>
                           </div>
                         </div>
                       ))}
@@ -676,17 +676,17 @@ export function PipelineTab({
                   🔐 {distTasks.length} 条待人工确认分发（复制文案后手动发布）
                 </div>
                 {distTasks.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#334155', padding: '10px 0' }}>暂无待分发任务 · 先点上方「执行」生成文案</div>
+                  <div style={{ fontSize: 12, color: '#3e4144', padding: '10px 0' }}>暂无待分发任务 · 先点上方「执行」生成文案</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
                     {distTasks.map(task => (
                       <div key={task.task_id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: 8, padding: '10px 12px' }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#93c5fd', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
-                        <pre style={{ margin: '0 0 8px', fontSize: 12, color: '#e2e8f0', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#1e293b', padding: '8px 10px', borderRadius: 5, lineHeight: 1.6 }}>{task.copy}</pre>
+                        <pre style={{ margin: '0 0 8px', fontSize: 12, color: '#e7e9ea', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#1e293b', padding: '8px 10px', borderRadius: 5, lineHeight: 1.6 }}>{task.copy}</pre>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <CopyBtn text={task.copy} />
                           <button onClick={() => confirmDist(task.task_id)} style={{ padding: '3px 12px', borderRadius: 5, border: 'none', background: '#1e3a5f', color: '#60a5fa', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>✓ 已发出</button>
-                          <button onClick={() => showHistory(task.item_id)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #334155', background: 'transparent', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
+                          <button onClick={() => showHistory(task.item_id)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #3e4144', background: 'transparent', color: '#71767b', fontSize: 11, cursor: 'pointer' }}>追踪</button>
                         </div>
                       </div>
                     ))}

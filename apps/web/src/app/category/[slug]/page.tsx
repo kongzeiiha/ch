@@ -3,13 +3,13 @@ import { notFound } from 'next/navigation';
 import { query, SITE_URL, SITE_NAME } from '../../../lib/db';
 import { getFiltered, type LengthBucket, type DateBucket } from '../../../lib/feed';
 import { breadcrumbJsonLd, collectionPageJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
-import { SiteHeader } from '../../_components/SiteHeader';
 import { JsonLd } from '../../_components/JsonLd';
 import { CategoryNav } from '../../_components/CategoryNav';
 import { FilterBar } from '../../_components/FilterBar';
-import { ArticleCard } from '../../_components/ArticleCard';
 import { Pagination } from '../../_components/Pagination';
-import { SiteFooter } from '../../_components/SiteFooter';
+import { XLayout } from '../../_components/XLayout';
+import { XFeedHeader } from '../../_components/XFeedHeader';
+import { XPost } from '../../_components/XPost';
 import { isJunkTag } from '../../../lib/strip-urls';
 
 export const dynamic = 'force-dynamic';
@@ -88,8 +88,7 @@ export default async function CategoryPage(
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000000', color: '#e2e8f0' }}>
-      <SiteHeader crumb={category} />
+    <XLayout active="home">
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <JsonLd data={collectionPageJsonLd({
         name: `${category} - ${SITE_NAME}`,
@@ -97,33 +96,26 @@ export default async function CategoryPage(
         url: `${SITE_URL}${basePath}`,
         items: items.slice(0, 20).map((a) => ({ title: a.title, slug: a.slug })),
       })} />
+      <XFeedHeader title={category} back fallbackHref="/" />
 
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 20px 60px' }}>
+      <div style={{ padding: '12px 16px 0' }}>
         <CategoryNav active={category} />
+        <p style={{ fontSize: 14, color: '#536471', margin: '0 0 12px' }}>共 {total} 篇文章</p>
+        <FilterBar basePath={basePath} current={searchParams} tags={tags} />
+      </div>
 
-        <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 14, color: '#f1f5f9' }}>{category}</h1>
-        <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 16 }}>共 {total} 篇文章</div>
+      {items.length === 0 ? (
+        <p style={{ color: '#536471', padding: 40, textAlign: 'center' }}>
+          没有匹配的文章 · 试试调整筛选条件
+        </p>
+      ) : (
+        items.map((a) => <XPost key={a.id} a={a} />)
+      )}
 
-        <FilterBar
-          basePath={basePath}
-          current={searchParams}
-          tags={tags}
-        />
-
-        {items.length === 0 ? (
-          <p style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#000000', borderRadius: 12 }}>
-            没有匹配的文章 · 试试调整筛选条件
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-            {items.map((a) => <ArticleCard key={a.id} a={a} />)}
-          </div>
-        )}
-
+      <div style={{ padding: '16px 16px 40px' }}>
         <Pagination basePath={basePath} searchParams={searchParams} page={page} total={total} pageSize={PAGE_SIZE} />
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </XLayout>
   );
 }
 

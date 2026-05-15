@@ -71,17 +71,24 @@ export function ImageLightbox() {
           cursor: 'default',
         }}
       />
+      {/* 左上角返回按钮 — 符合 X.com 全屏图片查看器的位置惯例,
+          点击或按 ESC 都能关闭。半透明黑底 + 描边在任何亮度图片上都可读。 */}
       <button
         onClick={(e) => { e.stopPropagation(); setSrc(null); }}
-        aria-label="关闭"
+        aria-label="返回"
         style={{
-          position: 'absolute', top: 16, right: 20,
-          background: 'rgba(0,0,0,0.45)', color: '#fff',
+          position: 'absolute', top: 16, left: 20,
+          background: 'rgba(0,0,0,0.6)', color: '#fff',
           border: '1px solid rgba(255,255,255,0.18)',
-          borderRadius: 999, width: 36, height: 36,
-          fontSize: 20, lineHeight: 1, cursor: 'pointer',
+          borderRadius: 999, width: 38, height: 38,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
         }}
-      >×</button>
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </svg>
+      </button>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { query } from '../../lib/db';
+import { cached } from '../../lib/cache';
 import { X } from './theme';
 
 interface CatRow {
@@ -33,12 +34,17 @@ export async function CategoryNav({
     : '';
   const join = mediaScope ? 'LEFT JOIN raw_items r ON r.id = i.raw_item_id' : '';
 
-  const categories = await query<CatRow>(
-    `SELECT i.category, COUNT(*)::int AS count
-     FROM items i ${join}
-     WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category IS NOT NULL ${mediaWhere}
-     GROUP BY i.category
-     ORDER BY count DESC`,
+  // 这条 GROUP BY 在远程 DB 上 ~6s,缓存 60s 后首页 / 每个分类页都受益。
+  // 失效由 publishing 后的 /api/revalidate 在 lib/cache.ts 的 key 表里挂钩。
+  const cacheKey = `catnav:${mediaScope ?? 'all'}`;
+  const categories = await cached<CatRow[]>(cacheKey, 60, () =>
+    query<CatRow>(
+      `SELECT i.category, COUNT(*)::int AS count
+       FROM items i ${join}
+       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category IS NOT NULL ${mediaWhere}
+       GROUP BY i.category
+       ORDER BY count DESC`,
+    ),
   );
 
   if (categories.length === 0) return null;

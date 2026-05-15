@@ -41,15 +41,15 @@ export default function PrivacyPage() {
       <P>本站采取合理的技术与管理措施保护服务器与数据,但不作绝对安全的承诺。</P>
 
       <H2>6. 联系方式</H2>
-      <P>如对本政策有疑问,可通过 <a href="/about/dmca" style={{ color: '#dc2626' }}>版权与联系页面</a> 提供的方式与我们联系。</P>
+      <P>如对本政策有疑问,可通过 <a href="/about/dmca" style={{ color: '#1d9bf0' }}>版权与联系页面</a> 提供的方式与我们联系。</P>
 
-      <P style={{ color: '#64748b', fontSize: 13, marginTop: 32 }}>※ 本文为占位文本,正式上线前请根据实际数据处理范围与法律要求(GDPR、PIPL、CCPA 等)由法律顾问审阅并替换。</P>
+      <P style={{ color: '#536471', fontSize: 13, marginTop: 32 }}>※ 本文为占位文本,正式上线前请根据实际数据处理范围与法律要求(GDPR、PIPL、CCPA 等)由法律顾问审阅并替换。</P>
     </AboutShell>
   );
 }
 
 function H2({ children }: { children: React.ReactNode }) {
-  return <h2 style={{ fontSize: 17, fontWeight: 700, color: '#e2e8f0', margin: '24px 0 8px' }}>{children}</h2>;
+  return <h2 style={{ fontSize: 17, fontWeight: 700, color: '#0f1419', margin: '24px 0 8px' }}>{children}</h2>;
 }
 function P({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return <p style={{ margin: '0 0 12px', ...style }}>{children}</p>;

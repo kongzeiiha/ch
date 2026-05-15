@@ -42,21 +42,21 @@ interface MemoryRule {
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────
-const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: 16 };
-const th: React.CSSProperties   = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#94a3b8', borderBottom: '1px solid #334155', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
-const td: React.CSSProperties   = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #334155', verticalAlign: 'top', color: '#e2e8f0' };
-const btn: React.CSSProperties  = { padding: '6px 12px', fontSize: 12, border: '1px solid #334155', borderRadius: 6, background: 'transparent', color: '#94a3b8', cursor: 'pointer' };
+const card: React.CSSProperties = { background: '#1e293b', border: '1px solid #3e4144', borderRadius: 8, padding: 16 };
+const th: React.CSSProperties   = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: '#71767b', borderBottom: '1px solid #3e4144', background: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.4 };
+const td: React.CSSProperties   = { padding: '10px 12px', fontSize: 13, borderBottom: '1px solid #3e4144', verticalAlign: 'top', color: '#e7e9ea' };
+const btn: React.CSSProperties  = { padding: '6px 12px', fontSize: 12, border: '1px solid #3e4144', borderRadius: 6, background: 'transparent', color: '#71767b', cursor: 'pointer' };
 const btnPrimary: React.CSSProperties  = { ...btn, background: '#6366f1', color: '#fff', borderColor: '#6366f1', fontWeight: 600 };
 const btnSuccess: React.CSSProperties  = { ...btn, background: '#16a34a', color: '#fff', borderColor: '#16a34a', fontWeight: 600 };
-const btnDanger:  React.CSSProperties  = { ...btn, background: '#dc2626', color: '#fff', borderColor: '#dc2626', fontWeight: 600 };
-const input: React.CSSProperties = { padding: '6px 10px', fontSize: 12, border: '1px solid #334155', borderRadius: 6, background: '#0f172a', color: '#e2e8f0', outline: 'none' };
+const btnDanger:  React.CSSProperties  = { ...btn, background: '#1d9bf0', color: '#fff', borderColor: '#1d9bf0', fontWeight: 600 };
+const input: React.CSSProperties = { padding: '6px 10px', fontSize: 12, border: '1px solid #3e4144', borderRadius: 6, background: '#0f172a', color: '#e7e9ea', outline: 'none' };
 
 function KPI({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
   return (
     <div style={{ ...card, minWidth: 130, textAlign: 'center' }}>
-      <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: accent ?? '#e2e8f0' }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontSize: 10, color: '#71767b', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: accent ?? '#e7e9ea' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: '#71767b', marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
@@ -168,13 +168,13 @@ export default function FeedbackPage() {
   const totalPages = Math.ceil(exTotal / PAGE_SIZE);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e7e9ea', fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif' }}>
       <header style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 100 }}>
         <span style={{ fontSize: 16, fontWeight: 800 }}>内容中台</span>
-        <span style={{ color: '#334155' }}>/</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>反馈闭环</span>
+        <span style={{ color: '#3e4144' }}>/</span>
+        <span style={{ fontSize: 13, color: '#71767b' }}>反馈闭环</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e2e8f0', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link>
+          <Link href="/workbench" style={{ ...btn, textDecoration: 'none', color: '#e7e9ea', display: 'inline-flex', alignItems: 'center' }}>← 工作台</Link>
           <button style={btn} onClick={() => { loadStats(); loadExamples(); loadRules(); }}>↻ 刷新</button>
           <button style={btnPrimary} disabled={busy} onClick={doHarvest}>⬇ 立即采集反馈</button>
         </div>
@@ -184,7 +184,7 @@ export default function FeedbackPage() {
         <AdminNav current="feedback" />
 
         {msg && (
-          <div style={{ ...card, marginBottom: 16, fontSize: 13, color: msg.startsWith('✓') ? '#86efac' : '#fca5a5', borderColor: msg.startsWith('✓') ? '#16a34a' : '#dc2626', background: msg.startsWith('✓') ? '#052e16' : '#450a0a' }}>
+          <div style={{ ...card, marginBottom: 16, fontSize: 13, color: msg.startsWith('✓') ? '#86efac' : '#fca5a5', borderColor: msg.startsWith('✓') ? '#16a34a' : '#1d9bf0', background: msg.startsWith('✓') ? '#052e16' : '#450a0a' }}>
             {msg}
           </div>
         )}
@@ -210,10 +210,10 @@ export default function FeedbackPage() {
 
         {/* ── Memory rules ──────────────────────────────────── */}
         <section style={{ ...card, padding: 0, marginBottom: 20, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #334155' }}>
-            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#cbd5e1' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #3e4144' }}>
+            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#e7e9ea' }}>
               Agent 记忆规则
-              <span style={{ color: '#64748b', fontWeight: 400, marginLeft: 8 }}>（注入到每次 LLM 推理的 system prompt）</span>
+              <span style={{ color: '#71767b', fontWeight: 400, marginLeft: 8 }}>（注入到每次 LLM 推理的 system prompt）</span>
             </h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select value={rDomain} onChange={(e) => setRDomain(e.target.value as any)}
@@ -229,22 +229,22 @@ export default function FeedbackPage() {
           </div>
 
           {showForm && (
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #334155', background: '#0f172a', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #3e4144', background: '#0f172a', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <div>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>域</div>
+                <div style={{ fontSize: 11, color: '#71767b', marginBottom: 4 }}>域</div>
                 <select value={newDomain} onChange={(e) => setNewDomain(e.target.value as any)} style={input}>
                   <option value="compliance">compliance</option>
                   <option value="distribution">distribution</option>
                 </select>
               </div>
               <div style={{ flex: 1, minWidth: 260 }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>规则内容 <span style={{ color: '#ef4444' }}>*</span></div>
+                <div style={{ fontSize: 11, color: '#71767b', marginBottom: 4 }}>规则内容 <span style={{ color: '#ef4444' }}>*</span></div>
                 <input value={newRule} onChange={(e) => setNewRule(e.target.value)}
                   style={{ ...input, width: '100%', boxSizing: 'border-box' }}
                   placeholder="例：凡标题含「免费赚钱」应将金融诱导评分调高至 3" />
               </div>
               <div style={{ width: 160 }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Scope（可选）</div>
+                <div style={{ fontSize: 11, color: '#71767b', marginBottom: 4 }}>Scope（可选）</div>
                 <input value={newScope} onChange={(e) => setNewScope(e.target.value)}
                   style={input} placeholder="e.g. category=AI" />
               </div>
@@ -273,10 +273,10 @@ export default function FeedbackPage() {
                     <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: r.domain === 'compliance' ? '#1e3a5f' : '#14532d', color: r.domain === 'compliance' ? '#7dd3fc' : '#86efac' }}>
                       {r.domain}
                     </span>
-                    {r.scope && <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>{r.scope}</div>}
+                    {r.scope && <div style={{ fontSize: 10, color: '#71767b', marginTop: 3 }}>{r.scope}</div>}
                   </td>
                   <td style={{ ...td, maxWidth: 420 }}>
-                    <span style={{ fontSize: 12, color: '#e2e8f0' }}>{r.rule}</span>
+                    <span style={{ fontSize: 12, color: '#e7e9ea' }}>{r.rule}</span>
                     {r.notes && <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{r.notes}</div>}
                   </td>
                   <td style={td}>
@@ -285,7 +285,7 @@ export default function FeedbackPage() {
                     </span>
                   </td>
                   <td style={{ ...td, color: '#fbbf24', fontWeight: 600 }}>{r.hit_count}</td>
-                  <td style={{ ...td, color: '#64748b', fontSize: 11 }}>{r.last_used_at ? new Date(r.last_used_at).toLocaleString() : '—'}</td>
+                  <td style={{ ...td, color: '#71767b', fontSize: 11 }}>{r.last_used_at ? new Date(r.last_used_at).toLocaleString() : '—'}</td>
                   <td style={{ ...td, display: 'flex', gap: 4 }}>
                     <button style={btn} onClick={() => toggleRule(r.id, r.status === 'active' ? 'paused' : 'active')}>
                       {r.status === 'active' ? '暂停' : '启用'}
@@ -305,10 +305,10 @@ export default function FeedbackPage() {
 
         {/* ── Training examples ─────────────────────────────── */}
         <section style={{ ...card, padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #334155', flexWrap: 'wrap', gap: 8 }}>
-            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#cbd5e1' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #3e4144', flexWrap: 'wrap', gap: 8 }}>
+            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#e7e9ea' }}>
               训练样本
-              <span style={{ color: '#64748b', fontWeight: 400, marginLeft: 8 }}>共 {exTotal} 条 · 第 {exPage + 1}/{totalPages || 1} 页</span>
+              <span style={{ color: '#71767b', fontWeight: 400, marginLeft: 8 }}>共 {exTotal} 条 · 第 {exPage + 1}/{totalPages || 1} 页</span>
             </h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select value={exDomain} onChange={(e) => { setExDomain(e.target.value as any); setExPage(0); }}
@@ -352,18 +352,18 @@ export default function FeedbackPage() {
                       {ex.input_data?.title
                         ? <span title={ex.input_data.title}>{ex.input_data.title.slice(0, 60)}{ex.input_data.title.length > 60 ? '…' : ''}</span>
                         : <span style={{ color: '#475569' }}>—</span>}
-                      {ex.input_data?.category && <div style={{ fontSize: 10, color: '#64748b' }}>{ex.input_data.category}</div>}
+                      {ex.input_data?.category && <div style={{ fontSize: 10, color: '#71767b' }}>{ex.input_data.category}</div>}
                     </td>
-                    <td style={{ ...td, fontSize: 11, color: '#94a3b8', maxWidth: 160 }}>
+                    <td style={{ ...td, fontSize: 11, color: '#71767b', maxWidth: 160 }}>
                       {ex.source === 'compliance'
-                        ? (maxScore !== null ? <span style={{ color: maxScore >= 2 ? '#f87171' : '#94a3b8' }}>最高分 {maxScore}</span> : '—')
+                        ? (maxScore !== null ? <span style={{ color: maxScore >= 2 ? '#f87171' : '#71767b' }}>最高分 {maxScore}</span> : '—')
                         : <span title={ex.machine_output?.copy}>{String(ex.machine_output?.copy ?? '').slice(0, 60)}…</span>}
                     </td>
                     <td style={{ ...td, fontSize: 11, maxWidth: 200 }}>
                       {ex.source === 'compliance'
                         ? <span style={{ color: ex.human_label?.decision === 'approve' ? '#86efac' : '#f87171', fontWeight: 600 }}>
                             {ex.human_label?.decision === 'approve' ? '✓ 放行' : '✗ 拒绝'}
-                            {ex.human_label?.reason && <span style={{ color: '#94a3b8', fontWeight: 400 }}> — {ex.human_label.reason}</span>}
+                            {ex.human_label?.reason && <span style={{ color: '#71767b', fontWeight: 400 }}> — {ex.human_label.reason}</span>}
                           </span>
                         : <span title={ex.human_label?.copy}>{String(ex.human_label?.copy ?? '').slice(0, 60)}…</span>}
                     </td>
@@ -372,7 +372,7 @@ export default function FeedbackPage() {
                         ? <span style={{ color: '#86efac', fontSize: 11 }}>✓</span>
                         : <span style={{ color: '#475569', fontSize: 11 }}>—</span>}
                     </td>
-                    <td style={{ ...td, color: '#64748b', fontSize: 11, whiteSpace: 'nowrap' }}>
+                    <td style={{ ...td, color: '#71767b', fontSize: 11, whiteSpace: 'nowrap' }}>
                       {new Date(ex.created_at).toLocaleString()}
                     </td>
                   </tr>
@@ -387,7 +387,7 @@ export default function FeedbackPage() {
           </table>
         </section>
 
-        <footer style={{ marginTop: 16, textAlign: 'center', color: '#334155', fontSize: 11 }}>
+        <footer style={{ marginTop: 16, textAlign: 'center', color: '#3e4144', fontSize: 11 }}>
           规则在每次 LLM 推理时自动注入 · 样本每 5 min 后台自动采集 · 规则每 7 天自动归纳一次
         </footer>
       </div>

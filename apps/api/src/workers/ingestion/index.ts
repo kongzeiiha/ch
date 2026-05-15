@@ -14,6 +14,7 @@ import {
   findNearestSimhash,
 } from './dedupe.js';
 import { persistIngested } from './persist.js';
+import { checkAd } from './ad-filter.js';
 
 export type IngestionJob =
   | { kind: 'fanout' }
@@ -26,6 +27,8 @@ export interface IngestStats {
   dupContent: number;
   cleanFail: number;
   errors: number;
+  /** 首条命中广告规则被跳过的计数 */
+  adSkipped?: number;
   /** Set when the upstream rejected our credentials. Workbench surfaces this. */
   authFail?: boolean;
   authStatus?: number;
@@ -84,9 +87,31 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
   type CandidateWithHash = { c: typeof candidates[number]; key: string; cleaned: Cleaned; contentHash: string };
   const toHashCheck: CandidateWithHash[] = [];
 
-  for (const c of candidates) {
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i]!;
     const key = makeDedupeKey(source.platform, c.externalId);
     if (knownKeys.has(key)) { stats.dupUrl++; continue; }
+
+    // 「首条置顶若是广告则过滤掉」规则:
+    // candidates[0] 是适配器返回的最顶条(X 上是 pinned tweet 或最新推);
+    // 命中广告关键词阈值 → 整条丢弃,不入 raw_items,不入 items,不浪费下游 LLM 配额。
+    // 只在 i===0 触发,免得正文里偶尔有"加群"字样的正常帖子也被误杀。
+    if (i === 0) {
+      const probe = `${c.title ?? ''} ${c.text ?? ''}`;
+      const ad = checkAd(probe);
+      if (ad.isAd) {
+        stats.adSkipped = (stats.adSkipped ?? 0) + 1;
+        // 写入 ingestion_ad_skips 表供 /admin/ingestion/ad-skipped 端点查询。
+        // 失败不影响主流程(只是日志/可观测性),catch 静默吞掉。
+        await query(
+          `INSERT INTO ingestion_ad_skips (source_id, item_url, item_title, matched_tokens)
+           VALUES ($1, $2, $3, $4)`,
+          [source.id, c.url ?? null, (c.title ?? c.text ?? '').slice(0, 1024), JSON.stringify(ad.hits)],
+        ).catch((e) => console.warn('[ingestion] ad-skip log failed:', e?.message ?? e));
+        console.info(`[ingestion] source=${source.id} 首条命中广告,hits=${ad.hits.join(',')} → 跳过`);
+        continue;
+      }
+    }
 
     let cleaned: Cleaned | null;
     if (c.text && c.text.length >= 20) {

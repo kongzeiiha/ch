@@ -108,9 +108,9 @@ export function AnalyticsPanel() {
       {/* Trend + totals */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 10, marginBottom: 12 }}>
         <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, padding: 10 }}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>近 7 天 PV 趋势</div>
+          <div style={{ fontSize: 11, color: '#71767b', fontWeight: 600, marginBottom: 6 }}>近 7 天 PV 趋势</div>
           {daily.length === 0 ? (
-            <div style={{ fontSize: 11, color: '#334155', padding: '14px 0' }}>暂无数据</div>
+            <div style={{ fontSize: 11, color: '#3e4144', padding: '14px 0' }}>暂无数据</div>
           ) : (
             <>
               <Sparkline data={daily.map(d => d.pv)} height={48} stroke={TEAL} />
@@ -123,7 +123,7 @@ export function AnalyticsPanel() {
         </div>
 
         <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, padding: 10 }}>
-          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>近 7 天合计</div>
+          <div style={{ fontSize: 11, color: '#71767b', fontWeight: 600, marginBottom: 6 }}>近 7 天合计</div>
           <div style={{ display: 'flex', gap: 14 }}>
             <Stat label="PV"  value={totalPv.toLocaleString()}            color={TEAL} />
             <Stat label="UV"  value={totalUv.toLocaleString()}            color="#60a5fa" />
@@ -134,16 +134,16 @@ export function AnalyticsPanel() {
 
       {/* Top 5 articles */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>📈 Top 5 文章 · 近 7 天</div>
+        <div style={{ fontSize: 11, color: '#71767b', fontWeight: 600, marginBottom: 6 }}>📈 Top 5 文章 · 近 7 天</div>
         {top.length === 0 ? (
-          <div style={{ fontSize: 11, color: '#334155', padding: '8px 0' }}>暂无文章流量数据 · 等 GA4 拉取后会出现</div>
+          <div style={{ fontSize: 11, color: '#3e4144', padding: '8px 0' }}>暂无文章流量数据 · 等 GA4 拉取后会出现</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {top.map((r, i) => (
               <a key={r.slug} href={`/a/${r.slug}`} target="_blank" rel="noreferrer" style={{
                 background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6,
                 padding: '7px 10px', display: 'flex', gap: 10, alignItems: 'center',
-                textDecoration: 'none', color: '#e2e8f0',
+                textDecoration: 'none', color: '#e7e9ea',
               }}>
                 <span style={{ fontSize: 11, color: '#475569', fontWeight: 700, width: 22 }}>#{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -166,7 +166,7 @@ export function AnalyticsPanel() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div
             onClick={() => setReportOpen(o => !o)}
-            style={{ cursor: 'pointer', fontSize: 11, color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flex: 1 }}
+            style={{ cursor: 'pointer', fontSize: 11, color: '#71767b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flex: 1 }}
           >
             <span style={{ width: 10, display: 'inline-block' }}>{reportOpen ? '▼' : '▶'}</span>
             <span>📄 最近周报</span>
@@ -196,12 +196,12 @@ export function AnalyticsPanel() {
         {reportOpen && report.report && (
           <pre style={{
             marginTop: 6, background: '#0f172a', border: '1px solid #1e293b', borderRadius: 6,
-            padding: 10, fontSize: 11, color: '#cbd5e1', maxHeight: 320, overflow: 'auto',
+            padding: 10, fontSize: 11, color: '#e7e9ea', maxHeight: 320, overflow: 'auto',
             whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, monospace',
           }}>{report.report}</pre>
         )}
         {reportOpen && !report.report && !reportBusy && (
-          <div style={{ marginTop: 6, fontSize: 11, color: '#334155' }}>
+          <div style={{ marginTop: 6, fontSize: 11, color: '#3e4144' }}>
             还没生成过周报。点右侧「▶ 生成周报」即可。
           </div>
         )}

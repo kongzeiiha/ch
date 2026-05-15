@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "bash -c 'ulimit -n 65536; CHOKIDAR_USEPOLLING=1 WATCHPACK_POLLING=true NODE_OPTIONS=\"--no-deprecation\" next dev -p 3000'",
-    "prebuild": "rm -rf .next",
+    "clean": "rm -rf .next .turbo node_modules/.cache",
+    "prebuild": "pnpm clean",
     "build": "NEXT_BUILD_WORKER_LIMIT=1 next build",
     "export": "bash scripts/export-static.sh",
     "preview": "node scripts/generate-preview.mjs",

@@ -33,6 +33,19 @@ function getPool(): mysql.Pool {
       // Migration runner needs to execute multi-statement SQL files in one shot.
       multipleStatements: true,
       timezone: 'Z',
+      // ── Stale-connection防护 ─────────────────────────────────────────
+      // MySQL server 的 wait_timeout 默认 28800s(8h),空闲连接被悄悄杀掉
+      // 后下次取出来 query 就 PROTOCOL_CONNECTION_LOST,污染整个 pool。
+      //   - enableKeepAlive: TCP KeepAlive 包定期探活,中间路由器 / 防火墙
+      //     掉 NAT 表也能提前发现
+      //   - keepAliveInitialDelay: 连接建立 10s 后开始发 KeepAlive
+      //   - idleTimeout: pool 自己清掉空闲超过 5 分钟的连接,远在 MySQL
+      //     的 wait_timeout 之前,根本不让连接老化到被远端 close
+      //   - maxIdle: 闲时只保留 2 条连接,降低 stale 概率
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10_000,
+      idleTimeout: 5 * 60 * 1000,
+      maxIdle: 2,
     });
   }
   return _pool;
@@ -137,10 +150,37 @@ function findStringEnd(s: string, start: number): number {
   return s.length;
 }
 
+// Connection-drop error codes that warrant a one-shot retry. The pool already
+// freed the bad connection by the time we catch — retry pulls a fresh one.
+// We intentionally don't retry on ER_LOCK_DEADLOCK / syntax errors / etc. —
+// those are real failures the caller should see.
+const TRANSIENT_CODES = new Set([
+  'PROTOCOL_CONNECTION_LOST',   // server-side wait_timeout / KILL
+  'ECONNRESET',                 // network blip
+  'ETIMEDOUT',                  // pool acquire timeout
+  'ENETRESET',
+  'ENOTCONN',
+  'EPIPE',
+]);
+
+function isTransient(e: unknown): boolean {
+  const c = (e as { code?: string })?.code;
+  return typeof c === 'string' && TRANSIENT_CODES.has(c);
+}
+
 export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
   const adapted = rebuild(text, params ?? []);
-  const [rows] = await getPool().query(adapted.text, adapted.params);
-  return rows as T[];
+  try {
+    const [rows] = await getPool().query(adapted.text, adapted.params);
+    return rows as T[];
+  } catch (e) {
+    if (!isTransient(e)) throw e;
+    // Retry exactly once. mysql2 pool's bad connection has been ejected; the
+    // next .query() acquires a freshly-dialed one. Don't loop — a second
+    // failure means the server is truly down and we should surface it.
+    const [rows] = await getPool().query(adapted.text, adapted.params);
+    return rows as T[];
+  }
 }
 
 /**
@@ -149,9 +189,16 @@ export async function query<T = any>(text: string, params?: any[]): Promise<T[]>
  */
 export async function execute(text: string, params?: any[]): Promise<{ affectedRows: number; insertId: number | string }> {
   const adapted = rebuild(text, params ?? []);
-  const [result] = await getPool().query(adapted.text, adapted.params);
-  const r = result as { affectedRows?: number; insertId?: number | string };
-  return { affectedRows: r.affectedRows ?? 0, insertId: r.insertId ?? 0 };
+  const run = async () => {
+    const [result] = await getPool().query(adapted.text, adapted.params);
+    const r = result as { affectedRows?: number; insertId?: number | string };
+    return { affectedRows: r.affectedRows ?? 0, insertId: r.insertId ?? 0 };
+  };
+  try { return await run(); }
+  catch (e) {
+    if (!isTransient(e)) throw e;
+    return run();   // single retry, same rationale as query()
+  }
 }
 
 /**

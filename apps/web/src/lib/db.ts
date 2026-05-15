@@ -26,10 +26,42 @@ function pool(): mysql.Pool {
       ...dsnToOptions(dsn),
       connectionLimit: 5,
       timezone: 'Z',
+      // TCP keepalive keeps the conn warm so MySQL's wait_timeout (8h) and
+      // any NAT / firewall idle-killer (often 5min) don't silently RST us.
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10_000,
+      // Recycle pool connections that have been idle for > 4 min — well under
+      // typical idle-killer windows. Prevents PROTOCOL_CONNECTION_LOST on the
+      // first query after the pool sat unused (overnight, between requests).
+      idleTimeout: 240_000,
+      maxIdle: 2,
     });
+    // Surface async pool errors instead of letting them bubble up as unhandled
+    // rejections. Reset the cached pool so the next query rebuilds it fresh
+    // — without this a fatal error sticks around for the life of the process.
+    // mysql2/promise's public Pool type narrows .on() to specific events; cast
+    // to the underlying EventEmitter surface to listen for 'error' too.
+    (global.__chPool as unknown as { on: (e: string, cb: (err: unknown) => void) => void }).on(
+      'error',
+      (err: any) => {
+        console.warn('[db] pool error, will rebuild:', err?.code ?? err?.message ?? err);
+        global.__chPool = undefined;
+      },
+    );
   }
   return global.__chPool;
 }
+
+// Errors that mean "this connection is dead but the SQL itself is fine —
+// re-running it on a fresh conn should succeed." Anything else (syntax,
+// constraint, etc.) must NOT retry.
+const RETRYABLE_CODES = new Set([
+  'PROTOCOL_CONNECTION_LOST',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+]);
 
 // Mirror packages/db's PG-style param adapter so server components can keep
 // using $1, $2 placeholders without per-callsite changes.
@@ -78,8 +110,19 @@ function rebuild(text: string, params: unknown[]): { text: string; params: unkno
 
 export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
   const adapted = rebuild(text, params ?? []);
-  const [rows] = await pool().query(adapted.text, adapted.params);
-  return rows as T[];
+  try {
+    const [rows] = await pool().query(adapted.text, adapted.params);
+    return rows as T[];
+  } catch (err: any) {
+    // Single retry on transport-level failures. If the cached pool still holds
+    // dead conns we drop it first so the retry pulls from a fresh one.
+    if (RETRYABLE_CODES.has(err?.code)) {
+      global.__chPool = undefined;
+      const [rows] = await pool().query(adapted.text, adapted.params);
+      return rows as T[];
+    }
+    throw err;
+  }
 }
 
 export const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';

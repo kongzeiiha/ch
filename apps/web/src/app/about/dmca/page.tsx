@@ -27,7 +27,7 @@ export default function DmcaPage() {
       </Ul>
 
       <H2>2. 联系方式</H2>
-      <P>邮箱:<a href={`mailto:${CONTACT_EMAIL}`} style={{ color: '#dc2626' }}>{CONTACT_EMAIL}</a></P>
+      <P>邮箱:<a href={`mailto:${CONTACT_EMAIL}`} style={{ color: '#1d9bf0' }}>{CONTACT_EMAIL}</a></P>
       <P>请将邮件主题命名为「DMCA 下架请求 - 您的姓名」,以便快速分流。</P>
 
       <H2>3. 处理时限</H2>
@@ -39,13 +39,13 @@ export default function DmcaPage() {
       <H2>5. 滥用警告</H2>
       <P>请仅在您确实拥有相关权利时提交下架通知。提交虚假通知可能在某些司法辖区构成法律责任。</P>
 
-      <P style={{ color: '#64748b', fontSize: 13, marginTop: 32 }}>※ 本文为占位文本,正式上线前请由法律顾问根据所在地法律(美国 DMCA、中国《信息网络传播权保护条例》、欧盟 DSA 等)审阅并替换。</P>
+      <P style={{ color: '#536471', fontSize: 13, marginTop: 32 }}>※ 本文为占位文本,正式上线前请由法律顾问根据所在地法律(美国 DMCA、中国《信息网络传播权保护条例》、欧盟 DSA 等)审阅并替换。</P>
     </AboutShell>
   );
 }
 
 function H2({ children }: { children: React.ReactNode }) {
-  return <h2 style={{ fontSize: 17, fontWeight: 700, color: '#e2e8f0', margin: '24px 0 8px' }}>{children}</h2>;
+  return <h2 style={{ fontSize: 17, fontWeight: 700, color: '#0f1419', margin: '24px 0 8px' }}>{children}</h2>;
 }
 function P({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return <p style={{ margin: '0 0 12px', ...style }}>{children}</p>;

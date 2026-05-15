@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { SITE_NAME, SITE_URL } from '../lib/db';
-import { SiteHeader } from './_components/SiteHeader';
-import { SiteFooter } from './_components/SiteFooter';
+import { XLayout } from './_components/XLayout';
+import { XFeedHeader } from './_components/XFeedHeader';
 import { X } from './_components/theme';
 
 export const metadata: Metadata = {
@@ -14,9 +14,9 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <div style={{ minHeight: '100vh', background: X.page, color: X.text, display: 'flex', flexDirection: 'column' }}>
-      <SiteHeader />
-      <main style={{ flex: 1, maxWidth: 720, margin: '0 auto', padding: '60px 20px', textAlign: 'center' }}>
+    <XLayout>
+      <XFeedHeader title="页面未找到" />
+      <div style={{ padding: '60px 20px', textAlign: 'center' }}>
         <div style={{ fontSize: 72, fontWeight: 900, color: X.accent, marginBottom: 8 }}>404</div>
         <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 12, color: X.text }}>页面未找到</h1>
         <p style={{ color: X.textSecondary, marginBottom: 28, lineHeight: 1.7 }}>
@@ -29,9 +29,8 @@ export default function NotFound() {
           <PillLink href="/tag">标签导航</PillLink>
           <PillLink href="/search">站内搜索</PillLink>
         </div>
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </XLayout>
   );
 }
 

@@ -74,9 +74,9 @@ function PageBtn({
         padding: '5px 10px',
         minWidth: 32,
         borderRadius: 6,
-        border: '1px solid ' + (active ? '#6366f1' : '#334155'),
+        border: '1px solid ' + (active ? '#6366f1' : '#3e4144'),
         background: active ? '#6366f1' : 'transparent',
-        color: disabled ? '#334155' : active ? '#fff' : '#94a3b8',
+        color: disabled ? '#3e4144' : active ? '#fff' : '#71767b',
         fontSize: 12,
         fontWeight: active ? 600 : 400,
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -146,7 +146,7 @@ export function OpLogsPanel() {
 
       {/* Filter bar */}
       <div style={{
-        background: '#1e293b', border: '1px solid #334155', borderRadius: 10,
+        background: '#1e293b', border: '1px solid #3e4144', borderRadius: 10,
         padding: '12px 14px', marginBottom: 12,
         display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
       }}>
@@ -156,7 +156,7 @@ export function OpLogsPanel() {
           onChange={(e) => setFOperator(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
           style={{
-            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            background: '#0f172a', border: '1px solid #3e4144', color: '#e7e9ea',
             borderRadius: 6, padding: '6px 10px', fontSize: 12.5, width: 130,
           }}
         />
@@ -166,7 +166,7 @@ export function OpLogsPanel() {
           onChange={(e) => setFOperation(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
           style={{
-            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            background: '#0f172a', border: '1px solid #3e4144', color: '#e7e9ea',
             borderRadius: 6, padding: '6px 10px', fontSize: 12.5, width: 200,
           }}
         />
@@ -174,7 +174,7 @@ export function OpLogsPanel() {
           value={fTargetType}
           onChange={(e) => setFTargetType(e.target.value)}
           style={{
-            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            background: '#0f172a', border: '1px solid #3e4144', color: '#e7e9ea',
             borderRadius: 6, padding: '6px 10px', fontSize: 12.5, minWidth: 120,
           }}
         >
@@ -188,7 +188,7 @@ export function OpLogsPanel() {
           onChange={(e) => setFTargetId(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
           style={{
-            background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0',
+            background: '#0f172a', border: '1px solid #3e4144', color: '#e7e9ea',
             borderRadius: 6, padding: '6px 10px', fontSize: 12.5, width: 280, fontFamily: 'monospace',
           }}
         />
@@ -198,24 +198,24 @@ export function OpLogsPanel() {
         </button>
         {hasFilters && (
           <button onClick={clearFilters}
-            style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}>
+            style={{ background: 'transparent', border: '1px solid #3e4144', color: '#71767b', borderRadius: 6, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}>
             清空
           </button>
         )}
         <button onClick={fetchLogs} disabled={loading}
-          style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: loading ? '#475569' : '#94a3b8', borderRadius: 6, padding: '6px 12px', fontSize: 12.5, cursor: loading ? 'wait' : 'pointer' }}>
+          style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #3e4144', color: loading ? '#475569' : '#71767b', borderRadius: 6, padding: '6px 12px', fontSize: 12.5, cursor: loading ? 'wait' : 'pointer' }}>
           {loading ? '加载中…' : '刷新'}
         </button>
-        <span style={{ fontSize: 12, color: '#64748b' }}>
+        <span style={{ fontSize: 12, color: '#71767b' }}>
           共 {total.toLocaleString()} 条
         </span>
       </div>
 
       {/* Table */}
-      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ background: '#1e293b', border: '1px solid #3e4144', borderRadius: 10, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
-            <tr style={{ background: '#0f172a', color: '#64748b', textAlign: 'left' }}>
+            <tr style={{ background: '#0f172a', color: '#71767b', textAlign: 'left' }}>
               <th style={{ padding: '8px 12px', fontWeight: 600, width: 160 }}>时间</th>
               <th style={{ padding: '8px 12px', fontWeight: 600, width: 120 }}>操作人</th>
               <th style={{ padding: '8px 12px', fontWeight: 600, width: 200 }}>操作</th>
@@ -236,13 +236,13 @@ export function OpLogsPanel() {
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#0f172a')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <td style={{ padding: '8px 12px', color: '#94a3b8', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '8px 12px', color: '#71767b', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                     {fmtTs(l.occurred_at)}
                   </td>
-                  <td style={{ padding: '8px 12px', color: '#e2e8f0', fontWeight: 500 }}>
+                  <td style={{ padding: '8px 12px', color: '#e7e9ea', fontWeight: 500 }}>
                     {l.operator}
                     {l.operator === 'anonymous' && (
-                      <span style={{ marginLeft: 4, color: '#64748b', fontSize: 10 }}>(匿名)</span>
+                      <span style={{ marginLeft: 4, color: '#71767b', fontSize: 10 }}>(匿名)</span>
                     )}
                   </td>
                   <td style={{ padding: '8px 12px' }}>
@@ -256,14 +256,14 @@ export function OpLogsPanel() {
                       <span style={{ marginLeft: 4, color: '#475569', fontSize: 10 }}>auto</span>
                     )}
                   </td>
-                  <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{tgtLabel}</td>
-                  <td style={{ padding: '8px 12px', color: '#cbd5e1', maxWidth: 0, overflow: 'hidden' }}>
+                  <td style={{ padding: '8px 12px', color: '#71767b' }}>{tgtLabel}</td>
+                  <td style={{ padding: '8px 12px', color: '#e7e9ea', maxWidth: 0, overflow: 'hidden' }}>
                     {l.target_id && (
-                      <div style={{ color: '#64748b', fontFamily: 'monospace', fontSize: 11, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ color: '#71767b', fontFamily: 'monospace', fontSize: 11, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {l.target_id}
                       </div>
                     )}
-                    <div style={{ color: '#94a3b8', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ color: '#71767b', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {payloadPreview(l.payload)}
                     </div>
                   </td>
@@ -304,7 +304,7 @@ export function OpLogsPanel() {
           <PageBtn label="下一页 ›" disabled={page >= totalPages - 1} onClick={() => setPage(Math.min(totalPages - 1, page + 1))} />
           <PageBtn label="末页 »" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} />
 
-          <span style={{ marginLeft: 12, fontSize: 12, color: '#64748b' }}>第 {page + 1} / {totalPages} 页</span>
+          <span style={{ marginLeft: 12, fontSize: 12, color: '#71767b' }}>第 {page + 1} / {totalPages} 页</span>
         </div>
       )}
 
@@ -313,13 +313,13 @@ export function OpLogsPanel() {
         <div onClick={() => setModalLog(null)}
           style={{ position: 'fixed', inset: 0, background: '#000c', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '760px', width: '100%', maxHeight: '85vh', overflow: 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', cursor: 'default' }}>
+            style={{ maxWidth: '760px', width: '100%', maxHeight: '85vh', overflow: 'auto', background: '#1e293b', border: '1px solid #3e4144', borderRadius: 12, padding: '20px 24px', cursor: 'default' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-              <h3 style={{ margin: 0, color: '#e2e8f0', fontSize: 16 }}>
+              <h3 style={{ margin: 0, color: '#e7e9ea', fontSize: 16 }}>
                 {OP_LABEL[modalLog.operation] ?? modalLog.operation}
               </h3>
               <button onClick={() => setModalLog(null)}
-                style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>
+                style={{ background: 'transparent', border: 'none', color: '#71767b', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>
                 ×
               </button>
             </div>
@@ -338,18 +338,18 @@ export function OpLogsPanel() {
                   ['请求 ID', modalLog.request_id ?? '—'],
                 ].map(([k, v]) => (
                   <tr key={k as string}>
-                    <td style={{ padding: '4px 12px 4px 0', color: '#64748b', whiteSpace: 'nowrap', verticalAlign: 'top', width: 90 }}>{k}</td>
-                    <td style={{ padding: '4px 0', color: '#e2e8f0', fontFamily: typeof v === 'string' && /^[a-f0-9-]{8,}/i.test(v) ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{String(v)}</td>
+                    <td style={{ padding: '4px 12px 4px 0', color: '#71767b', whiteSpace: 'nowrap', verticalAlign: 'top', width: 90 }}>{k}</td>
+                    <td style={{ padding: '4px 0', color: '#e7e9ea', fontFamily: typeof v === 'string' && /^[a-f0-9-]{8,}/i.test(v) ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{String(v)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div style={{ color: '#64748b', fontSize: 12, marginBottom: 6 }}>Payload</div>
+            <div style={{ color: '#71767b', fontSize: 12, marginBottom: 6 }}>Payload</div>
             <pre style={{
-              background: '#0f172a', border: '1px solid #334155', borderRadius: 6,
+              background: '#0f172a', border: '1px solid #3e4144', borderRadius: 6,
               padding: '12px 14px', margin: 0,
-              fontSize: 11.5, color: '#cbd5e1',
+              fontSize: 11.5, color: '#e7e9ea',
               overflow: 'auto', maxHeight: 360,
               fontFamily: '"JetBrains Mono", "SF Mono", Menlo, monospace',
             }}>{JSON.stringify(modalLog.payload, null, 2)}</pre>
