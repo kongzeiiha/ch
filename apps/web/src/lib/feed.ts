@@ -40,6 +40,9 @@ export interface ArticleCardRow {
   tags: string[];
   published_at: string | null;
   source: string | null;
+  /** sources.platform — XPost / 文章详情 用它判断是否手工源:
+   *  manual → 直接显示 source.name 当公开名;其他 → 走 virtualBlogger 哈希化名。 */
+  source_platform: string | null;
   /** content character count, used for the 时长 bucket */
   content_length: number;
   /** 累计点赞数 — 由 /like/:slug 端点维护,卡片角标 / 文章页 LikeButton 都读这列。 */
@@ -61,6 +64,7 @@ const ARTICLE_COLS = `
   i.published_at, i.duration_sec,
   i.pv_30d, i.likes,
   s.name AS source,
+  s.platform AS source_platform,
   JSON_UNQUOTE(JSON_EXTRACT(r.media_urls, '$[0]')) AS cover_fallback,
   JSON_UNQUOTE(JSON_EXTRACT(r.video_urls, '$[0]')) AS video_url,
   (JSON_LENGTH(r.video_urls) > 0) AS has_video,
@@ -444,6 +448,71 @@ export async function getTopSources(limit = 5): Promise<SourceCount[]> {
   });
 }
 
+/** /bloggers 发现页用 — 支持搜索 / 排序 / 分页。
+ *  和 getTopSources 不同:这里 LEFT JOIN items,即使博主一篇还没发也能出现
+ *  (article_count=0),配合"最新加入"tab。 */
+export interface SourceDetail {
+  id: string;
+  name: string;
+  platform: string;
+  article_count: number;
+  last_article_at: string | null;
+  created_at: string;
+}
+export async function searchSources(opts: {
+  q?: string;
+  sort?: 'popular' | 'newest' | 'recent-active';
+  limit?: number;
+  offset?: number;
+}): Promise<{ sources: SourceDetail[]; total: number }> {
+  const limit = Math.min(Math.max(opts.limit ?? 30, 1), 200);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const sort = opts.sort ?? 'popular';
+  const where: string[] = [`s.status = 'active'`];
+  const params: unknown[] = [];
+  let p = 1;
+  if (opts.q && opts.q.trim()) {
+    // 长字符串 LIKE 没意义还拖慢全表扫,截到 64 字符够覆盖博主名场景
+    params.push(`%${opts.q.trim().slice(0, 64)}%`);
+    where.push(`s.name LIKE $${p++}`);
+  }
+  const whereSql = where.join(' AND ');
+
+  // popular: 按发帖数倒序;newest: 按 source 创建时间倒序;
+  // recent-active: 按最近一篇文章时间倒序(沉睡博主排到后面)
+  const orderBy =
+    sort === 'newest' ? 's.created_at DESC'
+    : sort === 'recent-active' ? 'last_article_at DESC, article_count DESC'
+    : 'article_count DESC, s.created_at DESC';
+
+  const [rows, totalRows] = await Promise.all([
+    query<{
+      id: string; name: string; platform: string;
+      article_count: number; last_article_at: string | null; created_at: string;
+    }>(
+      `SELECT s.id, s.name, s.platform, s.created_at,
+              COUNT(i.id) AS article_count,
+              MAX(i.published_at) AS last_article_at
+       FROM sources s
+       LEFT JOIN items i ON i.source_id = s.id AND i.status IN ('PUBLISHED','DISTRIBUTED')
+       WHERE ${whereSql}
+       GROUP BY s.id
+       ORDER BY ${orderBy}
+       LIMIT $${p++} OFFSET $${p++}`,
+      [...params, limit, offset],
+    ),
+    query<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM sources s WHERE ${whereSql}`,
+      params,
+    ),
+  ]);
+
+  return {
+    sources: rows.map((r) => ({ ...r, article_count: Number(r.article_count) })),
+    total: Number(totalRows[0]?.n ?? 0),
+  };
+}
+
 /** Resolve an article slug → row + related (same category, excluding self).
  *  When `media` is passed, also constrains to articles of the same media
  *  kind (video or image-only) so the "相关推荐" strip on a video page only
@@ -525,6 +594,7 @@ function normalize(r: any): ArticleCardRow {
     tags,
     published_at: r.published_at,
     source: r.source ?? null,
+    source_platform: r.source_platform ?? null,
     content_length: Number(r.content_length ?? 0),
     likes: Number(r.likes ?? 0),
     pv_30d: Number(r.pv_30d ?? 0),

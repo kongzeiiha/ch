@@ -16,6 +16,9 @@ export interface TopicDef {
   title: string;
   description: string;
   filter: FeedFilter;
+  /** kind='source' 时携带源的 platform,给 /topic/source-X 上的 profile header
+   *  判断"是否手工博主"用 — 决定头部展示名走哈希化名还是 source.name 直显。 */
+  sourcePlatform?: string;
 }
 
 const SOURCE_PREFIX = 'source-';
@@ -67,6 +70,7 @@ export async function resolveTopic(slug: string): Promise<TopicDef | null> {
       title: rows[0].name,
       description: `${rows[0].name}(${rows[0].platform})出品的全部内容`,
       filter: { sourceId, sort: 'latest' },
+      sourcePlatform: rows[0].platform,
     };
   }
 

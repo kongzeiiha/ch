@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const Fastify = (await import('fastify')).default;
 const fastifyCors = (await import('@fastify/cors')).default;
+const fastifyMultipart = (await import('@fastify/multipart')).default;
 const { query } = await import('@ch/db');
 const { closeAll } = await import('@ch/agents');
 const { startWorkers } = await import('./workers/index.js');
@@ -40,6 +41,8 @@ const { registerAdminAuth } = await import('./admin-auth.js');
 const { registerMediaProxy } = await import('./media-proxy.js');
 const { registerSiteAnalytics } = await import('./site-analytics.js');
 const { registerSiteLikes } = await import('./site-likes.js');
+const { registerSiteFollowing } = await import('./site-following.js');
+const { registerManualPost } = await import('./admin-manual-post.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
 
@@ -51,6 +54,12 @@ async function main(): Promise<void> {
   await app.register(fastifyCors, {
     origin: process.env.WEB_URL ?? 'http://localhost:3000',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+
+  // 手工发帖 / 后台批量导入 都通过 multipart 上传文件,单文件 50MB 上限。
+  // attachFieldsToBody=false:文件用 req.parts() 拿,字段用 req.body 取。
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: 50 * 1024 * 1024, files: 10 },
   });
 
   // Global error hook — forward unhandled Fastify errors to Sentry
@@ -91,6 +100,8 @@ async function main(): Promise<void> {
   registerSiteAnalytics(app);
   // 公开点赞端点(/like/:slug、/likes/:slug)。和 PV 同样不走 admin auth。
   registerSiteLikes(app);
+  // 公开「我关注的」feed 端点(POST /following/feed),客户端把 LS 里的 sourceIds 传过来。
+  registerSiteFollowing(app);
 
   await registerAdmin(app);
   await registerInfra(app);
@@ -103,6 +114,7 @@ async function main(): Promise<void> {
   await registerPipelineAdmin(app);
   await registerFeedbackAdmin(app);
   await registerAnalyticsAdmin(app);
+  registerManualPost(app);
 
   // Sweep zombie agent_runs left behind by a previous process death. `withRun`
   // does INSERT 'running' → run fn → UPDATE 'success/failed' with no `finally`,

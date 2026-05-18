@@ -107,9 +107,10 @@ export function SiteHeader({ crumb, activeTab }: { crumb?: ReactNode; activeTab?
 export function SiteLogo({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
-      <rect x="3"  y="3"  width="18" height="18" rx="3.5" fill="#1d9bf0" fillOpacity="0.32" />
-      <rect x="7"  y="7"  width="18" height="18" rx="3.5" fill="#1d9bf0" fillOpacity="0.62" />
-      <rect x="11" y="11" width="18" height="18" rx="3.5" fill="#1d9bf0" />
+      <rect width="32" height="32" rx="7" fill="#1d9bf0" />
+      <text x="16" y="23" textAnchor="middle"
+            fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif"
+            fontSize="22" fontWeight="900" fill="#ffffff">S</text>
     </svg>
   );
 }

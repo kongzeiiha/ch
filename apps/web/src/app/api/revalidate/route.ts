@@ -42,6 +42,11 @@ export async function POST(req: Request) {
   // costs round-trips we don't need.
   const keys = new Set<string>();
   for (const p of paths) {
+    // /a/<slug> — publishing 当条文章入站时也 revalidate 自己,需要把
+    // 文章页缓存一并失效,否则刷新还是看到旧版本(常见于 cover_url 更新)。
+    if (p.startsWith('/a/')) {
+      keys.add(`article:${decodeURIComponent(p.slice('/a/'.length))}`);
+    }
     if (p === '/') {
       keys.add('latest:12');
       keys.add('hot:6:7');

@@ -11,6 +11,7 @@ import { ThemeTabs } from '../../_components/ThemeTabs';
 import { XLayout } from '../../_components/XLayout';
 import { XFeedHeader } from '../../_components/XFeedHeader';
 import { XPost } from '../../_components/XPost';
+import { XProfileHeader } from '../../_components/XProfileHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,9 +112,22 @@ export default async function TopicPage(
       })} />
       <XFeedHeader title={topic.kind === 'keyword' ? `#${topic.title}` : topic.title} back fallbackHref="/" />
 
+      {/* source 类主题:渲染博主主页头部(banner + 头像 + 关注按钮 + 统计) */}
+      {topic.kind === 'source' && topic.filter.sourceId && (
+        <XProfileHeader
+          sourceId={topic.filter.sourceId}
+          sourceName={topic.title}
+          sourcePlatform={topic.sourcePlatform ?? null}
+          articleCount={total}
+        />
+      )}
+
       <div style={{ padding: '12px 16px 0' }}>
         {topic.kind === 'theme' && <ThemeTabs active={topic.slug} />}
-        <p style={{ color: '#536471', margin: '0 0 12px', fontSize: 14 }}>{topic.description} · 共 {total} 篇</p>
+        {/* source 类已在 ProfileHeader 显示描述 + 篇数,这里不再重复 */}
+        {topic.kind !== 'source' && (
+          <p style={{ color: '#536471', margin: '0 0 12px', fontSize: 14 }}>{topic.description} · 共 {total} 篇</p>
+        )}
         <FilterBar basePath={basePath} current={searchParams} />
       </div>
 

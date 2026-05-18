@@ -206,7 +206,7 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
 async function fanout(): Promise<{ enqueued: number; skipped: number }> {
   const sources = await query<{ id: string; grayscale_pct: number }>(
     `SELECT id, COALESCE(grayscale_pct, 100) AS grayscale_pct
-     FROM sources WHERE status = 'active'`,
+     FROM sources WHERE status = 'active' AND platform != 'manual'`,
   );
   const q = getQueue<IngestionJob>(QUEUE_NAMES.ingestion);
   let enqueued = 0;

@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { query, SITE_URL, SITE_NAME } from '../../../lib/db';
+import { cached } from '../../../lib/cache';
 import { getRelated, readMinutes } from '../../../lib/feed';
 import { breadcrumbJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
 import { proxiedImage, proxiedMedia } from '../../../lib/media';
 import { stripUrlsFromHtml, stripCaptionParagraphs, stripSpamParagraphs, stripTitleArtifacts, cleanTagList, displayTitle } from '../../../lib/strip-urls';
+import { virtualBlogger } from '../../../lib/virtual-blogger';
 import { JsonLd } from '../../_components/JsonLd';
 import { ArticleCard } from '../../_components/ArticleCard';
 import { AdSlot } from '../../_components/AdSlot';
@@ -78,6 +80,9 @@ interface Article {
   /** Source UUID — needed to drive platform-aware Referer/Cookie headers in
    *  the public /img-proxy when fetching X-CDN / 2ksg / knit posters. */
   source_id: string;
+  /** sources.platform — manual 源直接用 source.name 当公开博主名,
+   *  其他平台走 virtualBlogger 哈希化名。 */
+  source_platform: string | null;
   url: string;
   media_urls: string[];
   video_urls: string[];
@@ -86,27 +91,33 @@ interface Article {
 }
 
 async function loadArticle(slug: string): Promise<Article | null> {
-  const rows = await query<Article>(
-    `SELECT i.id, i.slug, i.title, i.summary, i.content, i.content_html,
-            i.category, i.tags, i.keywords, i.cover_url, i.cover_sizes,
-            i.published_at, s.name AS source, i.source_id, r.url,
-            r.media_urls, r.video_urls, i.likes
-     FROM items i
-     JOIN sources s ON s.id = i.source_id
-     JOIN raw_items r ON r.id = i.raw_item_id
-     WHERE i.slug = $1 AND i.status IN ('PUBLISHED','DISTRIBUTED')
-     LIMIT 1`,
-    [slug],
-  );
-  const a = rows[0];
-  if (!a) return null;
-  // Filter LLM-artifact tags/keywords ("关键词《X》") + sentence-length junk
-  // here so downstream surfaces (h1 strip is title-only, but tag chips,
-  // <meta keywords>, JSON-LD keywords, content linkifyTags) all see clean
-  // arrays. Matches feed.ts normalize() behavior on listing pages.
-  a.tags = cleanTagList(a.tags);
-  a.keywords = cleanTagList(a.keywords);
-  return a;
+  // 文章页冷启动 ~22s,主要是 3 表 JOIN 远程查;slug 改动只发生在 publishing
+  // 阶段,缓存 60s 既贴近 force-dynamic 的"实时"语义,又把热门文章的重复
+  // 访问压回 100ms 级。
+  return cached(`article:${slug}`, 60, async () => {
+    const rows = await query<Article>(
+      `SELECT i.id, i.slug, i.title, i.summary, i.content, i.content_html,
+              i.category, i.tags, i.keywords, i.cover_url, i.cover_sizes,
+              i.published_at, s.name AS source, s.platform AS source_platform,
+              i.source_id, r.url,
+              r.media_urls, r.video_urls, i.likes
+       FROM items i
+       JOIN sources s ON s.id = i.source_id
+       JOIN raw_items r ON r.id = i.raw_item_id
+       WHERE i.slug = $1 AND i.status IN ('PUBLISHED','DISTRIBUTED')
+       LIMIT 1`,
+      [slug],
+    );
+    const a = rows[0];
+    if (!a) return null;
+    // Filter LLM-artifact tags/keywords ("关键词《X》") + sentence-length junk
+    // here so downstream surfaces (h1 strip is title-only, but tag chips,
+    // <meta keywords>, JSON-LD keywords, content linkifyTags) all see clean
+    // arrays. Matches feed.ts normalize() behavior on listing pages.
+    a.tags = cleanTagList(a.tags);
+    a.keywords = cleanTagList(a.keywords);
+    return a;
+  });
 }
 
 /** Next.js 15 leaves the URL-encoded form on `params.slug` for non-ASCII
@@ -317,9 +328,8 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
     datePublished: a.published_at,
     dateModified: a.published_at,
     mainEntityOfPage: `${SITE_URL}/a/${a.slug}`,
-    // Source acts as both author and the original publisher; the platform itself
-    // is the redistributing publisher and gets the Organization role.
-    author: { '@type': 'Organization', name: a.source },
+    // Author:爬虫源走哈希化名,手工源用 a.source(运营选定的名字)。
+    author: { '@type': 'Organization', name: virtualBlogger(a.source_id, { platform: a.source_platform, name: a.source }).name },
     publisher: { '@type': 'Organization', name: SITE_NAME },
     inLanguage: 'zh-CN',
     isAccessibleForFree: true,

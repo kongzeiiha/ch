@@ -35,7 +35,8 @@ export type AdminTab =
   | 'publishing'
   | 'distribution'
   | 'ops'
-  | 'feedback';
+  | 'feedback'
+  | 'post-new';
 
 export function AdminNav({ current }: { current: AdminTab }) {
   return (
@@ -43,6 +44,7 @@ export function AdminNav({ current }: { current: AdminTab }) {
       <Link href="/admin/infra"            style={{ ...base, ...(current === 'infra' ? active : inactive) }}>基础设施</Link>
       <Link href="/admin/source-scoring"   style={{ ...base, ...(current === 'source-scoring' ? active : inactive) }}>Source 评分</Link>
       <Link href="/admin"                  style={{ ...base, ...(current === 'ingestion' ? active : inactive) }}>采集</Link>
+      <Link href="/admin/post-new"         style={{ ...base, ...(current === 'post-new' ? active : inactive) }}>+ 手工发帖</Link>
       <Link href="/admin/classify-title"   style={{ ...base, ...(current === 'classify-title' ? active : inactive) }}>分类与标题</Link>
       <Link href="/admin/cover-compliance" style={{ ...base, ...(current === 'cover-compliance' ? active : inactive) }}>封面与合规</Link>
       <Link href="/admin/publishing"       style={{ ...base, ...(current === 'publishing' ? active : inactive) }}>发布</Link>

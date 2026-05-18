@@ -46,7 +46,9 @@ const PAGE_SIZE = 20;
 export default async function Home(props: { searchParams: Promise<SearchParams> }) {
   const searchParams = await props.searchParams;
   const page = Math.max(1, Number(searchParams.page ?? 1) || 1);
-  const sort: 'latest' | 'hot' = searchParams.sort === 'latest' ? 'latest' : 'hot';
+  // 首页默认按"最新"展示,/?sort=hot 才走热度公式 — 否则左侧导航的「首页」
+  // 和「热门」会渲染出完全相同的列表(都是 sort=hot),用户看不出差别。
+  const sort: 'latest' | 'hot' = searchParams.sort === 'hot' ? 'hot' : 'latest';
   const media = searchParams.media;
 
   const { items, total } = await getFiltered({
@@ -62,6 +64,7 @@ export default async function Home(props: { searchParams: Promise<SearchParams> 
 
   const title = media === 'video' ? '视频'
     : media === 'image' ? '图片'
+    : sort === 'hot' ? '热门'
     : '首页';
   const activeNav = media === 'video' ? 'videos'
     : media === 'image' ? 'images'
@@ -69,10 +72,11 @@ export default async function Home(props: { searchParams: Promise<SearchParams> 
     : 'home';
 
   // X.com tab strip:为你推荐(=最热) / 最新 / 关注(占位,无登录)
+  // 默认 sort=latest,所以 latest tab href 不带参数,hot tab 显式带 ?sort=hot
   const subTabHref = (next: 'hot' | 'latest') => {
     const p = new URLSearchParams();
     if (media) p.set('media', media);
-    if (next === 'latest') p.set('sort', 'latest');
+    if (next === 'hot') p.set('sort', 'hot');
     return p.toString() ? `/?${p.toString()}` : '/';
   };
 

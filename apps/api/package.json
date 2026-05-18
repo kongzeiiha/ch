@@ -21,6 +21,7 @@
     "@ch/db": "workspace:*",
     "@ch/text-clean": "workspace:*",
     "@fastify/cors": "^8.5.0",
+    "@fastify/multipart": "^8.3.1",
     "@google-analytics/data": "^5.2.1",
     "@mozilla/readability": "^0.6.0",
     "axios": "^1.15.2",
