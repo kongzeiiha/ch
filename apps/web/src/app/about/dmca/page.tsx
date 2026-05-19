@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { SITE_NAME, SITE_URL } from '../../../lib/db';
 import { AboutShell } from '../_layout';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: `版权投诉 - ${SITE_NAME}`,
   description: '版权侵权投诉与下架流程',

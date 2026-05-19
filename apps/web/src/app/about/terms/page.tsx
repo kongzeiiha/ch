@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import { SITE_NAME, SITE_URL } from '../../../lib/db';
 import { AboutShell } from '../_layout';
 
+// AboutShell 套 XLayout → XRightRail 查 DB; build 静态预渲染时拿不到 MySQL/Redis。
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: `服务条款 - ${SITE_NAME}`,
   description: '本站服务条款',

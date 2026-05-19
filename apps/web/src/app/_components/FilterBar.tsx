@@ -19,6 +19,9 @@ interface Props {
      *  any other facet, otherwise toggling 时长 silently drops the media
      *  scope and the URL falls back to "最新更新". */
     media?: 'video' | 'image';
+    /** Search keyword (?q=...). 仅 /search 页面有,其它页面这个字段为空。
+     *  必须保留在每个 pill 链接里,否则切排序 / 时长会把搜索关键词丢掉。 */
+    q?: string;
   };
   /** Available tags within the current scope (category, search etc.). */
   tags?: { tag: string; count: number }[];
@@ -52,7 +55,9 @@ export function FilterBar({ basePath, current, tags, omitSort, defaultSort = 'la
       else (next as Record<string, unknown>)[k] = v;
     }
     const params = new URLSearchParams();
-    // media + category scope the whole listing — preserve through every toggle.
+    // q + media + category scope the whole listing — preserve through every toggle.
+    // q 必须最先拼,搜索页切排序 / 时长时不能把关键词丢掉。
+    if (next.q)        params.set('q', next.q);
     if (next.media)    params.set('media', next.media);
     if (next.category) params.set('category', next.category);
     if (next.tag)      params.set('tag', next.tag);

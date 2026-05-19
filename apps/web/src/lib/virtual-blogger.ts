@@ -1,50 +1,45 @@
-// 把采集源的真实名字(@chengrenshipin 之类)在展示层换成一个稳定化名,
-// 避免直接暴露上游博主身份。同一个 source_id 永远映射到同一个化名,
-// 这样列表 / 详情 / 推荐栏里同一博主的卡片一眼能认出来。
+// 计算公开站点上博主卡片的显示身份。
 //
-// 算法:source_id(UUID)→ 5 位 base36 后缀 → "博主_XXXXX"。
-// UUID 有 122 位熵,取 base36 5 位(~26 bit)冲突率在万级源里仍 <0.01%。
-// handle 取小写形式直接当 @ 句柄,跟 X 的 handle 风格一致。
+// 现行策略:**直接使用上游源的真实名字**(sources.name)— 手工源用运营填的
+// 名字,爬虫源用采集到的原平台名字。只有在 source 行根本没有 name(罕见
+// 兜底场景)时,才退化为基于 source_id 哈希的"博主_XXXXX"。
+//
+// 早期版本曾把所有爬虫源哈希遮蔽,后取消 — 用户要的是能识别原博主。
+//
+// handle 仍走派生:从 name 抽出 ASCII 字段当 @ 句柄;中文名没有可派生
+// 字段时,handle 退化为基于 source_id 的稳定后缀,保证同一博主每次显示
+// 的 @ 一致。
 
 export interface VirtualBlogger {
-  /** 显示名: "博主_XK4Z2" */
+  /** 显示名: 通常就是 sources.name */
   name: string;
-  /** @handle: "@blogger_xk4z2" */
+  /** @handle: 基于 name 派生或哈希兜底 */
   handle: string;
-  /** 首字母,头像里那个色块上的字:"X" */
+  /** 头像色块上的首字 */
   initial: string;
 }
 
-/**
- * 计算公开站点上博主的显示身份。
- *
- *   - 爬虫源(platform != 'manual'):走哈希化名 — 不暴露真实 @handle,
- *     同一 source_id 永远映射到同一个"博主_XXXXX"。
- *   - 手工源(platform === 'manual'):直接用运营在 /admin/post-new 创建时
- *     填写的 name 当显示名,handle 也基于该 name 派生 — 这是运营有意公开的
- *     虚拟身份,不该被哈希遮蔽。
- *
- *  opts 可选,不传走纯哈希路径 — 旧调用点不破坏。
- */
 export function virtualBlogger(
   sourceId: string | null | undefined,
   opts?: { platform?: string | null; name?: string | null },
 ): VirtualBlogger {
-  if (!sourceId) return { name: '匿名博主', handle: '@anonymous', initial: '?' };
-
-  // 手工源:运营自取的名字直接当显示名。
-  if (opts?.platform === 'manual' && opts.name && opts.name.trim()) {
-    const name = opts.name.trim();
-    // handle 用 name 的 ASCII 字符派生,中文名退化为基于 source_id 后缀的 handle
-    const asciiOnly = name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-    const handle = asciiOnly.length >= 3
-      ? `@${asciiOnly.slice(0, 20)}`
-      : `@blogger_${hashSuffix(sourceId)}`.toLowerCase();
-    return { name, handle, initial: name.charAt(0).toUpperCase() };
+  if (!sourceId && !opts?.name) {
+    return { name: '匿名博主', handle: '@anonymous', initial: '?' };
   }
 
-  // 默认路径:FNV-1a 哈希,稳定 + 跨平台一致。
-  const suffix = hashSuffix(sourceId);
+  const rawName = opts?.name?.trim();
+  if (rawName) {
+    // 名字直接显示。@ 试从名字 ASCII 字符派生 — 中文名退化为基于 sourceId 的哈希后缀
+    // 以保证同一 source 的 handle 跨页面一致。
+    const asciiOnly = rawName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+    const handle = asciiOnly.length >= 3
+      ? `@${asciiOnly.slice(0, 20)}`
+      : `@blogger_${hashSuffix(sourceId ?? rawName)}`.toLowerCase();
+    return { name: rawName, handle, initial: rawName.charAt(0).toUpperCase() };
+  }
+
+  // 兜底:没拿到 name(几乎只在数据脏的情况) — 用 source_id 哈希出一个稳定别名
+  const suffix = hashSuffix(sourceId!);
   return {
     name:    `博主_${suffix}`,
     handle:  `@blogger_${suffix.toLowerCase()}`,

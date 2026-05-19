@@ -128,10 +128,25 @@ export function isJunkTag(tag: string | null | undefined): boolean {
   return false;
 }
 
-/** Filter an array of tags/keywords through isJunkTag. */
+/** Filter an array of tags/keywords through isJunkTag.
+ *  也顺手剥掉前缀 # / ＃ (fullwidth U+FF03) — 某些 X / 中文社区把 hash 符当成
+ *  标签字面的一部分写进去, 站点显示时再带个 # 视觉很乱; 用户搜索点击时
+ *  统一去掉。空字符串(剥完 # 后)直接丢弃。 */
 export function cleanTagList(tags: unknown): string[] {
   if (!Array.isArray(tags)) return [];
-  return tags.filter((t): t is string => typeof t === 'string' && !isJunkTag(t));
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of tags) {
+    if (typeof t !== 'string') continue;
+    if (isJunkTag(t)) continue;
+    const stripped = t.replace(/^[#＃]+/, '').trim();
+    if (!stripped) continue;
+    const key = stripped.toLowerCase();
+    if (seen.has(key)) continue;  // 同篇文章不重复同一个标签
+    seen.add(key);
+    out.push(stripped);
+  }
+  return out;
 }
 
 /**

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getTopTags, getTopSources } from '../../lib/feed';
 import { virtualBlogger } from '../../lib/virtual-blogger';
+import { proxiedImage } from '../../lib/media';
 import { X } from './theme';
 import { SearchIcon } from './XIcons';
 
@@ -15,7 +16,7 @@ const RAIL_CSS = `
 
 export async function XRightRail() {
   const [tags, sources] = await Promise.all([
-    getTopTags(6),
+    getTopTags(10),
     getTopSources(5),
   ]);
 
@@ -64,13 +65,17 @@ export async function XRightRail() {
       {tags.length > 0 && (
         <section style={blockStyle}>
           <h3 style={blockTitleStyle}>热门标签</h3>
+          {/* 每行一个标签,左侧 tag 名右侧篇数。不再重复显示 #tag + tag 两遍。 */}
           {tags.map((t) => (
             <Link key={t.tag} href={`/tag/${encodeURIComponent(t.tag)}`}
               className="xrail-trend"
-              style={{ display: 'block', padding: '8px 12px', textDecoration: 'none', margin: '0 -12px' }}>
-              <div style={{ fontSize: 11, color: X.textMuted }}>#{t.tag}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: X.text, margin: '2px 0' }}>{t.tag}</div>
-              <div style={{ fontSize: 12, color: X.textMuted }}>{t.count} 篇文章</div>
+              style={{
+                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                padding: '8px 12px', margin: '0 -12px',
+                textDecoration: 'none', gap: 8,
+              }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: X.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.tag}</span>
+              <span style={{ fontSize: 12, color: X.textMuted, flexShrink: 0 }}>{t.count}</span>
             </Link>
           ))}
         </section>
@@ -90,12 +95,21 @@ export async function XRightRail() {
                   padding: '8px 12px', margin: '0 -12px',
                   textDecoration: 'none',
                 }}>
-                <div style={{
-                  ...avatarGradient(s.id),
-                  width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#ffffff', fontWeight: 800, fontSize: 16,
-                }}>{vb.initial}</div>
+                {s.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={proxiedImage(s.avatar_url, s.id)} alt={vb.name} loading="lazy"
+                    style={{
+                      width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                      objectFit: 'cover', background: X.surfaceHover,
+                    }} />
+                ) : (
+                  <div style={{
+                    ...avatarGradient(s.id),
+                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#ffffff', fontWeight: 800, fontSize: 16,
+                  }}>{vb.initial}</div>
+                )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: X.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vb.name}</div>
                   <div style={{ fontSize: 12, color: X.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vb.handle} · {s.article_count} 篇</div>

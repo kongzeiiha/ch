@@ -7,7 +7,11 @@ import { cleanTagList, isJunkTag } from './strip-urls';
 // cloud is invisible to humans and saves orders of magnitude on JSON_TABLE
 // full scans once the corpus grows. Tuned via env so ops can drop this for
 // incident debugging without a code change.
-const HOT_TTL = Number(process.env.FEED_CACHE_TTL ?? 60);
+// 默认不走 Redis 列表缓存(TTL=0 → cached() 直接 compute,跳过 GET/SET)。
+// 当前数据量小(<1k items),local MySQL 单次列表 SQL 在 50-100ms,完全够用;
+// 同时点赞 / 评论 / 浏览数能立即反映,不再需要复杂的写时 invalidate 逻辑。
+// 流量上来后可设 FEED_CACHE_TTL=30 之类的环境变量重新启用缓存。
+const HOT_TTL = Number(process.env.FEED_CACHE_TTL ?? 0);
 
 export interface ArticleCardRow {
   id: string;
@@ -43,6 +47,9 @@ export interface ArticleCardRow {
   /** sources.platform — XPost / 文章详情 用它判断是否手工源:
    *  manual → 直接显示 source.name 当公开名;其他 → 走 virtualBlogger 哈希化名。 */
   source_platform: string | null;
+  /** sources.avatar_url — 爬虫抓 X 时存的博主头像 URL。XPost / XProfileHeader
+   *  优先用它渲染 <img>,空时回落到渐变色块 + 首字母。 */
+  source_avatar: string | null;
   /** content character count, used for the 时长 bucket */
   content_length: number;
   /** 累计点赞数 — 由 /like/:slug 端点维护,卡片角标 / 文章页 LikeButton 都读这列。 */
@@ -50,6 +57,8 @@ export interface ArticleCardRow {
   /** 30 天滚动 PV — items.pv_30d 物化列,由 analytics worker 每小时刷。
    *  卡片在 meta 行展示,可以让用户在列表页看到热度信号。 */
   pv_30d: number;
+  /** 评论数 — 关联 comments 表的 COUNT。卡片底栏 CommentIcon 旁边显示。 */
+  comment_count: number;
 }
 
 export interface TagCount { tag: string; count: number }
@@ -63,8 +72,10 @@ const ARTICLE_COLS = `
   i.cover_url, i.cover_sizes, i.category, i.tags,
   i.published_at, i.duration_sec,
   i.pv_30d, i.likes,
-  s.name AS source,
+  COALESCE(s.display_name, s.name) AS source,
   s.platform AS source_platform,
+  s.avatar_url AS source_avatar,
+  (SELECT COUNT(*) FROM comments c WHERE c.item_id = i.id) AS comment_count,
   JSON_UNQUOTE(JSON_EXTRACT(r.media_urls, '$[0]')) AS cover_fallback,
   JSON_UNQUOTE(JSON_EXTRACT(r.video_urls, '$[0]')) AS video_url,
   (JSON_LENGTH(r.video_urls) > 0) AS has_video,
@@ -285,8 +296,9 @@ async function getFilteredUncached(f: FeedFilter): Promise<{ items: ArticleCardR
     query<ArticleCardRow>(
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
-              t.published_at, t.duration_sec, t.source, t.cover_fallback, t.video_url,
-              t.has_video, t.has_image, t.content_length, t.pv_30d, t.likes
+              t.published_at, t.duration_sec, t.source, t.source_platform, t.source_avatar,
+              t.cover_fallback, t.video_url,
+              t.has_video, t.has_image, t.content_length, t.pv_30d, t.likes, t.comment_count
        FROM (
          SELECT ${ARTICLE_COLS},
                 ${hotScore} AS hot_score,
@@ -316,10 +328,20 @@ async function getFilteredUncached(f: FeedFilter): Promise<{ items: ArticleCardR
 /** Full-text search via MySQL ngram parser. Empty q falls back to filter-only. */
 export async function search(opts: FeedFilter & { q?: string }): Promise<{ items: ArticleCardRow[]; total: number }> {
   if (!opts.q || !opts.q.trim()) return getFiltered(opts);
-
+  // 搜索缓存 60s — 用户切换 最新/最热 / 翻页时,相同 q 命中 Redis 直返,
+  // 避免每次都跑 MATCH AGAINST + ROW_NUMBER 去重子查询(MySQL 上慢)。
+  // 60s 足够覆盖一次浏览会话内的来回切换,新发布的内容也能在 1 分钟内到位。
+  const q = opts.q.trim();
   const limit = opts.limit ?? 24;
   const offset = opts.offset ?? 0;
-  const q = opts.q.trim();
+  const cacheKey = `search:${q.slice(0, 64)}:${opts.sort ?? 'latest'}:${opts.category ?? ''}:${opts.tag ?? ''}:${opts.length ?? ''}:${opts.date ?? ''}:${limit}:${offset}`;
+  return cached(cacheKey, 60, () => searchUncached(opts));
+}
+
+async function searchUncached(opts: FeedFilter & { q?: string }): Promise<{ items: ArticleCardRow[]; total: number }> {
+  const limit = opts.limit ?? 24;
+  const offset = opts.offset ?? 0;
+  const q = opts.q!.trim();
   const where: string[] = [
     "i.status IN ('PUBLISHED','DISTRIBUTED')",
     'MATCH(i.title, i.summary, i.content) AGAINST ($1 IN NATURAL LANGUAGE MODE)',
@@ -362,8 +384,9 @@ export async function search(opts: FeedFilter & { q?: string }): Promise<{ items
     query<ArticleCardRow>(
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
-              t.published_at, t.duration_sec, t.source, t.cover_fallback, t.video_url,
-              t.has_video, t.has_image, t.content_length
+              t.published_at, t.duration_sec, t.source, t.source_platform, t.source_avatar,
+              t.cover_fallback, t.video_url,
+              t.has_video, t.has_image, t.content_length, t.pv_30d, t.likes, t.comment_count
        FROM (
          SELECT ${ARTICLE_COLS},
                 MATCH(i.title, i.summary, i.content) AGAINST ($1 IN NATURAL LANGUAGE MODE) AS rel,
@@ -415,10 +438,21 @@ export async function getTopTags(limit = 30): Promise<TagCount[]> {
        LIMIT $1`,
       [limit * 3],
     );
-    return rows
-      .filter((r) => !isJunkTag(r.tag))
+    // 1) 过滤 LLM-artifact / 句子长度 / URL 形态的 junk 标签
+    // 2) 剥掉前缀 # / ＃ — 某些 X / 中文社区把 hash 符当成 tag 字面一部分写进 DB,
+    //    显示时不该带它(右栏 / 详情 / search / tag 索引四处统一)
+    // 3) 同名合并:`日本` 和 `＃日本` 应该是同一个标签,count 累加
+    const merged = new Map<string, number>();
+    for (const r of rows) {
+      if (isJunkTag(r.tag)) continue;
+      const clean = r.tag.replace(/^[#＃]+/, '').trim();
+      if (!clean) continue;
+      merged.set(clean, (merged.get(clean) ?? 0) + Number(r.count));
+    }
+    return [...merged.entries()]
+      .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
-      .map((r) => ({ tag: r.tag, count: Number(r.count) }));
+      .map(([tag, count]) => ({ tag, count }));
   });
 }
 
@@ -429,16 +463,21 @@ export interface SourceCount {
   id: string;
   name: string;
   platform: string;
+  avatar_url: string | null;
   article_count: number;
 }
 export async function getTopSources(limit = 5): Promise<SourceCount[]> {
   return cached(`sources:${limit}`, HOT_TTL, async () => {
-    const rows = await query<{ id: string; name: string; platform: string; article_count: number }>(
-      `SELECT s.id, s.name, s.platform, COUNT(i.id) AS article_count
+    const rows = await query<{ id: string; name: string; platform: string; avatar_url: string | null; article_count: number }>(
+      // 排除 admin-manual-post.ts 自动建的 "手工录入" 兜底源 — 运营手工发帖时
+      // 没指定发帖人会归到这条上,在公开推荐栏出现一个名字叫"手工录入"的"博主"
+      // 视觉很怪。手工源里运营显式建的(不同 external_id)正常出现。
+      `SELECT s.id, COALESCE(s.display_name, s.name) AS name, s.platform, s.avatar_url, COUNT(i.id) AS article_count
        FROM sources s
        JOIN items i ON i.source_id = s.id
         AND i.status IN ('PUBLISHED','DISTRIBUTED')
        WHERE s.status = 'active'
+         AND NOT (s.platform = 'manual' AND s.external_id = 'manual-posts')
        GROUP BY s.id
        ORDER BY article_count DESC
        LIMIT $1`,
@@ -455,6 +494,7 @@ export interface SourceDetail {
   id: string;
   name: string;
   platform: string;
+  avatar_url: string | null;
   article_count: number;
   last_article_at: string | null;
   created_at: string;
@@ -468,13 +508,33 @@ export async function searchSources(opts: {
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
   const sort = opts.sort ?? 'popular';
-  const where: string[] = [`s.status = 'active'`];
+  // 走 Redis 缓存 — /bloggers 列表是高频读 + 低写入,GROUP BY + LEFT JOIN 没必要
+  // 每次回源。手工源新建 / 显示名更新都不需要即时反映在列表里。
+  const cacheKey = `bloggers:${sort}:${(opts.q ?? '').slice(0, 64)}:${limit}:${offset}`;
+  return cached(cacheKey, HOT_TTL, () => searchSourcesUncached(opts));
+}
+
+async function searchSourcesUncached(opts: {
+  q?: string;
+  sort?: 'popular' | 'newest' | 'recent-active';
+  limit?: number;
+  offset?: number;
+}): Promise<{ sources: SourceDetail[]; total: number }> {
+  const limit = Math.min(Math.max(opts.limit ?? 30, 1), 200);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const sort = opts.sort ?? 'popular';
+  // 同 getTopSources: 排除 admin-manual-post 自动建的"手工录入"兜底源。
+  const where: string[] = [
+    `s.status = 'active'`,
+    `NOT (s.platform = 'manual' AND s.external_id = 'manual-posts')`,
+  ];
   const params: unknown[] = [];
   let p = 1;
   if (opts.q && opts.q.trim()) {
-    // 长字符串 LIKE 没意义还拖慢全表扫,截到 64 字符够覆盖博主名场景
+    // 长字符串 LIKE 没意义还拖慢全表扫,截到 64 字符够覆盖博主名场景。
+    // display_name 优先匹配(X 上的真实显示名), 退化匹配 name(@handle)。
     params.push(`%${opts.q.trim().slice(0, 64)}%`);
-    where.push(`s.name LIKE $${p++}`);
+    where.push(`COALESCE(s.display_name, s.name) LIKE $${p++}`);
   }
   const whereSql = where.join(' AND ');
 
@@ -487,10 +547,10 @@ export async function searchSources(opts: {
 
   const [rows, totalRows] = await Promise.all([
     query<{
-      id: string; name: string; platform: string;
+      id: string; name: string; platform: string; avatar_url: string | null;
       article_count: number; last_article_at: string | null; created_at: string;
     }>(
-      `SELECT s.id, s.name, s.platform, s.created_at,
+      `SELECT s.id, COALESCE(s.display_name, s.name) AS name, s.platform, s.avatar_url, s.created_at,
               COUNT(i.id) AS article_count,
               MAX(i.published_at) AS last_article_at
        FROM sources s
@@ -595,6 +655,8 @@ function normalize(r: any): ArticleCardRow {
     published_at: r.published_at,
     source: r.source ?? null,
     source_platform: r.source_platform ?? null,
+    source_avatar: r.source_avatar ?? null,
+    comment_count: Number(r.comment_count ?? 0),
     content_length: Number(r.content_length ?? 0),
     likes: Number(r.likes ?? 0),
     pv_30d: Number(r.pv_30d ?? 0),

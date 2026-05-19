@@ -2,9 +2,8 @@ import Link from 'next/link';
 import { X } from './theme';
 import {
   HomeIcon, FlameIcon, PlayIcon, ImageIcon, HashIcon,
-  NewspaperIcon, SearchIcon, CogIcon, StarIcon, UsersIcon, HeartIcon,
+  NewspaperIcon, SearchIcon, CogIcon, StarIcon, UsersIcon,
 } from './XIcons';
-import { FollowCountBadge } from './FollowIndicators';
 
 // X.com 风格的左侧 sticky 导航。240px 宽,SVG 图标 + label。
 // 桌面满宽显示;窄屏(<1100px)由父布局让位收掉。
@@ -19,7 +18,6 @@ export type NavKey =
   | 'tags'
   | 'topics'
   | 'bloggers'
-  | 'following'
   | 'search';
 
 const ITEMS: Array<{ key: NavKey; label: string; href: string; Icon: typeof HomeIcon }> = [
@@ -28,8 +26,6 @@ const ITEMS: Array<{ key: NavKey; label: string; href: string; Icon: typeof Home
   { key: 'videos',    label: '视频',     href: '/?media=video',      Icon: PlayIcon },
   { key: 'images',    label: '图片',     href: '/?media=image',      Icon: ImageIcon },
   { key: 'bloggers',  label: '博主',     href: '/bloggers',          Icon: UsersIcon },
-  { key: 'following', label: '关注',     href: '/following',         Icon: HeartIcon },
-  { key: 'topics',    label: '主题',     href: '/topic/weekly-hot',  Icon: NewspaperIcon },
   { key: 'tags',      label: '标签',     href: '/tag',               Icon: HashIcon },
   { key: 'search',    label: '搜索',     href: '/search',            Icon: SearchIcon },
 ];
@@ -78,10 +74,11 @@ export function XSideNav({ active }: { active?: NavKey }) {
         return (
           <Link key={it.key} href={it.href} className="xnav-item" style={navItemStyle(isActive)}>
             <span style={{ width: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon filled={isActive} size={26} />
+              {/* active 时不再 fill 实心 — 实心会把 icon 渲染成黑色块,视觉太重。
+                  active 状态用 label 的 fontWeight=800 自己表达。 */}
+              <Icon size={26} />
             </span>
             <span>{it.label}</span>
-            {it.key === 'following' && <FollowCountBadge />}
           </Link>
         );
       })}

@@ -118,6 +118,7 @@ export default async function TopicPage(
           sourceId={topic.filter.sourceId}
           sourceName={topic.title}
           sourcePlatform={topic.sourcePlatform ?? null}
+          sourceAvatar={topic.sourceAvatar ?? null}
           articleCount={total}
         />
       )}
@@ -128,7 +129,18 @@ export default async function TopicPage(
         {topic.kind !== 'source' && (
           <p style={{ color: '#536471', margin: '0 0 12px', fontSize: 14 }}>{topic.description} · 共 {total} 篇</p>
         )}
-        <FilterBar basePath={basePath} current={searchParams} />
+        {/* current 把 topic 自带的 filter(weekly-hot 的 date=7d / sort=hot 等)合进去,
+            没被 URL ?key= 覆盖时 pill 也能正确显示选中态。URL 上的 ?length=long 等
+            优先,这是用户在 topic 上面的二次筛选。 */}
+        <FilterBar
+          basePath={basePath}
+          current={{
+            tag:    searchParams.tag    ?? topic.filter.tag,
+            length: searchParams.length ?? topic.filter.length,
+            date:   searchParams.date   ?? topic.filter.date,
+            sort:   searchParams.sort   ?? topic.filter.sort,
+          }}
+        />
       </div>
 
       {items.length === 0 ? (

@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { AgeGate } from './_components/AgeGate';
+import { BfcacheRefresh } from './_components/BfcacheRefresh';
+import { LiveCountPatcher } from './_components/LiveCountPatcher';
 import { JsonLd } from './_components/JsonLd';
 import { websiteJsonLd, organizationJsonLd, AGE_GATE_EXIT_URL } from '../lib/seo';
 import { X } from './_components/theme';
@@ -47,6 +49,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       }}>
         {children}
         <AgeGate exitUrl={AGE_GATE_EXIT_URL} />
+        <BfcacheRefresh />
+        <LiveCountPatcher />
       </body>
     </html>
   );

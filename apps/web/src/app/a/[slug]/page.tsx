@@ -15,6 +15,7 @@ import { CTAModule } from '../../_components/CTAModule';
 import { ImageLightbox } from '../../_components/ImageLightbox';
 import { PvBeacon } from '../../_components/PvBeacon';
 import { LikeButton } from '../../_components/LikeButton';
+import { CommentSection } from '../../_components/CommentSection';
 import { XLayout } from '../../_components/XLayout';
 import { XFeedHeader } from '../../_components/XFeedHeader';
 
@@ -83,9 +84,15 @@ interface Article {
   /** sources.platform — manual 源直接用 source.name 当公开博主名,
    *  其他平台走 virtualBlogger 哈希化名。 */
   source_platform: string | null;
+  /** sources.avatar_url — 文章详情头部小头像用。 */
+  source_avatar: string | null;
   url: string;
   media_urls: string[];
   video_urls: string[];
+  /** 视频播放时长(秒)— 由 ingestion 阶段 ffprobe 写入 items.duration_sec。
+   *  视频文章顶部 meta 行用它替代"X 分钟阅读";非视频文章为 NULL,回退到
+   *  按字数估算的 readMinutes。 */
+  duration_sec: number | null;
   /** 已点赞总数 — SSR 时直读列。客户端 LikeButton 挂载后会自校验。 */
   likes: number;
 }
@@ -98,9 +105,9 @@ async function loadArticle(slug: string): Promise<Article | null> {
     const rows = await query<Article>(
       `SELECT i.id, i.slug, i.title, i.summary, i.content, i.content_html,
               i.category, i.tags, i.keywords, i.cover_url, i.cover_sizes,
-              i.published_at, s.name AS source, s.platform AS source_platform,
+              i.published_at, COALESCE(s.display_name, s.name) AS source, s.platform AS source_platform, s.avatar_url AS source_avatar,
               i.source_id, r.url,
-              r.media_urls, r.video_urls, i.likes
+              r.media_urls, r.video_urls, i.duration_sec, i.likes
        FROM items i
        JOIN sources s ON s.id = i.source_id
        JOIN raw_items r ON r.id = i.raw_item_id
@@ -176,6 +183,17 @@ function linkifyTags(text: string, knownTags: string[]): string {
     const href = `/tag/${encodeURIComponent(name)}`;
     return `<a href="${href}" style="color:#1d9bf0;text-decoration:none;">${hash}${name}</a>`;
   });
+}
+
+/** 秒数 → "M:SS" 或 "H:MM:SS" 的视频时长格式(同 YouTube/Tube 站惯例)。
+ *  和卡片右下角时长 overlay 用同一格式,保持站内一致。 */
+function formatDurationLabel(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
 function classifyMedia(media: string[], videos: string[]): MediaItem[] {
@@ -313,6 +331,17 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
         });
   const minutes = readMinutes((a.content ?? '').length);
 
+  // 视频文章顶部 meta 行用真实播放时长 "X:SS" 替代按字数估算的"分钟阅读"。
+  // 视频帖子 content 通常只是一句话(<20 字), readMinutes 永远返回 1,
+  // 显示"1 分钟阅读"对视频读者毫无信息量;改用 DB 里 ffprobe 抓的真实
+  // duration_sec, 跟列表卡右下角的时长 overlay 一致。
+  const durationSec = isVideoPost && a.duration_sec && a.duration_sec > 0
+    ? a.duration_sec
+    : null;
+  const mediaTimeLabel = durationSec != null
+    ? formatDurationLabel(durationSec)
+    : `${minutes} 分钟阅读`;
+
   const wordCount = (a.content ?? '').length;
   // Title/summary surfaces that go into structured data / breadcrumbs also
   // get the LLM-artifact cleanup — Google's rich snippets and breadcrumb
@@ -336,7 +365,10 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
     articleSection: a.category ?? undefined,
     keywords: a.keywords.length ? a.keywords.join(', ') : undefined,
     wordCount: wordCount > 0 ? wordCount : undefined,
-    timeRequired: `PT${minutes}M`,
+    // ISO 8601 duration:视频用真实播放秒数(PT5M32S),文章用估算分钟(PT4M)。
+    timeRequired: durationSec != null
+      ? `PT${Math.floor(durationSec / 60)}M${durationSec % 60}S`
+      : `PT${minutes}M`,
   };
 
   const crumbs = [
@@ -357,7 +389,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
         <div style={{ fontSize: 14, color: '#536471', marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {a.published_at && <span>{new Date(a.published_at).toLocaleDateString('zh-CN')}</span>}
-          <span>· {minutes} 分钟阅读</span>
+          <span>· {durationSec != null ? `视频 ${mediaTimeLabel}` : mediaTimeLabel}</span>
         </div>
 
         {/* 点赞按钮 — 客户端组件,挂载后自查 likes / liked 状态,显示乐观更新。
@@ -385,6 +417,10 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
           // sources that means dropping everything. Skip the <article> block
           // entirely (matches HTML-body behavior of "no <p> after strip").
           if (!a.content_html) return null;
+          // 媒体帖(视频 / 图片):标题已经在 h1 显示,正文里的 <p> 基本都是
+          // 同一句话的重复(爬虫源的 content 直接拷自 title 文案)。
+          // 整个 article-body 跳过,不靠正则 strip 兜底。
+          if (hasVideo || isImagePost) return null;
 
           // HTML body: build the cleaned markup, then unconditionally strip
           // every <p>...</p> before render. Per product call (X / Reddit
@@ -486,7 +522,10 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
         {a.tags.length > 0 && (
           <div style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid #eff3f4', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: '#536471', marginRight: 4, fontWeight: 600 }}>标签</span>
-            {a.tags.map((t) => (
+            {/* 去重防同标签多次出现(LLM 偶尔会在 tags 和 keywords 里都吐同一个词,
+                两列被合并到 cleanTagList 后没做最终 dedupe)。同时不再加 # 前缀,
+                跟 /search、/tag、右栏热门标签三处的视觉对齐:直接显示文本。 */}
+            {Array.from(new Set(a.tags)).map((t) => (
               <Link key={t} href={`/tag/${encodeURIComponent(t)}`} style={{
                 display: 'inline-block',
                 fontSize: 13,
@@ -497,10 +536,12 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
                 borderRadius: 9999,
                 textDecoration: 'none',
                 fontWeight: 500,
-              }}>#{t}</Link>
+              }}>{t}</Link>
             ))}
           </div>
         )}
+
+        <CommentSection slug={a.slug} />
 
         {related.length > 0 && (
           <section style={{ marginTop: 40 }}>

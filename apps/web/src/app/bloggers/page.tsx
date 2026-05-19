@@ -4,9 +4,9 @@ import { SITE_NAME, SITE_URL } from '../../lib/db';
 import { ROBOTS_INDEXABLE } from '../../lib/seo';
 import { searchSources } from '../../lib/feed';
 import { virtualBlogger } from '../../lib/virtual-blogger';
+import { proxiedImage } from '../../lib/media';
 import { XLayout } from '../_components/XLayout';
 import { XFeedHeader } from '../_components/XFeedHeader';
-import { FollowButton } from '../_components/FollowButton';
 import { X } from '../_components/theme';
 
 export const dynamic = 'force-dynamic';
@@ -133,7 +133,7 @@ function pagerLinks(page: number, totalPages: number, q: string, sort: Sort) {
 }
 
 // 单行博主卡 — 头像渐变 + 化名 / handle / 统计 + 关注按钮
-function BloggerRow({ s }: { s: { id: string; name: string; platform: string; article_count: number; last_article_at: string | null } }) {
+function BloggerRow({ s }: { s: { id: string; name: string; platform: string; avatar_url: string | null; article_count: number; last_article_at: string | null } }) {
   const vb = virtualBlogger(s.id, { platform: s.platform, name: s.name });
   const lastActive = s.last_article_at ? formatTimeAgo(s.last_article_at) : '未发帖';
   return (
@@ -143,12 +143,21 @@ function BloggerRow({ s }: { s: { id: string; name: string; platform: string; ar
       borderBottom: `1px solid ${X.border}`,
       color: X.text, textDecoration: 'none',
     }}>
-      <div style={{
-        ...avatarGradient(s.id),
-        width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#ffffff', fontWeight: 800, fontSize: 18,
-      }}>{vb.initial}</div>
+      {s.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={proxiedImage(s.avatar_url, s.id)} alt={vb.name} loading="lazy"
+          style={{
+            width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
+            objectFit: 'cover', background: X.surfaceHover,
+          }} />
+      ) : (
+        <div style={{
+          ...avatarGradient(s.id),
+          width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#ffffff', fontWeight: 800, fontSize: 18,
+        }}>{vb.initial}</div>
+      )}
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: X.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -162,8 +171,6 @@ function BloggerRow({ s }: { s: { id: string; name: string; platform: string; ar
           {s.platform === 'manual' && <> · <span style={{ color: X.accent }}>手工</span></>}
         </div>
       </div>
-
-      <FollowButton sourceId={s.id} />
     </Link>
   );
 }

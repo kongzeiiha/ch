@@ -19,6 +19,8 @@ export interface TopicDef {
   /** kind='source' 时携带源的 platform,给 /topic/source-X 上的 profile header
    *  判断"是否手工博主"用 — 决定头部展示名走哈希化名还是 source.name 直显。 */
   sourcePlatform?: string;
+  /** kind='source' 时携带源的 avatar_url,profile header 大图头像优先用它。 */
+  sourceAvatar?: string | null;
 }
 
 const SOURCE_PREFIX = 'source-';
@@ -59,8 +61,8 @@ export async function resolveTopic(slug: string): Promise<TopicDef | null> {
 
   if (slug.startsWith(SOURCE_PREFIX)) {
     const sourceId = slug.slice(SOURCE_PREFIX.length);
-    const rows = await query<{ name: string; platform: string }>(
-      `SELECT name, platform FROM sources WHERE id = $1 LIMIT 1`,
+    const rows = await query<{ name: string; platform: string; avatar_url: string | null }>(
+      `SELECT COALESCE(display_name, name) AS name, platform, avatar_url FROM sources WHERE id = $1 LIMIT 1`,
       [sourceId],
     );
     if (!rows[0]) return null;
@@ -71,6 +73,7 @@ export async function resolveTopic(slug: string): Promise<TopicDef | null> {
       description: `${rows[0].name}(${rows[0].platform})出品的全部内容`,
       filter: { sourceId, sort: 'latest' },
       sourcePlatform: rows[0].platform,
+      sourceAvatar: rows[0].avatar_url,
     };
   }
 

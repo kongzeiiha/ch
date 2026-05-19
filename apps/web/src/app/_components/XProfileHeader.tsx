@@ -1,5 +1,5 @@
 import { virtualBlogger } from '../../lib/virtual-blogger';
-import { FollowButton } from './FollowButton';
+import { proxiedImage } from '../../lib/media';
 import { X } from './theme';
 
 // 博主主页头部 — 在 /topic/source-<id> 上方铺一张 banner + 大头像 + 名字 +
@@ -11,12 +11,14 @@ export function XProfileHeader({
   sourceId,
   sourceName,
   sourcePlatform,
+  sourceAvatar,
   articleCount,
   description,
 }: {
   sourceId: string;
   sourceName: string;
   sourcePlatform: string | null;
+  sourceAvatar?: string | null;
   articleCount: number;
   description?: string | null;
 }) {
@@ -36,23 +38,28 @@ export function XProfileHeader({
 
       <div style={{ padding: '12px 16px 16px', position: 'relative' }}>
         {/* 头像悬挂在 banner 下沿,负 margin 把它顶上去一半 */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          marginBottom: 12,
-        }}>
-          <div style={{
-            ...avatar,
-            width: 110, height: 110,
-            borderRadius: '50%',
-            border: `4px solid ${X.page}`,
-            marginTop: -75,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#ffffff', fontWeight: 800, fontSize: 44,
-            flexShrink: 0,
-          }}>{vb.initial}</div>
-          <FollowButton sourceId={sourceId} />
+        <div style={{ marginBottom: 12 }}>
+          {sourceAvatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={proxiedImage(sourceAvatar, sourceId)} alt={vb.name}
+              style={{
+                width: 110, height: 110, borderRadius: '50%',
+                border: `4px solid ${X.page}`,
+                marginTop: -75, objectFit: 'cover', flexShrink: 0,
+                background: X.surfaceHover, display: 'block',
+              }} />
+          ) : (
+            <div style={{
+              ...avatar,
+              width: 110, height: 110,
+              borderRadius: '50%',
+              border: `4px solid ${X.page}`,
+              marginTop: -75,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#ffffff', fontWeight: 800, fontSize: 44,
+              flexShrink: 0,
+            }}>{vb.initial}</div>
+          )}
         </div>
 
         <div style={{ fontSize: 22, fontWeight: 800, color: X.text, lineHeight: 1.2 }}>{vb.name}</div>

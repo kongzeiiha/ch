@@ -63,6 +63,8 @@ export function registerSiteLikes(app: FastifyInstance): void {
 
     await execute(`UPDATE items SET likes = likes + 1 WHERE id = $1`, [item.id]);
     const [row] = await query<{ likes: number }>(`SELECT likes FROM items WHERE id = $1`, [item.id]);
+    // 列表层缓存已禁用(HOT_TTL=0),不需要再 flush。客户端 LiveCountPatcher
+    // 会在 mount / visibility / pageshow 时主动拉 /api/item-stats 同步数字。
     return { ok: true, likes: row?.likes ?? 0, liked: true };
   });
 

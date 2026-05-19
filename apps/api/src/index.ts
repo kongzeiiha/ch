@@ -41,7 +41,8 @@ const { registerAdminAuth } = await import('./admin-auth.js');
 const { registerMediaProxy } = await import('./media-proxy.js');
 const { registerSiteAnalytics } = await import('./site-analytics.js');
 const { registerSiteLikes } = await import('./site-likes.js');
-const { registerSiteFollowing } = await import('./site-following.js');
+const { registerSiteComments } = await import('./site-comments.js');
+const { registerSiteItemStats } = await import('./site-item-stats.js');
 const { registerManualPost } = await import('./admin-manual-post.js');
 
 const port = Number(process.env.API_PORT ?? 4000);
@@ -100,8 +101,10 @@ async function main(): Promise<void> {
   registerSiteAnalytics(app);
   // 公开点赞端点(/like/:slug、/likes/:slug)。和 PV 同样不走 admin auth。
   registerSiteLikes(app);
-  // 公开「我关注的」feed 端点(POST /following/feed),客户端把 LS 里的 sourceIds 传过来。
-  registerSiteFollowing(app);
+  // 公开评论端点 — 匿名 LS 身份,Redis 指纹 rate-limit。
+  registerSiteComments(app);
+  // 批量计数:列表客户端 mount 后用它把卡片数字 patch 到最新。
+  registerSiteItemStats(app);
 
   await registerAdmin(app);
   await registerInfra(app);

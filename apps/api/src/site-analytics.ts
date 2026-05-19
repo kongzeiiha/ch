@@ -10,7 +10,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { createHash } from 'node:crypto';
-import { query } from '@ch/db';
+import { query, execute } from '@ch/db';
 import { getRedis } from '@ch/agents';
 
 const BOT_RE = /bot|spider|crawl|slurp|fetch|monitor|preview|headless|wget|curl/i;
@@ -66,6 +66,14 @@ export function registerSiteAnalytics(app: FastifyInstance): void {
          uv = uv + $3`,
       [itemId, today, isNewUv ? 1 : 0],
     );
+
+    // 同步 +1 物化列 items.pv_30d,文章页 EyeIcon 立即可见。
+    // 分析 worker 每小时会从 analytics_daily 真实滚动重算。
+    await execute(`UPDATE items SET pv_30d = COALESCE(pv_30d, 0) + 1 WHERE id = $1`, [itemId]);
+    // PV 是每次进文章页都 fire 的高频事件 — *不* flush 列表缓存。
+    // 否则站点稍微有点流量就把所有列表页 HTTP 命中率打到地板,后端反复跑
+    // ROW_NUMBER + JSON_TABLE 拖响应。列表卡片的浏览数靠 TTL 自然刷新,延迟可接受。
+    // 点赞 / 评论是低频且用户期望即时反馈,才走 flushFeedCache。
 
     return { ok: true, counted: true, newUv: isNewUv };
   });

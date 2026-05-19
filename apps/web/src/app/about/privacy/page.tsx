@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { SITE_NAME, SITE_URL } from '../../../lib/db';
 import { AboutShell } from '../_layout';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: `隐私政策 - ${SITE_NAME}`,
   description: '本站隐私政策',

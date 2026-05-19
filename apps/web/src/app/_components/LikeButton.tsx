@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 /**
  * 文章页点赞按钮 — 客户端组件。
@@ -13,6 +14,7 @@ import { useEffect, useState } from 'react';
  * 服务端的真实状态以 Redis 指纹去重为准,localStorage 只是 UX 加速器。
  */
 export function LikeButton({ slug, initialLikes }: { slug: string; initialLikes: number }) {
+  const router = useRouter();
   const [likes, setLikes] = useState(initialLikes);
   const [liked, setLiked] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -33,7 +35,10 @@ export function LikeButton({ slug, initialLikes }: { slug: string; initialLikes:
         if (typeof d.liked === 'boolean') setLiked(d.liked);
       })
       .catch(() => {});
-  }, [slug, LS_KEY]);
+    // LS_KEY 是 `liked:${slug}` 派生值,跟 slug 一一对应。只跟 slug 进 deps,
+    // 否则 LS_KEY 每次 render 新建一个 string identity,effect 每次都重跑,
+    // 既浪费请求也会跟用户点击产生竞态。
+  }, [slug]);
 
   const onClick = async () => {
     if (busy) return;
@@ -55,6 +60,9 @@ export function LikeButton({ slug, initialLikes }: { slug: string; initialLikes:
         if (d.liked) localStorage.setItem(LS_KEY, '1');
         else localStorage.removeItem(LS_KEY);
       }
+      // 让当前(文章)页的 RSC payload 失效;返回列表时由 next.config 的
+      // staleTimes.dynamic=0 强制重拉 server data,❤️ 计数同步且保留滚动位置。
+      router.refresh();
     } catch {
       // 回滚
       setLiked(wasLiked);

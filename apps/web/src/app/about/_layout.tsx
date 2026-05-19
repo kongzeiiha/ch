@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { SiteHeader } from '../_components/SiteHeader';
-import { SiteFooter } from '../_components/SiteFooter';
+import { XLayout } from '../_components/XLayout';
+import { XFeedHeader } from '../_components/XFeedHeader';
 import { X } from '../_components/theme';
 
 const PAGES = [
@@ -10,6 +10,9 @@ const PAGES = [
   { slug: 'dmca',    title: '版权投诉(DMCA)' },
 ];
 
+// /about/* 公开页面用 X 三栏布局包,跟站点其它页一致 — 左栏 nav、右栏推荐栏
+// 都保留,中间是内容。原 SiteHeader + 2-列布局视觉割裂,从左导航点 "关于"
+// 进来会感觉跑去了另一个站。
 export function AboutShell({ active, title, updated, children }: {
   active: 'terms' | 'privacy' | 'dmca';
   title: string;
@@ -17,46 +20,32 @@ export function AboutShell({ active, title, updated, children }: {
   children: ReactNode;
 }) {
   return (
-    <div style={{ minHeight: '100vh', background: X.page, color: X.text }}>
-      <SiteHeader crumb={title} />
+    <XLayout>
+      <XFeedHeader title={title} back fallbackHref="/" />
+      <div style={{ padding: '16px 20px 40px' }}>
+        {/* 子页切换:terms / privacy / dmca 横排胶囊 */}
+        <nav style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+          {PAGES.map((p) => (
+            <Link key={p.slug} href={`/about/${p.slug}`} style={{
+              padding: '6px 14px',
+              borderRadius: 9999,
+              border: `1px solid ${p.slug === active ? X.accent : X.borderStrong}`,
+              background: p.slug === active ? X.accent : 'transparent',
+              color: p.slug === active ? '#ffffff' : X.text,
+              fontSize: 13,
+              fontWeight: p.slug === active ? 700 : 500,
+              textDecoration: 'none',
+            }}>{p.title}</Link>
+          ))}
+        </nav>
 
-      <main style={{
-        maxWidth: 1200,
-        margin: '0 auto',
-        padding: '32px 20px 60px',
-        display: 'grid',
-        gridTemplateColumns: '180px 1fr',
-        gap: 32,
-      }}>
-        <aside>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4, position: 'sticky', top: 72 }}>
-            {PAGES.map((p) => (
-              <li key={p.slug}>
-                <Link href={`/about/${p.slug}`} style={{
-                  display: 'block',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  background: p.slug === active ? X.surface : 'transparent',
-                  color: p.slug === active ? X.accent : X.textSecondary,
-                  textDecoration: 'none',
-                  fontSize: 13,
-                  fontWeight: p.slug === active ? 700 : 500,
-                  borderLeft: p.slug === active ? `3px solid ${X.accent}` : '3px solid transparent',
-                }}>{p.title}</Link>
-              </li>
-            ))}
-          </ul>
-        </aside>
-
-        <article style={{ lineHeight: 1.85, color: X.textSecondary, fontSize: 15 }}>
-          <header style={{ marginBottom: 28, paddingBottom: 14, borderBottom: `1px solid ${X.border}` }}>
-            <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 6px', color: X.text }}>{title}</h1>
+        <article style={{ lineHeight: 1.85, color: X.text, fontSize: 15 }}>
+          <header style={{ marginBottom: 24, paddingBottom: 12, borderBottom: `1px solid ${X.border}` }}>
             <div style={{ fontSize: 12, color: X.textMuted }}>最近更新:{updated}</div>
           </header>
           {children}
         </article>
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </XLayout>
   );
 }

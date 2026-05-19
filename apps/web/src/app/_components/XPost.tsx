@@ -5,7 +5,6 @@ import { displayTitle } from '../../lib/strip-urls';
 import { virtualBlogger } from '../../lib/virtual-blogger';
 import { X } from './theme';
 import { CommentIcon, RepostIcon, HeartIcon, EyeIcon } from './XIcons';
-import { FollowedTick } from './FollowIndicators';
 import { ShareButton } from './ShareButton';
 
 // 内联 read-minutes — 避免从 lib/feed.ts 拽 ioredis(cache)进 client bundle。
@@ -51,17 +50,26 @@ export function XPost({ a }: { a: ArticleCardRow }) {
         color: X.text,
         textDecoration: 'none',
       }}>
-        <div style={{
-          ...avatarGradient(a.source_id ?? a.id),
-          width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#ffffff', fontWeight: 800, fontSize: 17,
-        }}>{initial}</div>
+        {a.source_avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={proxiedImage(a.source_avatar, a.source_id)} alt={sourceName}
+            loading="lazy"
+            style={{
+              width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+              objectFit: 'cover', background: X.surfaceHover,
+            }} />
+        ) : (
+          <div style={{
+            ...avatarGradient(a.source_id ?? a.id),
+            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#ffffff', fontWeight: 800, fontSize: 17,
+          }}>{initial}</div>
+        )}
 
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 800, color: X.text }}>{sourceName}</span>
-            {a.source_id && <FollowedTick sourceId={a.source_id} />}
             <span style={{ color: X.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{handle}</span>
             {ago && (
               <>
@@ -78,12 +86,8 @@ export function XPost({ a }: { a: ArticleCardRow }) {
             {cleanTitle}
           </div>
 
-          {cleanSummary && cleanSummary !== cleanTitle && (
-            <p style={{
-              fontSize: 14, color: '#0f1419', lineHeight: 1.55, margin: '0 0 10px',
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}>{cleanSummary}</p>
-          )}
+          {/* summary <p> 暂时隐藏 — 爬虫源 X 帖的 summary 基本就是标题文案的复读,
+              详情页 h1 已经展示,卡片再贴一遍只是噪音 */}
 
           {thumb && (
             <div style={{
@@ -115,16 +119,17 @@ export function XPost({ a }: { a: ArticleCardRow }) {
             </div>
           )}
 
-          {/* Actions 行 — SVG 图标,可读性比 emoji 强一截。
-              静态展示真实数据(评论数没字段就留 0 占位),实际交互在文章详情页。 */}
+          {/* Actions 行 — data-* 属性 + class 标识给客户端 LiveCountPatcher 用,
+              组件 mount 后批量打 /api/item-stats 拉最新计数 patch 进来,
+              避免 SSR 缓存 / Next router 缓存导致返回时数字不更新。 */}
           <div style={{
             display: 'flex', gap: 8, marginTop: 12, maxWidth: 420,
             justifyContent: 'space-between', color: X.textMuted, fontSize: 13,
-          }}>
-            <span style={actionStyle}><CommentIcon /> <span>0</span></span>
+          }} data-xpost-slug={a.slug}>
+            <span style={actionStyle}><CommentIcon /> <span data-xpost-count="comments">{fmtCount(a.comment_count ?? 0)}</span></span>
             <span style={actionStyle}><RepostIcon /> <span>0</span></span>
-            <span style={actionStyle}><HeartIcon /> <span>{fmtCount(a.likes ?? 0)}</span></span>
-            <span style={actionStyle}><EyeIcon /> <span>{fmtCount(a.pv_30d ?? 0)}</span></span>
+            <span style={actionStyle}><HeartIcon /> <span data-xpost-count="likes">{fmtCount(a.likes ?? 0)}</span></span>
+            <span style={actionStyle}><EyeIcon /> <span data-xpost-count="pv">{fmtCount(a.pv_30d ?? 0)}</span></span>
             <ShareButton slug={a.slug} title={cleanTitle} />
           </div>
         </div>

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { execute } from '@ch/db';
 import { AdapterAuthError, type SourceAdapter, type SourceRow, type RawCandidate } from './types.js';
 import { resolveAuth } from './auth.js';
 
@@ -167,13 +168,37 @@ export const xAdapter: SourceAdapter = {
     if (mode === 'user') {
       const screen = (cfg.screenName ?? '').trim().replace(/^@/, '');
       if (!screen) return [];
-      // Step 1: resolve handle → user rest_id
-      const userId = await resolveUserId(screen, opIds.UserByScreenName, headers, features, fieldToggles);
-      if (!userId) {
+      // Step 1: resolve handle → user rest_id (+ cache the upstream display name)
+      const resolved = await resolveUserId(screen, opIds.UserByScreenName, headers, features, fieldToggles);
+      if (!resolved?.userId) {
         console.warn(`[x] could not resolve @${screen} — bad handle or auth failed`);
         return [];
       }
-      tweets = await fetchUserTweets(userId, limit, opIds.UserTweets, headers, features, fieldToggles);
+      // Cache 「display name」+ 「avatar」 — the X profile "name" field
+      // (e.g. 我在故宫胡吃海喝) and profile_image_url_https. Read path uses
+      // COALESCE(display_name, name) and proxiedImage(avatar_url, sourceId)
+      // so this is purely an upgrade in display.
+      const dn = resolved.displayName?.trim().slice(0, 128) || null;
+      const av = resolved.avatarUrl?.trim().slice(0, 512) || null;
+      if (dn || av) {
+        try {
+          await execute(
+            `UPDATE sources
+               SET display_name = COALESCE($1, display_name),
+                   avatar_url   = COALESCE($2, avatar_url)
+             WHERE id = $3
+               AND (
+                 ($1 IS NOT NULL AND (display_name IS NULL OR display_name <> $1))
+                 OR
+                 ($2 IS NOT NULL AND (avatar_url   IS NULL OR avatar_url   <> $2))
+               )`,
+            [dn, av, source.id],
+          );
+        } catch (e: any) {
+          console.warn(`[x] failed to cache profile meta for ${source.id}: ${e?.message ?? e}`);
+        }
+      }
+      tweets = await fetchUserTweets(resolved.userId, limit, opIds.UserTweets, headers, features, fieldToggles);
     } else {
       const q = (cfg.query ?? '').trim();
       if (!q) return [];
@@ -198,7 +223,7 @@ async function resolveUserId(
   headers: Record<string, string>,
   features: Record<string, boolean>,
   fieldToggles: Record<string, boolean>,
-): Promise<string | null> {
+): Promise<{ userId: string | null; displayName: string | null; avatarUrl: string | null }> {
   const variables = { screen_name: screenName };
   const url = buildUrl('UserByScreenName', opId, variables, features, fieldToggles);
   const res = await http.get<any>(url, { headers });
@@ -218,7 +243,7 @@ async function resolveUserId(
   }
   if (res.status !== 200) {
     console.warn(`[x] UserByScreenName http=${res.status}`);
-    return null;
+    return { userId: null, displayName: null, avatarUrl: null };
   }
   // X returns 200 with an `errors` array when the GraphQL is malformed (e.g.
   // missing required variable, invalid feature flag). Don't silently return.
@@ -229,7 +254,17 @@ async function resolveUserId(
       `X GraphQL rejected UserByScreenName: ${msg.slice(0, 120)}`,
     );
   }
-  return res.data?.data?.user?.result?.rest_id ?? null;
+  const u = res.data?.data?.user?.result;
+  // Display name lives in legacy.name; core.name is the newer schema mirror.
+  // Either is acceptable. The handle (urgseukekcbdnrb) lives in legacy.screen_name.
+  const displayName = u?.legacy?.name ?? u?.core?.name ?? null;
+  // Avatar:legacy.profile_image_url_https 是 _normal.jpg 小图;upscale 到
+  // _400x400 拿到大图(替换 _normal 后 X CDN 自动返回更大尺寸)。
+  const rawAvatar: string | null = u?.legacy?.profile_image_url_https
+                              ?? u?.avatar?.image_url
+                              ?? null;
+  const avatarUrl = rawAvatar ? rawAvatar.replace(/_normal(\.\w+)$/, '_400x400$1') : null;
+  return { userId: u?.rest_id ?? null, displayName, avatarUrl };
 }
 
 async function fetchUserTweets(
@@ -445,15 +480,19 @@ async function searchUsersByKeywordViaBrowser(opts: {
     try {
       // Step 1: warm up on x.com to let cookies + stealth fingerprint settle.
       // Without this X sometimes 302s the very first /search request to /login.
-      await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 30_000 });
-      await page.waitForTimeout(600);
+      // Tightened 30s → 8s — the warm-up just needs cookie injection +
+      // a couple JS frames to run; full document load is wasteful and used to
+      // push total runtime past the Next.js proxy's 30s default cutoff.
+      await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 8_000 }).catch(() => {});
+      await page.waitForTimeout(400);
 
-      // Step 2: navigate to People search.
+      // Step 2: navigate to People search. 12s budget — enough for X's typical
+      // 2-4s GraphQL response, with margin for slow networks.
       const url = `https://x.com/search?q=${encodeURIComponent(opts.query)}&src=typed_query&f=user`;
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 12_000 }).catch(() => {});
 
-      // Wait for first batch.
-      await waitForUserPayload(12_000);
+      // Wait for first batch — most searches return in <3s.
+      await waitForUserPayload(7_000);
 
       // Retry path: scroll once to trigger any deferred SearchTimeline that
       // X fires only after the search input gets focused / the results pane
@@ -463,7 +502,7 @@ async function searchUsersByKeywordViaBrowser(opts: {
           await page.evaluate(() => window.scrollBy(0, 600));
           await page.waitForTimeout(400);
         } catch { /* ignore */ }
-        await waitForUserPayload(5_000);
+        await waitForUserPayload(3_000);
       }
     } catch (e: any) {
       navError = e;

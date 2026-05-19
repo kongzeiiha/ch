@@ -52,6 +52,16 @@ const nextConfig = {
   // Shrink the watcher footprint — avoids EMFILE on macOS where the default
   // per-process file-handle limit is low and chokidar tries to watch every
   // nested node_modules.
+  // App Router 客户端 RSC 缓存 — 默认 dynamic=0 / static=300 已经够新,但
+  // 实测 router.back() 还会复用之前缓的 home payload(用户看完文章返回时
+  // 看到旧的浏览 / 点赞 / 评论数)。把 dynamic 显式定到 0,static 也压短,
+  // 强制每次切换都重新拉 server data,counts 立即反映。
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+      static: 30,
+    },
+  },
   webpack(config, { dev }) {
     if (dev) {
       config.watchOptions = {

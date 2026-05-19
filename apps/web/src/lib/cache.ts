@@ -40,8 +40,12 @@ function client(): Redis {
       maxRetriesPerRequest: 1,
       // Connection-time and per-command timeouts so a slow/unhealthy Redis
       // doesn't drag SSR latency above what plain MySQL would cost.
+      //   - connectTimeout: 500ms 足够本地 / 同机房 Redis 完成 TCP 握手
+      //   - commandTimeout: 300ms 留出余量,覆盖 GC pause / 网络微抖动 /
+      //     Redis fsync 等正常情况,避开"伪超时 → fallback → DB hit"的雪崩。
+      //     80ms 太紧:实测线上 cross-AZ 偶发 100-200ms。
       connectTimeout: 500,
-      commandTimeout: 80,
+      commandTimeout: 300,
     });
     global.__chCacheRedisV2.on('error', (e) => {
       // ioredis emits frequent error events while reconnecting; keep these
@@ -57,6 +61,17 @@ function client(): Redis {
 }
 
 const KEY_PREFIX = 'ssr:';
+
+// 这些错误属于"网络/Redis 健康状态层面的预期信号",fallback 已自动接管,
+// log 出来只会污染 stdout。
+function isExpectedRedisError(e: unknown): boolean {
+  const msg = (e as { message?: string })?.message ?? '';
+  return msg.includes('Command timed out')
+      || msg.includes('ECONNREFUSED')
+      || msg.includes('ETIMEDOUT')
+      || msg.includes('Connection is closed')
+      || msg.includes('Stream isn\'t writeable');
+}
 
 /** Read-through GET-or-compute. ttlSeconds is the cache lifetime; 60 is a
  *  sensible default for the feed layer where freshness within a minute is
@@ -81,7 +96,10 @@ export async function cached<T>(
     }
   } catch (e) {
     // Redis unreachable / timed out → fall through to compute.
-    if (process.env.NODE_ENV !== 'production') {
+    // Timeout 和 ECONNREFUSED 是预期的"fail-open 触发条件",fallback 已经
+    // 自动补 DB hit, 再 warn 只是噪音。只对真正异常(JSON corrupt 之外的
+    // 编程错误)留一道 log。
+    if (!isExpectedRedisError(e) && process.env.NODE_ENV !== 'production') {
       console.warn(`[cache] read failed key=${fullKey}: ${(e as any)?.message ?? e}`);
     }
   }
@@ -95,7 +113,7 @@ export async function cached<T>(
   try {
     await r.set(fullKey, JSON.stringify(value), 'EX', ttlSeconds);
   } catch (e) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (!isExpectedRedisError(e) && process.env.NODE_ENV !== 'production') {
       console.warn(`[cache] write failed key=${fullKey}: ${(e as any)?.message ?? e}`);
     }
   }

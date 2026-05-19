@@ -114,7 +114,6 @@ export default async function TagIndexPage() {
                     href={`/tag/${encodeURIComponent(t.tag)}`}
                     className={`tag-pill tag-pill--${tier}`}
                   >
-                    <span className="tag-hash">#</span>
                     {t.tag}
                     <span className="tag-count">{t.count}</span>
                   </Link>

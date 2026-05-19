@@ -69,21 +69,22 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
   const visibleTags = tags.slice(0, 20);
   const hiddenTags = tags.slice(20);
 
-  // Tag pill href — preserves current q so users can drill in without
-  // losing their query. When the tag matches `current.tag`, the pill
-  // becomes a "deselect" link instead.
+  // Tag pill href — preserves q + 当前已经选好的 sort/length/date/category 等,
+  // 用户「搜关键词 → 选最近 7 天 → 再点个标签收窄」整套筛选不会丢。
+  // tag=null 表示清除当前 tag(deselect)。
   const tagHref = (tag: string | null) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
+    if (searchParams.category)            params.set('category', searchParams.category);
+    if (searchParams.length)              params.set('length', searchParams.length);
+    if (searchParams.date && searchParams.date !== 'all') params.set('date', searchParams.date);
+    if (searchParams.sort && searchParams.sort !== 'latest') params.set('sort', searchParams.sort);
     if (tag) params.set('tag', tag);
     const qs = params.toString();
     return qs ? `/search?${qs}` : '/search';
   };
 
   const basePath = '/search';
-  // Preserve `q` across filter switches so the user doesn't lose their query
-  // when they tap a length/date pill.
-  const baseQuery = q ? `?q=${encodeURIComponent(q)}` : '';
 
   return (
     <XLayout active="search">
@@ -172,8 +173,9 @@ export default async function SearchPage(props: { searchParams: Promise<SearchPa
         )}
 
         <FilterBar
-          basePath={`${basePath}${baseQuery}`}
-          current={searchParams}
+          basePath={basePath}
+          current={{ ...searchParams, q }}
+          defaultSort="latest"
         />
 
       </div>
@@ -225,6 +227,6 @@ function TagPill({ tag, count, active, href }: { tag: string; count: number; act
       fontSize: 13,
       fontWeight: active ? 700 : 500,
       textDecoration: 'none',
-    }}>#{tag} {count}</Link>
+    }}>{tag} <span style={{ color: active ? '#ffffffaa' : '#536471', fontWeight: 500 }}>{count}</span></Link>
   );
 }

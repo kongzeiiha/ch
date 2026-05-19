@@ -566,13 +566,29 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
     if (credRows[0].status !== 'active') return reply.code(400).send({ error: `credential 状态不是 active（当前 ${credRows[0].status}）` });
     if (!credRows[0].cookie) return reply.code(400).send({ error: 'credential 没有 cookie' });
 
+    // Hard timeout — discover-users delegates to Playwright when X 404s the
+    // direct GraphQL path, and the browser path can stall 30-60s on slow
+    // cookies / network. Next.js dev rewrites have a default 30s socket
+    // timeout; if we exceed it, the browser sees `ECONNRESET / socket hang up`
+    // with no clue. Race against 25s here so we ALWAYS send a structured 504
+    // back through the proxy before it gives up.
+    const DISCOVER_TIMEOUT_MS = 25_000;
+    let timer: NodeJS.Timeout | null = null;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(
+        `discover-users timed out after ${DISCOVER_TIMEOUT_MS / 1000}s — X 通常因 cookie 过期 / 反爬挡截 / 网络抖动 触发。换一个 active credential 或稍后重试。`,
+      )), DISCOVER_TIMEOUT_MS);
+    });
     try {
-      const users = await searchUsersByKeyword({
-        cookie: credRows[0].cookie,
-        userAgent: credRows[0].user_agent ?? undefined,
-        query: q.trim(),
-        count: Math.min(Math.max(Number(limit), 1), 50),
-      });
+      const users = await Promise.race([
+        searchUsersByKeyword({
+          cookie: credRows[0].cookie,
+          userAgent: credRows[0].user_agent ?? undefined,
+          query: q.trim(),
+          count: Math.min(Math.max(Number(limit), 1), 50),
+        }),
+        timeout,
+      ]) as Awaited<ReturnType<typeof searchUsersByKeyword>>;
       // Mark which screen_names already exist as sources so the UI can
       // dim them (or show "已导入" instead of a checkbox).
       const existing = users.length > 0
@@ -589,6 +605,8 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
       };
     } catch (e: any) {
       return reply.code(502).send({ error: e?.message ?? String(e) });
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   });
 
