@@ -413,7 +413,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
     <XLayout active="home">
       <style dangerouslySetInnerHTML={{ __html: ARTICLE_CSS }} />
       <XFeedHeader title={a.category ?? '文章'} back fallbackHref="/" />
-      <div style={{ padding: '20px 24px 40px', lineHeight: 1.85 }}>
+      <div className="x-article" style={{ padding: '20px 24px 40px', lineHeight: 1.85 }}>
         <JsonLd data={jsonLd} />
         <JsonLd data={breadcrumbJsonLd(crumbs)} />
 

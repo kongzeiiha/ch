@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { X } from './theme';
-import { XSideNav, type NavKey } from './XSideNav';
+import { XSideNav, XMobileBar, type NavKey } from './XSideNav';
 import { XRightRail } from './XRightRail';
 
 // X.com 风格三栏 shell。
@@ -18,8 +18,11 @@ export function XLayout({
   omitRightRail?: boolean;
   children: ReactNode;
 }) {
+  // class names `x-shell` / `x-main` / `x-sidenav` / `x-rightrail` 给
+  // layout.tsx 里的全局媒体查询当 hook(<=700px 折叠成单列,左右栏 hide,
+  // 主区底部留 56px 给 XMobileBar)。桌面端样式不变。
   return (
-    <div style={{
+    <div className="x-shell" style={{
       minHeight: '100vh',
       background: X.page,
       color: X.text,
@@ -31,10 +34,11 @@ export function XLayout({
       margin: '0 auto',
     }}>
       <XSideNav active={active} />
-      <main style={{ borderRight: omitRightRail ? 'none' : `1px solid ${X.border}`, minWidth: 0 }}>
+      <main className="x-main" style={{ borderRight: omitRightRail ? 'none' : `1px solid ${X.border}`, minWidth: 0 }}>
         {children}
       </main>
       {!omitRightRail && <XRightRail />}
+      <XMobileBar active={active} />
     </div>
   );
 }

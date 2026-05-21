@@ -38,7 +38,7 @@ const NAV_CSS = `
 
 export function XSideNav({ active }: { active?: NavKey }) {
   return (
-    <aside style={{
+    <aside className="x-sidenav" style={{
       borderRight: `1px solid ${X.border}`,
       padding: '12px 12px',
       position: 'sticky',
@@ -129,4 +129,51 @@ function navItemStyle(active: boolean): React.CSSProperties {
     color: X.text,
     textDecoration: 'none',
   };
+}
+
+// 手机底部 tab bar — class `x-mobilebar` 默认 display:none,
+// 媒体查询(layout.tsx)在 <=700px 把它切成 flex 撑满。
+// 只露 5 个最常用入口(首页 / 热门 / 视频 / 图片 / 搜索),博主 / 工作台 / Admin
+// 在手机用户里基本不命中,放进二级页就够。
+const MOBILE_ITEMS: Array<{ key: NavKey; label: string; href: string; Icon: typeof HomeIcon }> = [
+  { key: 'home',    label: '首页', href: '/',             Icon: HomeIcon },
+  { key: 'hot',     label: '热门', href: '/?sort=hot',    Icon: FlameIcon },
+  { key: 'videos',  label: '视频', href: '/?media=video', Icon: PlayIcon },
+  { key: 'images',  label: '图片', href: '/?media=image', Icon: ImageIcon },
+  { key: 'search',  label: '搜索', href: '/search',       Icon: SearchIcon },
+];
+
+export function XMobileBar({ active }: { active?: NavKey }) {
+  return (
+    <nav className="x-mobilebar" aria-label="底部导航">
+      {MOBILE_ITEMS.map((it) => {
+        const isActive = it.key === active;
+        const Icon = it.Icon;
+        return (
+          <Link
+            key={it.key}
+            href={it.href}
+            aria-label={it.label}
+            style={{
+              flex: 1,
+              display: 'inline-flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              padding: '8px 0',
+              minHeight: 56,
+              color: isActive ? X.accent : X.text,
+              textDecoration: 'none',
+              fontSize: 11,
+              fontWeight: isActive ? 700 : 500,
+            }}
+          >
+            <Icon size={22} />
+            <span>{it.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
 }

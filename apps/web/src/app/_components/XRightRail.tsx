@@ -21,7 +21,7 @@ export async function XRightRail() {
   ]);
 
   return (
-    <aside style={{
+    <aside className="x-rightrail" style={{
       padding: '12px 14px',
       position: 'sticky',
       top: 0,

@@ -44,7 +44,7 @@ export function XPost({ a }: { a: ArticleCardRow }) {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: POST_CSS }} />
-      <Link href={`/a/${a.slug}`} className="xpost" style={{
+      <Link href={`/a/${a.slug}`} className="xpost x-post" style={{
         display: 'flex',
         gap: 12,
         padding: '14px 16px',

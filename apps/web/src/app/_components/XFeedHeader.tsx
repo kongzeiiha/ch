@@ -21,7 +21,7 @@ export function XFeedHeader({
   fallbackHref?: string;
 }) {
   return (
-    <div style={{
+    <div className="x-feedhead" style={{
       position: 'sticky',
       top: 0,
       background: 'rgba(255, 255, 255, 0.85)',
@@ -30,7 +30,7 @@ export function XFeedHeader({
       borderBottom: `1px solid ${X.border}`,
       zIndex: 10,
     }}>
-      <div style={{
+      <div className="x-feedhead-row" style={{
         padding: '12px 16px 0',
         display: 'flex',
         alignItems: 'center',
@@ -45,7 +45,7 @@ export function XFeedHeader({
       </div>
 
       {tabs && tabs.length > 0 && (
-        <nav style={{ display: 'flex', marginTop: 12 }}>
+        <nav className="x-feedhead-tabs" style={{ display: 'flex', marginTop: 12 }}>
           {tabs.map((t) => (
             <Link key={t.key} href={t.href} style={{
               flex: 1,
