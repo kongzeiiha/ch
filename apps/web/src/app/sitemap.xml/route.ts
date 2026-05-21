@@ -2,11 +2,11 @@ import { query, SITE_URL } from '../../lib/db';
 import { getTopTags } from '../../lib/feed';
 import { listKnownTopicSlugs } from '../_data/topics';
 
-// ISR with a 5-minute window — sitemap entries change at most when an article
-// is published or unpublished, both of which already call revalidatePath() so
-// the cache flushes immediately. The TTL is the upper bound for the unlikely
-// case where the explicit invalidation didn't fire (worker died mid-publish).
-export const revalidate = 300;
+// Force-dynamic instead of ISR so `next build` doesn't try to prerender this
+// route when the DB happens to be down (CI / fresh boots / Docker rebooting).
+// Crawlers hit /sitemap.xml at most once per crawl cycle (~hours), so the
+// extra SQL per fetch is negligible — and we gain build-time resilience.
+export const dynamic = 'force-dynamic';
 
 const toIso = (d: string | null | undefined) => (d ? new Date(d).toISOString() : undefined);
 

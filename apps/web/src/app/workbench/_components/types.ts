@@ -149,6 +149,8 @@ export interface RawItem {
   /** Pipeline status of the linked items row, NULL if the raw item never produced an item. */
   item_status: string | null;
   item_slug: string | null;
+  /** 清洗后的正文,截到 4000 字。NULL = 还没产生 item 行(被去重 / 异常)。 */
+  original_text: string | null;
 }
 
 export interface AuthSuspect {

@@ -26,7 +26,6 @@ const ITEMS: Array<{ key: NavKey; label: string; href: string; Icon: typeof Home
   { key: 'videos',    label: '视频',     href: '/?media=video',      Icon: PlayIcon },
   { key: 'images',    label: '图片',     href: '/?media=image',      Icon: ImageIcon },
   { key: 'bloggers',  label: '博主',     href: '/bloggers',          Icon: UsersIcon },
-  { key: 'tags',      label: '标签',     href: '/tag',               Icon: HashIcon },
   { key: 'search',    label: '搜索',     href: '/search',            Icon: SearchIcon },
 ];
 

@@ -34,7 +34,9 @@ export function XPost({ a }: { a: ArticleCardRow }) {
   // 爬虫源走哈希化名;手工源直接用运营填的 name。virtualBlogger 内部分流。
   const vb = virtualBlogger(a.source_id, { platform: a.source_platform, name: a.source });
   const sourceName = vb.name;
-  const handle = vb.handle;
+  // 优先用原平台真实 @handle(X 直接拿 screen_name);其它平台或没存到,
+  // 退回到 virtualBlogger 基于名字/source_id 派生的伪 handle。
+  const handle = a.source_handle ?? vb.handle;
   const initial = vb.initial;
   const ago = a.published_at ? formatTimeAgo(a.published_at) : null;
   const duration = a.duration_sec ? formatDuration(a.duration_sec) : null;
@@ -160,17 +162,21 @@ function fmtCount(n: number): string {
   return (n / 10_000).toFixed(1).replace(/\.0$/, '') + '万';
 }
 
+// 列表卡上的发布时间 — 显示 X 原平台的具体时间(24 小时制, 精确到分钟)。
+// 不走 toLocaleString — 部分 Node ICU 配置下 'zh-CN' + hour12:false 仍带"下午"前缀,
+// 手工 pad 出 "MM-DD HH:mm" / "YYYY-MM-DD HH:mm" 最干净也最跨平台稳定。
 function formatTimeAgo(iso: string): string {
-  const t = new Date(iso).getTime();
-  const diff = Date.now() - t;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
-  return new Date(iso).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  const mm = p2(d.getMonth() + 1);
+  const dd = p2(d.getDate());
+  const hh = p2(d.getHours());
+  const mi = p2(d.getMinutes());
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return sameYear
+    ? `${mm}-${dd} ${hh}:${mi}`
+    : `${d.getFullYear()}-${mm}-${dd} ${hh}:${mi}`;
 }
 
 function formatDuration(s: number): string {

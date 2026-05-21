@@ -86,7 +86,7 @@ export async function XRightRail() {
           <h3 style={blockTitleStyle}>推荐博主</h3>
           {sources.map((s) => {
             // 跟 XPost 一致:爬虫源哈希化名,手工源用 s.name 直显。
-            const vb = virtualBlogger(s.id, { platform: s.platform, name: s.name });
+            const vb = virtualBlogger(s.id, { platform: s.platform, name: s.name, externalId: s.external_id });
             return (
               <Link key={s.id} href={`/topic/source-${s.id}`}
                 className="xrail-trend"

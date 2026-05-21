@@ -31,8 +31,10 @@ export function registerSiteItemStats(app: FastifyInstance): void {
     const rows = await query<{ slug: string; likes: number; pv_30d: number; comment_count: number }>(
       `SELECT i.slug,
               i.likes,
-              i.pv_30d,
-              (SELECT COUNT(*) FROM comments c WHERE c.item_id = i.id) AS comment_count
+              -- 跟 feed.ts ARTICLE_COLS 同口径:本站 PV + X 原推查看数
+              (i.pv_30d + COALESCE(i.external_views, 0)) AS pv_30d,
+              -- 物化列(0026 迁移),写时由 site-comments.ts 和 x-comments worker 维护
+              i.comment_count
        FROM items i
        WHERE (i.slug = ANY($1::text[]) OR i.legacy_slug = ANY($1::text[]))
          AND i.status IN ('PUBLISHED','DISTRIBUTED')`,

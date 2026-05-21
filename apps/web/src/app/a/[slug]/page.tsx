@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { query, SITE_URL, SITE_NAME } from '../../../lib/db';
 import { cached } from '../../../lib/cache';
-import { getRelated, readMinutes } from '../../../lib/feed';
+import { getRelated, getMoreFromAuthor, readMinutes } from '../../../lib/feed';
 import { breadcrumbJsonLd, ogImages, ROBOTS_INDEXABLE } from '../../../lib/seo';
 import { proxiedImage, proxiedMedia } from '../../../lib/media';
 import { stripUrlsFromHtml, stripCaptionParagraphs, stripSpamParagraphs, stripTitleArtifacts, cleanTagList, displayTitle } from '../../../lib/strip-urls';
@@ -123,6 +123,12 @@ async function loadArticle(slug: string): Promise<Article | null> {
     // arrays. Matches feed.ts normalize() behavior on listing pages.
     a.tags = cleanTagList(a.tags);
     a.keywords = cleanTagList(a.keywords);
+    // mysql2 把 DATETIME 列默认返成 JS Date。类型声明是 string,SSR 时 React 把
+    // Date 当 prop 隐式 toString() 渲染,hydration client 端发现类型不匹配会
+    // 报 "tree hydrated but some attributes didn't match"。统一拍扁成 ISO 字符串。
+    if (a.published_at && typeof a.published_at !== 'string') {
+      a.published_at = new Date(a.published_at as any).toISOString();
+    }
     return a;
   });
 }
@@ -281,7 +287,33 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
   const isVideoPost = (a.video_urls?.length ?? 0) > 0 || allMedia.some((m) => m.kind === 'video');
   const isImagePost = !isVideoPost && (a.media_urls?.length ?? 0) > 0;
   const relatedKind: 'video' | 'image' | undefined = isVideoPost ? 'video' : isImagePost ? 'image' : undefined;
-  const related = await getRelated(a.category, a.id, 12, relatedKind);
+  // 并发取"同主题"(getRelated) + "同作者"(getMoreFromAuthor)。两者
+  // 视觉上是不同维度的推荐:同主题横向探索, 同作者纵向深耕,X profile 的
+  // "Posts" tab 就是后者。两者各占一栏放在文章末尾。
+  const [relatedRaw, moreFromAuthorRaw] = await Promise.all([
+    getRelated(a.category, a.id, 12, relatedKind),
+    getMoreFromAuthor(a.source_id, a.id, 6),
+  ]);
+  // 两区交叉去重 + 标题级别再过一道(SQL 里已经按 id 去重一次, 这里防御性):
+  //   - "更多来自该博主" 优先, 同条不进入 "相关推荐"
+  //   - 同标题在两区合起来只展示一次
+  const seenIds = new Set<string>();
+  const seenTitles = new Set<string>();
+  const normTitle = (t: string) => (t ?? '').trim().toLowerCase();
+  const moreFromAuthor = moreFromAuthorRaw.filter((r) => {
+    const tk = normTitle(r.title);
+    if (seenIds.has(r.id) || (tk && seenTitles.has(tk))) return false;
+    seenIds.add(r.id);
+    if (tk) seenTitles.add(tk);
+    return true;
+  });
+  const related = relatedRaw.filter((r) => {
+    const tk = normTitle(r.title);
+    if (seenIds.has(r.id) || (tk && seenTitles.has(tk))) return false;
+    seenIds.add(r.id);
+    if (tk) seenTitles.add(tk);
+    return true;
+  });
   const firstImageItem = allMedia.find((m) => m.kind === 'image');
   const firstImageUrl = firstImageItem?.kind === 'image' ? firstImageItem.src : undefined;
   // When an article has videos, the still images alongside are usually the
@@ -388,7 +420,18 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
         <h1 style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.3, marginBottom: 8, color: '#0f1419' }}>{displayTitle(a.title) || (a.category ? `${a.category} · 无标题内容` : '无标题内容')}</h1>
 
         <div style={{ fontSize: 14, color: '#536471', marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          {a.published_at && <span>{new Date(a.published_at).toLocaleDateString('zh-CN')}</span>}
+          {/* 完整发布时间 — 精确到分钟,跟原平台(X 的 legacy.created_at)对齐。
+              手工 pad 出 "YYYY-MM-DD HH:mm" 24h 格式;部分 Node ICU 配置下
+              toLocaleString('zh-CN', { hour12: false }) 仍会带"下午"前缀。 */}
+          {a.published_at && (() => {
+            const d = new Date(a.published_at);
+            const p2 = (n: number) => String(n).padStart(2, '0');
+            const txt = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+            // mysql2 把 DATETIME 列返回成 Date 对象, dateTime={Date} 会 SSR 时 toString()
+            // 成 "Wed May 20 2026 ..."(浏览器时区),client hydration 比对就 mismatch。
+            // 显式 toISOString() 拿稳定的机读格式,server / client 一致。
+            return <time dateTime={d.toISOString()}>{txt}</time>;
+          })()}
           <span>· {durationSec != null ? `视频 ${mediaTimeLabel}` : mediaTimeLabel}</span>
         </div>
 
@@ -541,7 +584,25 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
           </div>
         )}
 
-        <CommentSection slug={a.slug} />
+        {/* 合并评论区:本站匿名 + X 同步两路混排, X 来源加「来自 X」徽标。
+            表单只发本站匿名评论, X 评论是镜像不允许从这里回写。 */}
+        <CommentSection slug={a.slug} sourceId={a.source_id} />
+
+        {/* "更多来自该博主" — X profile 风格的同作者纵向推荐。在"相关"
+            之前出现,因为读者对当前作者的兴趣度通常 > 同主题随机文章。
+            6 条上限,3 列网格(比相关推荐少一行高度,视觉上不抢焦点)。 */}
+        {moreFromAuthor.length > 0 && (
+          <section style={{ marginTop: 40 }}>
+            <h2 style={{ fontSize: 20, marginBottom: 14, color: '#0f1419', fontWeight: 800 }}>
+              更多来自 <Link href={`/topic/source-${a.source_id}`} style={{ color: '#1d9bf0', textDecoration: 'none' }}>
+                {virtualBlogger(a.source_id, { platform: a.source_platform, name: a.source }).name}
+              </Link>
+            </h2>
+            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {moreFromAuthor.map((r) => <ArticleCard key={r.id} a={r} />)}
+            </div>
+          </section>
+        )}
 
         {related.length > 0 && (
           <section style={{ marginTop: 40 }}>

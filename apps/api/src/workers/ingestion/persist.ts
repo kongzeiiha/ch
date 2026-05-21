@@ -6,6 +6,10 @@ export interface PersistInput {
   sourceId: string;
   url: string;
   fetchedAt: Date;
+  /** 原平台的真实发布时间(X 的 legacy.created_at, RSS 的 pubDate 等)。
+   *  写进 items.published_at;publishing worker 用 COALESCE 不会覆盖。
+   *  没拿到(手工源 / 平台没暴露)就传 undefined,publishing 时回落到 NOW()。 */
+  publishedAt?: Date;
   rawPayload: unknown;
   mediaUrls: string[];
   /** Source video URLs (e.g. X CDN mp4). Downloaded async after persist. */
@@ -48,17 +52,18 @@ export async function persistIngested(input: PersistInput): Promise<PersistResul
 
     await q(
       `INSERT INTO items
-         (id, raw_item_id, source_id, status, title, summary, content, content_html)
-       VALUES ($1,$2,$3,$8,$4,$5,$6,$7)`,
+         (id, raw_item_id, source_id, status, title, summary, content, content_html, published_at)
+       VALUES ($1,$2,$3,$8,$4,$5,$6,$7,$9)`,
       [
-        itemId,           // $1
-        rawItemId,        // $2
-        input.sourceId,   // $3
-        input.title,      // $4
-        input.summary,    // $5
-        input.content,    // $6
-        input.contentHtml, // $7
-        IS.INGESTED,      // $8
+        itemId,             // $1
+        rawItemId,          // $2
+        input.sourceId,     // $3
+        input.title,        // $4
+        input.summary,      // $5
+        input.content,      // $6
+        input.contentHtml,  // $7
+        IS.INGESTED,        // $8
+        input.publishedAt ?? null,  // $9 — 原平台时间;NULL 时 publishing 用 NOW()
       ],
     );
 

@@ -12,6 +12,7 @@ export function XProfileHeader({
   sourceName,
   sourcePlatform,
   sourceAvatar,
+  sourceExternalId,
   articleCount,
   description,
 }: {
@@ -19,10 +20,11 @@ export function XProfileHeader({
   sourceName: string;
   sourcePlatform: string | null;
   sourceAvatar?: string | null;
+  sourceExternalId?: string | null;
   articleCount: number;
   description?: string | null;
 }) {
-  const vb = virtualBlogger(sourceId, { platform: sourcePlatform, name: sourceName });
+  const vb = virtualBlogger(sourceId, { platform: sourcePlatform, name: sourceName, externalId: sourceExternalId });
   const banner = bannerGradient(sourceId);
   const avatar = avatarGradient(sourceId);
 

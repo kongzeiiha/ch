@@ -119,6 +119,7 @@ export default async function TopicPage(
           sourceName={topic.title}
           sourcePlatform={topic.sourcePlatform ?? null}
           sourceAvatar={topic.sourceAvatar ?? null}
+          sourceExternalId={topic.sourceExternalId ?? null}
           articleCount={total}
         />
       )}

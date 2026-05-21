@@ -21,28 +21,35 @@ export interface VirtualBlogger {
 
 export function virtualBlogger(
   sourceId: string | null | undefined,
-  opts?: { platform?: string | null; name?: string | null },
+  opts?: { platform?: string | null; name?: string | null; externalId?: string | null },
 ): VirtualBlogger {
   if (!sourceId && !opts?.name) {
     return { name: '匿名博主', handle: '@anonymous', initial: '?' };
   }
 
+  // 优先用原平台真实 @handle:X 上是 screen_name(=external_id),其它平台
+  // 暂时只有 x 走这条路。这样 "我在故宫胡吃海喝" 这种中文 display name
+  // 也能正确显示真实 @urgseukekcbdnrb,而不是哈希出来的 @blogger_XXXXX。
+  const realHandle = opts?.platform === 'x' && opts.externalId?.trim()
+    ? `@${opts.externalId.trim()}`
+    : null;
+
   const rawName = opts?.name?.trim();
   if (rawName) {
-    // 名字直接显示。@ 试从名字 ASCII 字符派生 — 中文名退化为基于 sourceId 的哈希后缀
-    // 以保证同一 source 的 handle 跨页面一致。
+    // handle 优先用真实 @handle;退到从名字 ASCII 派生;最后 sourceId 哈希兜底。
     const asciiOnly = rawName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-    const handle = asciiOnly.length >= 3
-      ? `@${asciiOnly.slice(0, 20)}`
-      : `@blogger_${hashSuffix(sourceId ?? rawName)}`.toLowerCase();
+    const handle = realHandle
+      ?? (asciiOnly.length >= 3
+        ? `@${asciiOnly.slice(0, 20)}`
+        : `@blogger_${hashSuffix(sourceId ?? rawName)}`.toLowerCase());
     return { name: rawName, handle, initial: rawName.charAt(0).toUpperCase() };
   }
 
-  // 兜底:没拿到 name(几乎只在数据脏的情况) — 用 source_id 哈希出一个稳定别名
+  // 兜底:没拿到 name — 用 source_id 哈希出一个稳定别名
   const suffix = hashSuffix(sourceId!);
   return {
     name:    `博主_${suffix}`,
-    handle:  `@blogger_${suffix.toLowerCase()}`,
+    handle:  realHandle ?? `@blogger_${suffix.toLowerCase()}`,
     initial: suffix.charAt(0),
   };
 }

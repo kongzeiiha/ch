@@ -859,7 +859,10 @@ export async function registerAdmin(app: FastifyInstance): Promise<void> {
                 COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.raw_payload, '$.title')), '') AS title,
                 COALESCE(JSON_EXTRACT(r.raw_payload, '$.extra.videoUrls'), JSON_ARRAY()) AS video_urls,
                 i.status AS item_status,
-                i.slug   AS item_slug
+                i.slug   AS item_slug,
+                -- 原文 = 适配器抓回来的清洗正文。X 推文整段 fullText 都在这里。
+                -- 切到 4000 字够工作台展示;真要看全文的去 /a/<slug>。
+                LEFT(COALESCE(i.content, ''), 4000) AS original_text
          FROM raw_items r
          JOIN sources s ON s.id = r.source_id
          LEFT JOIN items i ON i.raw_item_id = r.id

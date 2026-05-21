@@ -114,7 +114,13 @@ export function ArticleCard({ a, layout = 'card' }: { a: ArticleCardRow; layout?
   const dbDuration = a.duration_sec != null && a.duration_sec > 0
     ? formatDuration(a.duration_sec)
     : null;
-  const date = a.published_at ? new Date(a.published_at).toLocaleDateString('zh-CN') : null;
+  // 不走 toLocaleDateString — Node ICU 与浏览器 ICU 的 'zh-CN' 输出格式
+  // (2026/5/20 vs 2026-5-20)偶尔不一致, SSR hydration 比对 mismatch。手工 pad 稳定。
+  const date = a.published_at ? (() => {
+    const d = new Date(a.published_at);
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  })() : null;
   // Many feeds embed `https://t.co/xxx` inside the title/summary — strip for
   // a cleaner card. displayTitle does the full display-grade cleanup: URL +
   // @mention removal, LLM-label tail strip, emoji removal, repeated-punct

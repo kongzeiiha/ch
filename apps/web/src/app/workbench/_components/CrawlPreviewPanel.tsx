@@ -45,6 +45,8 @@ export function CrawlPreviewPanel({
   onRefresh: () => void;
 }) {
   const [preview, setPreview] = useState<{ url: string; sourceId: string; title: string; videoUrl?: string } | null>(null);
+  // 原文弹窗 — 单独的 state, 不和 media lightbox 复用,因为内容形态完全不同。
+  const [textModal, setTextModal] = useState<{ title: string; text: string; source: string; url: string | null } | null>(null);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // A media slot at index i is a "video" when either the URL itself looks
@@ -177,6 +179,19 @@ export function CrawlPreviewPanel({
               {renderStatusBadge(it.item_status)}
               <span style={{ fontSize: 11, color: '#71767b' }}>{it.source_name}</span>
               <span style={{ fontSize: 11, color: '#475569' }}>{fmtTime(it.fetched_at)}</span>
+              {it.original_text && it.original_text.trim() && (
+                <button
+                  onClick={() => setTextModal({
+                    title: it.title || it.url || '(无标题)',
+                    text: it.original_text!,
+                    source: it.source_name,
+                    url: it.url,
+                  })}
+                  title="查看采集到的原文(清洗后)"
+                  style={{ fontSize: 11, color: '#fbbf24', background: 'transparent', border: '1px solid #78350f', borderRadius: 5, padding: '1px 7px', cursor: 'pointer' }}>
+                  📄 原文
+                </button>
+              )}
               {(it.item_status === 'PUBLISHED' || it.item_status === 'DISTRIBUTED') && it.item_slug && (
                 <a href={`/a/${it.item_slug}`} target="_blank" rel="noreferrer"
                   style={{ fontSize: 11, color: '#86efac', textDecoration: 'none' }}>↗ 站点</a>
@@ -391,6 +406,45 @@ export function CrawlPreviewPanel({
                 {preview.videoUrl ?? preview.url}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 原文 modal — 纯文本(清洗后),最大 4000 字,溢出滚动 */}
+      {textModal && (
+        <div onClick={() => setTextModal(null)}
+          style={{ position: 'fixed', inset: 0, background: '#000c', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 720, width: '100%', maxHeight: '85vh', overflow: 'auto', background: '#0f172a', border: '1px solid #78350f', borderRadius: 12, padding: '20px 24px', cursor: 'default' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: '#fbbf24', fontSize: 14, fontWeight: 700 }}>📄 原文</h3>
+              <button onClick={() => setTextModal(null)}
+                style={{ background: 'transparent', border: 'none', color: '#71767b', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>
+                ×
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #1e293b' }}>
+              <div style={{ color: '#e2e8f0', fontWeight: 600, marginBottom: 4 }}>{textModal.title}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span>{textModal.source}</span>
+                {textModal.url && (
+                  <a href={textModal.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', textDecoration: 'none', fontSize: 11 }}>
+                    ↗ 原始链接
+                  </a>
+                )}
+              </div>
+            </div>
+            <pre style={{
+              margin: 0,
+              fontSize: 13, lineHeight: 1.7, color: '#e2e8f0',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              fontFamily: 'system-ui, -apple-system, PingFang SC, sans-serif',
+            }}>{textModal.text}</pre>
+            {textModal.text.length >= 4000 && (
+              <div style={{ marginTop: 8, fontSize: 11, color: '#475569', fontStyle: 'italic' }}>
+                (已截断到 4000 字 · 完整内容请去站点文章页)
+              </div>
+            )}
           </div>
         </div>
       )}

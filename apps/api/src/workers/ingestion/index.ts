@@ -160,7 +160,11 @@ export async function ingestSource(sourceId: string): Promise<IngestStats> {
       const persisted = await persistIngested({
         sourceId: source.id,
         url: c.url,
-        fetchedAt: c.publishedAt ?? new Date(),
+        // fetchedAt 是"我们抓到的时间", 永远 NOW(); publishedAt 是"原平台发布时间"
+        // (X 的 legacy.created_at)。先前误把 publishedAt 塞到 fetchedAt,导致
+        // raw_items.fetched_at 不是真实抓取时间且 items.published_at 没填。
+        fetchedAt: new Date(),
+        publishedAt: c.publishedAt,
         rawPayload: { title: c.title, extra: c.extra, htmlBytes: c.html?.length ?? 0 },
         mediaUrls: cleaned.mediaUrls,
         videoSourceUrls,

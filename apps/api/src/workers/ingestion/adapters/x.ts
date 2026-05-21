@@ -70,6 +70,9 @@ const DEFAULT_OP_IDS = {
   UserByScreenName: process.env.X_OPID_USER_BY_SCREEN_NAME || 'G3KGOASz96M-Qu0nwmGXNg',
   UserTweets:       process.env.X_OPID_USER_TWEETS         || 'V7H0Ap3_Hh2FyS75OCDO3Q',
   SearchTimeline:   process.env.X_OPID_SEARCH_TIMELINE     || 'flaR-PUMshxFWZWPNpq4Zw',
+  // 评论同步 worker 用,GraphQL TweetDetail / TweetResultByRestId 的 opId 同样
+  // 会被 X 频繁轮换。挂 404 时从 DevTools 抓最新值放到 X_OPID_TWEET_DETAIL。
+  TweetDetail:      process.env.X_OPID_TWEET_DETAIL        || 'xOhkmRac7eYpfWxAY3LMqQ',
 };
 
 // Synced from a live x.com SearchTimeline request — 2026-05-11.
@@ -791,4 +794,171 @@ function tweetToCandidate(t: any, opts: { skipRetweets?: boolean } = {}): RawCan
 function extractCt0(cookie: string): string | null {
   const m = /(?:^|;\s*)ct0=([^;]+)/.exec(cookie);
   return m ? m[1] : null;
+}
+
+// ── Tweet replies fetcher (评论同步 worker 用)──────────────────────────────
+//
+// 调 X 的 TweetDetail GraphQL 拿一条推文的整条 conversation thread,然后筛出
+// in_reply_to_status_id_str === focalTweetId 的回复(直接 reply,不含 reply-to-reply)。
+// 用同一 source 的 cookie(运营建源时录的那个),所以哪条源采的就用哪个 cookie 抓回复,
+// 避开"一个 X 账号读全站所有源"的限流风险。
+//
+// X 的 opId / features 都会轮换,挂 404 / 401 时 worker 走 best-effort:这条
+// item 留着下次重试,不抛任何业务异常。
+
+export interface XReply {
+  /** 回复 tweet 的 legacy.id_str — 同步表的 external_id */
+  tweetId: string;
+  /** 评论者 @handle (不带 @) */
+  authorHandle: string;
+  /** 评论者 X profile display name(可能为中文 / emoji) */
+  authorName: string;
+  /** 评论者头像 URL,空时调用方回落到渐变方块 */
+  authorAvatar: string | null;
+  /** 评论正文(legacy.full_text) */
+  body: string;
+  /** 原平台发表时间 */
+  postedAt: Date;
+}
+
+export interface XTweetThread {
+  /** focal tweet 自己的 view count(原平台累计查看数), 拿不到时 null */
+  focalViewCount: number | null;
+  /** focal tweet 的直接回复 */
+  replies: XReply[];
+}
+
+export async function fetchTweetReplies(
+  source: SourceRow,
+  tweetId: string,
+  opts: { limit?: number } = {},
+): Promise<XTweetThread> {
+  const empty: XTweetThread = { focalViewCount: null, replies: [] };
+  if (!tweetId) return empty;
+  const auth = await resolveAuth(source);
+  const cookie = auth.cookie;
+  if (!cookie) {
+    throw new AdapterAuthError(401, 'X reply fetcher needs cookie (set credential or config.cookie)');
+  }
+  const csrf = (extractCt0(cookie) || '').trim();
+  if (!csrf) {
+    throw new AdapterAuthError(401, 'X reply fetcher could not derive csrf from cookie');
+  }
+
+  const cfg = source.config as Config;
+  const headers = {
+    authorization: `Bearer ${cfg.bearerToken || PUBLIC_BEARER}`,
+    'x-csrf-token': csrf,
+    'x-twitter-active-user': 'yes',
+    'x-twitter-auth-type': 'OAuth2Session',
+    'x-twitter-client-language': 'en',
+    'content-type': 'application/json',
+    accept: '*/*',
+    'accept-language': 'en-US,en;q=0.9',
+    'user-agent': auth.userAgent || cfg.userAgent || BROWSER_UA,
+    origin: 'https://x.com',
+    referer: `https://x.com/i/status/${tweetId}`,
+    cookie,
+  };
+  const features = { ...DEFAULT_FEATURES, ...(cfg.features || {}) };
+  const fieldToggles = { ...DEFAULT_FIELD_TOGGLES, ...(cfg.fieldToggles || {}) };
+  const opIds = { ...DEFAULT_OP_IDS, ...(cfg.opIds || {}) };
+
+  // X 的 TweetDetail 用 GET + URLSearchParams variables;referrer 设到这条 tweet
+  // 提高被反爬识别为正常浏览的概率。
+  const variables = {
+    focalTweetId: tweetId,
+    referrer: 'tweet',
+    with_rux_injections: false,
+    includePromotedContent: false,
+    withCommunity: true,
+    withQuickPromoteEligibilityTweetFields: false,
+    withBirdwatchNotes: false,
+    withVoice: false,
+    withV2Timeline: true,
+  };
+  const url = buildUrl('TweetDetail', opIds.TweetDetail, variables, features, fieldToggles);
+  const res = await http.get<any>(url, { headers });
+
+  if (res.status === 401 || res.status === 403) {
+    throw new AdapterAuthError(res.status, 'X rejected cookie/csrf for TweetDetail');
+  }
+  if (res.status === 429) {
+    throw new AdapterAuthError(429, 'X rate-limited TweetDetail');
+  }
+  // 404/410 一般是 opId 过期 — 抛 AdapterAuthError 让 worker 标 authFail,
+  // 也借此提醒去更 X_OPID_TWEET_DETAIL。
+  if (res.status === 404 || res.status === 410) {
+    throw new AdapterAuthError(
+      res.status,
+      `X TweetDetail returned ${res.status} — opId "${opIds.TweetDetail}" likely outdated, set X_OPID_TWEET_DETAIL`,
+    );
+  }
+  if (res.status !== 200) {
+    console.warn(`[x] TweetDetail tweet=${tweetId} http=${res.status}`);
+    return empty;
+  }
+  if (Array.isArray(res.data?.errors) && res.data.errors.length > 0) {
+    const msg = res.data.errors[0]?.message || 'unknown GraphQL error';
+    // 删帖 / 私密帖会返回 errors 但 status=200;静默跳过,不当 authFail
+    console.warn(`[x] TweetDetail tweet=${tweetId} GraphQL err: ${msg.slice(0, 100)}`);
+    return empty;
+  }
+
+  // 走通用 walker 拿所有 Tweet 节点,然后筛出"直接回复 focalTweet"那些。
+  // reply-of-reply (子回复)暂时不抓 — 一来增加复杂度,二来真要做最好分页。
+  const allTweets = extractTweetsFromTimeline(res.data);
+  const limit = Math.min(Math.max(opts.limit ?? 40, 1), 100);
+
+  // 顺手从 allTweets 里找出 focal tweet, 提取它的 view_count。
+  // X 新 schema 在 t.views.count(字符串),老 schema 在 legacy.view_count;两者都试。
+  // String() 强转两边 — 老 GraphQL 偶尔会把 rest_id 返成 number, === 直接比对会漏。
+  let focalViewCount: number | null = null;
+  const focal = allTweets.find((t) => String(t.rest_id ?? t.legacy?.id_str ?? '') === tweetId);
+  if (focal) {
+    const v = focal.views?.count ?? focal.legacy?.view_count ?? null;
+    if (v != null && v !== '') {
+      const n = typeof v === 'number' ? v : Number(v);
+      if (Number.isFinite(n) && n >= 0) focalViewCount = Math.floor(n);
+    }
+  }
+
+  const replies: XReply[] = [];
+  const seenTweetIds = new Set<string>();
+  for (const t of allTweets) {
+    const legacy = t.legacy ?? {};
+    // String() 强转 — X GraphQL 偶尔把 id_str / rest_id 返回成 number, 跟字符串 tweetId 直接 === 会漏。
+    const id = String(legacy.id_str ?? t.rest_id ?? '');
+    if (!id || id === tweetId) continue;  // 跳过 focal tweet 本身
+    if (seenTweetIds.has(id)) continue;
+    if (String(legacy.in_reply_to_status_id_str ?? '') !== tweetId) continue;
+    // 跳过 retweet 包装 — replies 不应该是 RT
+    if (legacy.retweeted_status_result) continue;
+
+    const user = t.core?.user_results?.result;
+    const userLegacy = user?.legacy ?? {};
+    const handle = (userLegacy.screen_name || user?.core?.screen_name || '').trim();
+    if (!handle) continue;
+    const displayName = userLegacy.name || user?.core?.name || handle;
+    const rawAvatar: string | null = userLegacy.profile_image_url_https
+                                 ?? user?.avatar?.image_url ?? null;
+    const avatar = rawAvatar ? rawAvatar.replace(/_normal(\.\w+)$/, '_200x200$1') : null;
+    const text = (legacy.full_text || '').trim();
+    if (!text) continue;
+    const posted = legacy.created_at ? new Date(legacy.created_at) : null;
+    if (!posted || Number.isNaN(posted.getTime())) continue;
+
+    seenTweetIds.add(id);
+    replies.push({
+      tweetId: id,
+      authorHandle: handle.slice(0, 64),
+      authorName: String(displayName).slice(0, 128),
+      authorAvatar: avatar ? avatar.slice(0, 512) : null,
+      body: text,
+      postedAt: posted,
+    });
+
+    if (replies.length >= limit) break;
+  }
+  return { focalViewCount, replies };
 }

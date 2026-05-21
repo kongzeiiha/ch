@@ -2,17 +2,41 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { proxiedImage } from '../../lib/media';
 import { X } from './theme';
 
-// 文章页评论区 — 站点无用户系统,匿名身份完全靠 LS:
-//   - comment:name      用户起的昵称(默认"匿名",可改)
-//   - comment:anon-id   首次访问生成的 uuid 标 -- 后端用来标识"我自己的评论"
+// 文章页评论区 — 合并两路来源后按时间倒序混排:
+//   1. 站点匿名评论(comments 表;LS 身份 + 30s rate-limit)
+//   2. X 同步评论(external_comments 表;x-comments worker 每 10 分钟刷一次)
 //
-// 服务端有 IP+UA 指纹的 30s rate-limit,所以 LS 清掉也不能瞬时灌水。
+// 表单只发本站匿名评论(X 评论是镜像,不允许从这里回写)。
+// X 来源的卡片右上角加 「来自 X」 徽标 + @handle 链接到 x.com。
 const LS_NAME = 'comment:name';
 const LS_ANON = 'comment:anon-id';
 
-interface Comment {
+interface LocalComment {
+  kind: 'local';
+  id: string;          // local id 转成 string,避免和 external id 冲突
+  anonId: string;
+  name: string;
+  body: string;
+  createdAt: string;
+}
+
+interface ExternalComment {
+  kind: 'external';
+  id: string;
+  platform: string;    // 现在只有 'x'
+  authorHandle: string;
+  authorName: string | null;
+  authorAvatar: string | null;
+  body: string;
+  createdAt: string;
+}
+
+type MergedComment = LocalComment | ExternalComment;
+
+interface LocalApiComment {
   id: number;
   anonId: string;
   name: string;
@@ -20,10 +44,20 @@ interface Comment {
   createdAt: string;
 }
 
+interface ExternalApiComment {
+  id: number;
+  platform: string;
+  externalId: string;
+  authorHandle: string;
+  authorName: string | null;
+  authorAvatar: string | null;
+  body: string;
+  postedAt: string;
+}
+
 function ensureAnonId(): string {
   let id = localStorage.getItem(LS_ANON);
   if (!id) {
-    // crypto.randomUUID 在 https/localhost 都可用;退路用 Math.random 保底
     id = (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -46,35 +80,65 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
 }
 
-export function CommentSection({ slug }: { slug: string }) {
+function mergeAndSort(local: LocalComment[], external: ExternalComment[]): MergedComment[] {
+  return [...local, ...external].sort((a, b) => {
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    return tb - ta;
+  });
+}
+
+export function CommentSection({ slug, sourceId }: { slug: string; sourceId?: string | null }) {
   const router = useRouter();
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [total, setTotal] = useState(0);
+  const [localList, setLocalList] = useState<LocalComment[]>([]);
+  const [externalList, setExternalList] = useState<ExternalComment[]>([]);
+  const [localTotal, setLocalTotal] = useState(0);
+  const [externalTotal, setExternalTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [body, setBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
-  // anonIdRef 必须在 useState 阶段就用 lazy initializer 拿到值, 不能放 useEffect
-  // 里赋值 — useEffect 在 mount 后才跑, 用户极速提交评论时可能赶在 ref 写入前
-  // 触发 submit, anonId 是空字符串, 后端 400 拒绝。
-  // useRef 接 init function 在某些 React 版本下不直接支持; 这里直接传初值,
-  // ensureAnonId 在 SSR 时返回空,客户端 hydrate 后 useEffect 再补写一次。
   const anonIdRef = useRef<string>(typeof window !== 'undefined' ? ensureAnonId() : '');
 
   useEffect(() => {
-    // 双重兜底:SSR 阶段 ref 是 '',hydration 后这里补一次。同时同步 nickname。
     if (!anonIdRef.current) anonIdRef.current = ensureAnonId();
     setName(localStorage.getItem(LS_NAME) ?? '');
     (async () => {
-      try {
-        const r = await fetch(`/api/comments/${encodeURIComponent(slug)}`);
-        const d = await r.json();
-        if (r.ok && d.ok) {
-          setComments(d.comments ?? []);
-          setTotal(d.total ?? 0);
-        }
-      } catch { /* 静默 — 网络故障时区域显示空,不阻塞文章页 */ }
+      // 两个端点并发拉,任一失败不阻塞另一个;两边都空就显示"还没有评论"。
+      const [localRes, extRes] = await Promise.allSettled([
+        fetch(`/api/comments/${encodeURIComponent(slug)}`).then((r) => r.json()),
+        fetch(`/api/external-comments/${encodeURIComponent(slug)}`).then((r) => r.json()),
+      ]);
+
+      if (localRes.status === 'fulfilled' && localRes.value?.ok) {
+        const d = localRes.value;
+        setLocalList((d.comments as LocalApiComment[]).map((c) => ({
+          kind: 'local' as const,
+          id: `local-${c.id}`,
+          anonId: c.anonId,
+          name: c.name,
+          body: c.body,
+          createdAt: c.createdAt,
+        })));
+        setLocalTotal(d.total ?? 0);
+      }
+
+      if (extRes.status === 'fulfilled' && extRes.value?.ok) {
+        const d = extRes.value;
+        setExternalList((d.comments as ExternalApiComment[]).map((c) => ({
+          kind: 'external' as const,
+          id: `ext-${c.id}`,
+          platform: c.platform,
+          authorHandle: c.authorHandle,
+          authorName: c.authorName,
+          authorAvatar: c.authorAvatar,
+          body: c.body,
+          createdAt: c.postedAt,
+        })));
+        setExternalTotal(d.total ?? 0);
+      }
+
       setLoading(false);
     })();
   }, [slug]);
@@ -84,7 +148,6 @@ export function CommentSection({ slug }: { slug: string }) {
     if (submitting) return;
     const trimmed = body.trim();
     if (!trimmed) { setErr('评论不能为空'); return; }
-    // 极端兜底:点击极快 hydration 还没完成时,这里现拿一次 anonId
     let anonId = anonIdRef.current;
     if (!anonId) {
       anonId = ensureAnonId();
@@ -102,11 +165,20 @@ export function CommentSection({ slug }: { slug: string }) {
       });
       const d = await r.json();
       if (!r.ok || !d.ok) throw new Error(d.error ?? `HTTP ${r.status}`);
-      setComments((cur) => [d.comment, ...cur]);
-      setTotal((n) => n + 1);
+      // 把新发的本站评论塞进 local 列表,渲染时和 external 一起按时间排好
+      setLocalList((cur) => [
+        {
+          kind: 'local' as const,
+          id: `local-${d.comment.id}`,
+          anonId: d.comment.anonId,
+          name: d.comment.name,
+          body: d.comment.body,
+          createdAt: d.comment.createdAt,
+        },
+        ...cur,
+      ]);
+      setLocalTotal((n) => n + 1);
       setBody('');
-      // 让当前(文章)页的 RSC payload 失效;回列表时 staleTimes.dynamic=0
-      // 强制重拉 server data,💬 计数立即同步。
       router.refresh();
     } catch (e: any) {
       setErr(e?.message ?? '发表失败');
@@ -114,6 +186,9 @@ export function CommentSection({ slug }: { slug: string }) {
       setSubmitting(false);
     }
   }
+
+  const merged = mergeAndSort(localList, externalList);
+  const total = localTotal + externalTotal;
 
   return (
     <section style={{ marginTop: 32, paddingTop: 20, borderTop: `1px solid ${X.border}` }}>
@@ -177,39 +252,88 @@ export function CommentSection({ slug }: { slug: string }) {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 24, color: X.textMuted, fontSize: 13 }}>加载中…</div>
-      ) : comments.length === 0 ? (
+      ) : merged.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 24, color: X.textMuted, fontSize: 14 }}>
           还没有评论 · 你来当第一个
         </div>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {comments.map((c) => {
-            const isMine = c.anonId === anonIdRef.current;
-            return (
-              <li key={c.id} style={{
-                padding: 12,
-                background: isMine ? 'rgba(29,155,240,0.05)' : 'transparent',
-                border: `1px solid ${X.border}`,
-                borderRadius: 12,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, color: X.text, fontSize: 14 }}>{c.name}</span>
-                  {isMine && <span style={{ fontSize: 11, color: X.accent, fontWeight: 600 }}>我</span>}
-                  <span style={{ fontSize: 12, color: X.textMuted, marginLeft: 'auto' }}>{timeAgo(c.createdAt)}</span>
-                </div>
-                <div style={{ fontSize: 15, color: X.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {c.body}
-                </div>
-              </li>
-            );
-          })}
-          {total > comments.length && (
+          {merged.map((c) =>
+            c.kind === 'local'
+              ? <LocalRow key={c.id} c={c} isMine={c.anonId === anonIdRef.current} />
+              : <ExternalRow key={c.id} c={c} sourceId={sourceId ?? null} />,
+          )}
+          {(localTotal > localList.length || externalTotal > externalList.length) && (
             <li style={{ textAlign: 'center', padding: 12, fontSize: 12, color: X.textMuted, listStyle: 'none' }}>
-              已显示最近 {comments.length} 条,共 {total} 条
+              已显示最近 {merged.length} 条,共 {total} 条
             </li>
           )}
         </ul>
       )}
     </section>
+  );
+}
+
+function LocalRow({ c, isMine }: { c: LocalComment; isMine: boolean }) {
+  return (
+    <li style={{
+      padding: 12,
+      background: isMine ? 'rgba(29,155,240,0.05)' : 'transparent',
+      border: `1px solid ${X.border}`,
+      borderRadius: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontWeight: 700, color: X.text, fontSize: 14 }}>{c.name}</span>
+        {isMine && <span style={{ fontSize: 11, color: X.accent, fontWeight: 600 }}>我</span>}
+        <span style={{ fontSize: 12, color: X.textMuted, marginLeft: 'auto' }}>{timeAgo(c.createdAt)}</span>
+      </div>
+      <div style={{ fontSize: 15, color: X.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        {c.body}
+      </div>
+    </li>
+  );
+}
+
+function ExternalRow({ c, sourceId }: { c: ExternalComment; sourceId: string | null }) {
+  return (
+    <li style={{
+      padding: 12,
+      border: `1px solid ${X.border}`,
+      borderRadius: 12,
+      display: 'flex', gap: 10,
+    }}>
+      {c.authorAvatar ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={proxiedImage(c.authorAvatar, sourceId)} alt={c.authorName ?? c.authorHandle}
+          loading="lazy"
+          style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, objectFit: 'cover', background: X.surfaceHover }} />
+      ) : (
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: X.surfaceHover, color: X.textSecondary, fontWeight: 700, fontSize: 16,
+        }}>{(c.authorName ?? c.authorHandle).charAt(0).toUpperCase()}</div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, color: X.text, fontSize: 14 }}>{c.authorName ?? c.authorHandle}</span>
+          <a
+            href={`https://x.com/${c.authorHandle}`}
+            target="_blank" rel="noreferrer noopener"
+            style={{ fontSize: 13, color: X.textMuted, textDecoration: 'none' }}
+          >@{c.authorHandle}</a>
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            padding: '2px 6px', borderRadius: 4,
+            background: X.surfaceHover, color: X.textSecondary,
+            letterSpacing: 0.5,
+          }}>来自 X</span>
+          <span style={{ fontSize: 12, color: X.textMuted, marginLeft: 'auto' }}>{timeAgo(c.createdAt)}</span>
+        </div>
+        <div style={{ fontSize: 15, color: X.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: 4 }}>
+          {c.body}
+        </div>
+      </div>
+    </li>
   );
 }

@@ -1,4 +1,8 @@
-import { SITE_URL } from '../../lib/db';
+// Don't import from `lib/db` here — that module bootstraps the MySQL pool,
+// and webpack happens to bundle robots.txt and sitemap.xml together. When
+// MySQL is unreachable at build time the shared module fails to import,
+// taking robots.txt down with it. SITE_URL is just env, read it directly.
+const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';
 
 export function GET() {
   const body = `User-agent: *

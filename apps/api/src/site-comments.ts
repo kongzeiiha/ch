@@ -103,6 +103,10 @@ export function registerSiteComments(app: FastifyInstance): void {
     );
     const insertId = (result as any).insertId ?? null;
 
+    // 物化列 items.comment_count + 1 — 列表卡 / LiveCountPatcher 都读这一列。
+    // 增量 +1 比重算 (SELECT COUNT) 便宜,INSERT 本身保证了 +1 的正确性。
+    await execute(`UPDATE items SET comment_count = comment_count + 1 WHERE id = $1`, [item.id]);
+
     // 回读 DB 的 created_at — 用 INSERT 时刻的真实 DB 时间,而不是 response 拼装
     // 时刻的 new Date()。否则网络稍慢,客户端拿到的 createdAt 比 DB 真实时间还晚,
     // "刚刚" / "X 分钟前" 的相对时间会偏移。

@@ -42,6 +42,7 @@ const { registerMediaProxy } = await import('./media-proxy.js');
 const { registerSiteAnalytics } = await import('./site-analytics.js');
 const { registerSiteLikes } = await import('./site-likes.js');
 const { registerSiteComments } = await import('./site-comments.js');
+const { registerSiteExternalComments } = await import('./site-external-comments.js');
 const { registerSiteItemStats } = await import('./site-item-stats.js');
 const { registerManualPost } = await import('./admin-manual-post.js');
 
@@ -103,6 +104,8 @@ async function main(): Promise<void> {
   registerSiteLikes(app);
   // 公开评论端点 — 匿名 LS 身份,Redis 指纹 rate-limit。
   registerSiteComments(app);
+  // 外部平台评论(X 同步)— 文章页另一区展示。
+  registerSiteExternalComments(app);
   // 批量计数:列表客户端 mount 后用它把卡片数字 patch 到最新。
   registerSiteItemStats(app);
 

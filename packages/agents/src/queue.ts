@@ -24,6 +24,9 @@ export const QUEUE_NAMES = {
   distribution: 'distribution',
   analytics: 'analytics',
   credentialRefresh: 'credential-refresh',
+  // 同步 X 等外部平台的回复评论 — fanout job 选近 7 天发布的帖子,
+  // 调对应源的 cookie 抓 TweetDetail,过滤广告后 UPSERT external_comments。
+  xComments: 'x-comments',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -51,6 +54,12 @@ export function getQueue<T = any>(name: QueueName): Queue<T> {
 
 export interface WorkerOptions {
   concurrency?: number;
+  /** BullMQ 给 job 加的 Redis 锁的过期时间, 默认 30s。job 超过这个时长又没续约,
+   *  Redis 视为 stalled 让其他 worker 抢锁, 当前 worker 抛 "could not renew lock"。
+   *  长跑 job(批量 fanout 之类)需要把这个调大,值要明显超过 99 分位执行时长。 */
+  lockDuration?: number;
+  /** 多久检查一次 stalled job, 默认 30s。一般和 lockDuration 同量级即可。 */
+  stalledInterval?: number;
 }
 
 export function startWorker<T = any>(
@@ -61,6 +70,8 @@ export function startWorker<T = any>(
   const worker = new Worker<T>(name, processor, {
     connection,
     concurrency: opts.concurrency ?? 4,
+    ...(opts.lockDuration != null ? { lockDuration: opts.lockDuration } : {}),
+    ...(opts.stalledInterval != null ? { stalledInterval: opts.stalledInterval } : {}),
   });
   worker.on('failed', (job, err) => {
     console.error(`[${name}] job=${job?.id} failed: ${err.message}`);

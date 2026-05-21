@@ -7,11 +7,11 @@ import { cleanTagList, isJunkTag } from './strip-urls';
 // cloud is invisible to humans and saves orders of magnitude on JSON_TABLE
 // full scans once the corpus grows. Tuned via env so ops can drop this for
 // incident debugging without a code change.
-// 默认不走 Redis 列表缓存(TTL=0 → cached() 直接 compute,跳过 GET/SET)。
-// 当前数据量小(<1k items),local MySQL 单次列表 SQL 在 50-100ms,完全够用;
-// 同时点赞 / 评论 / 浏览数能立即反映,不再需要复杂的写时 invalidate 逻辑。
-// 流量上来后可设 FEED_CACHE_TTL=30 之类的环境变量重新启用缓存。
-const HOT_TTL = Number(process.env.FEED_CACHE_TTL ?? 0);
+// 默认 30s — 首页 "为你推荐 / 最新" tab 切换是高频动作,每次都跑一遍
+// ROW_NUMBER 去重 + COUNT(DISTINCT) 在本地 MySQL 上 200-400ms,体感明显卡顿。
+// 30s 内同一份 list 走 Redis 直返,基本零延迟;点赞 / 评论数也只滞后半分钟,
+// 在卡片场景里几乎不可感知。需要更实时可在 .env 里 `FEED_CACHE_TTL=0` 关闭。
+const HOT_TTL = Number(process.env.FEED_CACHE_TTL ?? 30);
 
 export interface ArticleCardRow {
   id: string;
@@ -50,6 +50,9 @@ export interface ArticleCardRow {
   /** sources.avatar_url — 爬虫抓 X 时存的博主头像 URL。XPost / XProfileHeader
    *  优先用它渲染 <img>,空时回落到渐变色块 + 首字母。 */
   source_avatar: string | null;
+  /** 原平台真实 @handle (X 上 = `@${screen_name}`)。卡片头部 @后面优先用它,
+   *  没有时(非 X 平台)回落到 virtualBlogger 派生的 handle。 */
+  source_handle: string | null;
   /** content character count, used for the 时长 bucket */
   content_length: number;
   /** 累计点赞数 — 由 /like/:slug 端点维护,卡片角标 / 文章页 LikeButton 都读这列。 */
@@ -63,6 +66,12 @@ export interface ArticleCardRow {
 
 export interface TagCount { tag: string; count: number }
 
+// 本站匿名 + X 镜像评论合计 — 物化进 items.comment_count(0026 迁移)。
+// 写时维护:site-comments.ts 发评论 INSERT 后 + 1;x-comments worker 每 item
+// 同步完按 SQL 重算一次,保证 UPSERT(复爬同评论)和 cascade delete 都准。
+// 读侧任何用 ARTICLE_COLS / hot_score 公式的地方现在直接读 i.comment_count 列。
+const COMMENT_COUNT_EXPR = `i.comment_count`;
+
 // Items joined to their raw counterpart so we can fall back to the first
 // raw media URL when the cover agent hasn't generated a cover_url yet.
 // `cover_fallback` is routed through /img-proxy on render to handle X CDN
@@ -71,11 +80,20 @@ const ARTICLE_COLS = `
   i.id, i.slug, i.title, i.summary, i.source_id,
   i.cover_url, i.cover_sizes, i.category, i.tags,
   i.published_at, i.duration_sec,
-  i.pv_30d, i.likes,
+  -- 展示用查看数:本站累计 PV + X 原推累计 view_count(x-comments worker 同步)。
+  -- 两者语义不严格等价,但前端 👁️ 想显示一个最大、最直观的"总热度"。
+  (i.pv_30d + COALESCE(i.external_views, 0)) AS pv_30d,
+  i.likes,
   COALESCE(s.display_name, s.name) AS source,
   s.platform AS source_platform,
   s.avatar_url AS source_avatar,
-  (SELECT COUNT(*) FROM comments c WHERE c.item_id = i.id) AS comment_count,
+  -- 原平台真实 @handle:X 上是 external_id(=screen_name),前面拼 @。
+  -- 其它平台不展示 handle, virtualBlogger 兜底走 source_id 哈希。
+  CASE WHEN s.platform = 'x' THEN CONCAT('@', s.external_id) ELSE NULL END AS source_handle,
+  -- 本站匿名评论 + X 同步评论合并计数,跟文章页"评论 · N"标题一致。
+  -- 表达式抽到 COMMENT_COUNT_EXPR 常量,因为 hot_score 公式也要乘它,
+  -- 而 MySQL 不允许同层 SELECT 引用兄弟 SELECT 的别名。
+  ${COMMENT_COUNT_EXPR} AS comment_count,
   JSON_UNQUOTE(JSON_EXTRACT(r.media_urls, '$[0]')) AS cover_fallback,
   JSON_UNQUOTE(JSON_EXTRACT(r.video_urls, '$[0]')) AS video_url,
   (JSON_LENGTH(r.video_urls) > 0) AS has_video,
@@ -271,12 +289,37 @@ async function getFilteredUncached(f: FeedFilter): Promise<{ items: ArticleCardR
     params.push(DATE_BUCKETS[f.date].days);
   }
 
-  // "最热"排序公式: hot_score = pv_30d * 0.5 + likes * 0.5
-  //   - pv_30d 是 30 天滚动 PV(由 analytics worker 每小时刷新)
-  //   - likes 是全站累计点赞(由 /like/:slug 端点幂等更新)
-  //   - 公式权重由产品策略决定:浏览贡献和情感投票各占一半
-  // 平局时退回到 published_at 倒序保证稳定排序。
-  const hotScore = '(i.pv_30d * 0.5 + i.likes * 0.5)';
+  // X-style "为你推荐" 排序公式 — HN 衰减 + 互动加权 + 媒体质量
+  //
+  //   hot_score = (pv_30d * 0.3 + likes * 5 + comments * 3
+  //                + video_bonus + image_bonus + 1)
+  //               / POW(age_hours + 2, 1.2)
+  //
+  // 互动权重:
+  //   - pv_30d  * 0.3 — 被动浏览,信号弱
+  //   - likes   * 5   — 主动点赞,强信号
+  //   - comments* 3   — 评论需投入,强情感
+  // 媒体质量(冷启动期最重要):
+  //   - has_video → +2  视频内容默认价值高于纯图片
+  //   - has_image → +0.5 有图比无图好,但远低于视频
+  //   - 没有这两项时,新部署 / 零互动数据集里 hot 排序会退化成 latest,
+  //     用户看 "为你推荐" tab 和 "最新" tab 数据一样 —— 媒体奖励让公式
+  //     在冷启动期就能产生有意义的差异(同时间的视频压过图片)。
+  // 时间衰减:
+  //   - gravity 1.2 (而非 HN 标准 1.5) — 让 likes / 视频 bonus 有机会
+  //     战胜年龄差。1.5 太陡: 一个 24h 老视频比 4h 新图片得分还低,
+  //     完全和 latest 重合。1.2 让一个有视频的 12h 老帖 ≈ 一个图片 4h 新帖。
+  //   - +2 偏移防止 age=0 时除零爆炸
+  // 注意:不能写 `i.comment_count`,那是同层 SELECT 别名,MySQL 拒绝;
+  // 也不能直接拼 `i.has_video`/`i.has_image`,它们也是别名 —— 用底层
+  // JSON_LENGTH(r.video_urls) > 0 表达式。`r` 是 raw_items 别名,由
+  // ARTICLE_FROM 注入,getFiltered 的 JOIN 一定有它。
+  const hotScore = `(`
+    + `(i.pv_30d * 0.3 + i.likes * 5 + ${COMMENT_COUNT_EXPR} * 3`
+    + ` + CASE WHEN JSON_LENGTH(r.video_urls) > 0 THEN 2 ELSE 0 END`
+    + ` + CASE WHEN JSON_LENGTH(r.media_urls) > 0 THEN 0.5 ELSE 0 END`
+    + ` + 1)`
+    + ` / POW(TIMESTAMPDIFF(HOUR, i.published_at, NOW()) + 2, 1.2))`;
   const orderBy = f.sort === 'hot'
     ? `${hotScore} DESC, i.published_at DESC`
     : 'i.published_at DESC';
@@ -296,7 +339,7 @@ async function getFilteredUncached(f: FeedFilter): Promise<{ items: ArticleCardR
     query<ArticleCardRow>(
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
-              t.published_at, t.duration_sec, t.source, t.source_platform, t.source_avatar,
+              t.published_at, t.duration_sec, t.source, t.source_platform, t.source_avatar, t.source_handle,
               t.cover_fallback, t.video_url,
               t.has_video, t.has_image, t.content_length, t.pv_30d, t.likes, t.comment_count
        FROM (
@@ -384,7 +427,7 @@ async function searchUncached(opts: FeedFilter & { q?: string }): Promise<{ item
     query<ArticleCardRow>(
       `SELECT t.id, t.slug, t.title, t.summary, t.source_id,
               t.cover_url, t.cover_sizes, t.category, t.tags,
-              t.published_at, t.duration_sec, t.source, t.source_platform, t.source_avatar,
+              t.published_at, t.duration_sec, t.source, t.source_platform, t.source_avatar, t.source_handle,
               t.cover_fallback, t.video_url,
               t.has_video, t.has_image, t.content_length, t.pv_30d, t.likes, t.comment_count
        FROM (
@@ -463,16 +506,18 @@ export interface SourceCount {
   id: string;
   name: string;
   platform: string;
+  external_id: string;
   avatar_url: string | null;
   article_count: number;
 }
 export async function getTopSources(limit = 5): Promise<SourceCount[]> {
   return cached(`sources:${limit}`, HOT_TTL, async () => {
-    const rows = await query<{ id: string; name: string; platform: string; avatar_url: string | null; article_count: number }>(
+    const rows = await query<{ id: string; name: string; platform: string; external_id: string; avatar_url: string | null; article_count: number }>(
       // 排除 admin-manual-post.ts 自动建的 "手工录入" 兜底源 — 运营手工发帖时
       // 没指定发帖人会归到这条上,在公开推荐栏出现一个名字叫"手工录入"的"博主"
       // 视觉很怪。手工源里运营显式建的(不同 external_id)正常出现。
-      `SELECT s.id, COALESCE(s.display_name, s.name) AS name, s.platform, s.avatar_url, COUNT(i.id) AS article_count
+      // external_id:用来给 virtualBlogger 算真实 @handle(X 上 = screen_name)。
+      `SELECT s.id, COALESCE(s.display_name, s.name) AS name, s.platform, s.external_id, s.avatar_url, COUNT(i.id) AS article_count
        FROM sources s
        JOIN items i ON i.source_id = s.id
         AND i.status IN ('PUBLISHED','DISTRIBUTED')
@@ -494,6 +539,7 @@ export interface SourceDetail {
   id: string;
   name: string;
   platform: string;
+  external_id: string;
   avatar_url: string | null;
   article_count: number;
   last_article_at: string | null;
@@ -547,10 +593,10 @@ async function searchSourcesUncached(opts: {
 
   const [rows, totalRows] = await Promise.all([
     query<{
-      id: string; name: string; platform: string; avatar_url: string | null;
+      id: string; name: string; platform: string; external_id: string; avatar_url: string | null;
       article_count: number; last_article_at: string | null; created_at: string;
     }>(
-      `SELECT s.id, COALESCE(s.display_name, s.name) AS name, s.platform, s.avatar_url, s.created_at,
+      `SELECT s.id, COALESCE(s.display_name, s.name) AS name, s.platform, s.external_id, s.avatar_url, s.created_at,
               COUNT(i.id) AS article_count,
               MAX(i.published_at) AS last_article_at
        FROM sources s
@@ -567,8 +613,21 @@ async function searchSourcesUncached(opts: {
     ),
   ]);
 
+  // mysql2 把 MAX(TIMESTAMP) 和 s.created_at 返成 JS Date 对象;SourceDetail 类型
+  // 是 string,React 渲染 / formatTimeAgo 会 hydration mismatch。统一拍扁 ISO 串。
+  const toISO = (v: unknown): string | null => {
+    if (!v) return null;
+    if (typeof v === 'string') return v;
+    if (v instanceof Date) return v.toISOString();
+    return String(v);
+  };
   return {
-    sources: rows.map((r) => ({ ...r, article_count: Number(r.article_count) })),
+    sources: rows.map((r) => ({
+      ...r,
+      article_count: Number(r.article_count),
+      last_article_at: toISO(r.last_article_at),
+      created_at: toISO(r.created_at) ?? '',
+    })),
     total: Number(totalRows[0]?.n ?? 0),
   };
 }
@@ -591,38 +650,89 @@ export async function getRelated(
   media?: 'video' | 'image',
 ): Promise<ArticleCardRow[]> {
   if (!category) return [];
-  return cached(`rel:${category}:${media ?? 'any'}:${excludeId}:${limit}`, HOT_TTL, async () => {
+  // cache key 故意不带 excludeId — 否则每篇文章一个 key, Redis 键基数无界。
+  // 取 limit+1 条候选(SQL 里不 exclude), 拿到后在内存里过滤掉当前文章 id,
+  // 再 slice 到 limit。同 category × 同 media 的所有文章共享一份缓存。
+  const fetchLimit = limit + 1;
+  return cached(`rel:${category}:${media ?? 'any'}:${fetchLimit}`, HOT_TTL, async () => {
     const mediaCond = media === 'video'
       ? 'AND JSON_LENGTH(r.video_urls) > 0'
       : media === 'image'
       ? 'AND JSON_LENGTH(r.media_urls) > 0 AND COALESCE(JSON_LENGTH(r.video_urls), 0) = 0'
       : '';
+    // 跟 getFilteredUncached / search() 同款的 title-level 去重 —
+    // 同一推文多次入库(carousel / 重爬)时,标题相同的多条 row 只保留 published_at
+    // 最新的一条。否则 "相关推荐" 出现两张几乎一样的卡片。
+    const dedupKey = `COALESCE(NULLIF(TRIM(i.title), ''), CAST(i.id AS CHAR))`;
     const rows = await query<ArticleCardRow>(
       `SELECT ${ARTICLE_COLS}
-       ${ARTICLE_FROM}
-       WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1 AND i.id <> $2 ${mediaCond}
+       FROM (
+         SELECT i.*,
+                ROW_NUMBER() OVER (PARTITION BY ${dedupKey} ORDER BY i.published_at DESC) AS dedup_rn
+         FROM items i
+         WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.category = $1
+       ) i
+       JOIN sources s ON s.id = i.source_id
+       LEFT JOIN raw_items r ON r.id = i.raw_item_id
+       WHERE i.dedup_rn = 1 ${mediaCond}
        ORDER BY i.published_at DESC
-       LIMIT $3`,
-      [category, excludeId, limit],
+       LIMIT $2`,
+      [category, fetchLimit],
     );
-    // Fallback when same-category + same-media yields nothing: drop the
-    // category constraint but KEEP the media filter — we'd rather show
-    // less-relevant videos than mix in images on a video article (the user
-    // expectation is strict media separation between 视频/图片 surfaces).
-    // If neither query finds anything, render an empty section.
+    // Fallback 同样去重 + 不带 exclude — 否则丢分类约束后更容易撞标题。
     if (rows.length === 0 && media) {
       const fallback = await query<ArticleCardRow>(
         `SELECT ${ARTICLE_COLS}
-         ${ARTICLE_FROM}
-         WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.id <> $1 ${mediaCond}
+         FROM (
+           SELECT i.*,
+                  ROW_NUMBER() OVER (PARTITION BY ${dedupKey} ORDER BY i.published_at DESC) AS dedup_rn
+           FROM items i
+           WHERE i.status IN ('PUBLISHED','DISTRIBUTED')
+         ) i
+         JOIN sources s ON s.id = i.source_id
+         LEFT JOIN raw_items r ON r.id = i.raw_item_id
+         WHERE i.dedup_rn = 1 ${mediaCond}
          ORDER BY i.published_at DESC
-         LIMIT $2`,
-        [excludeId, limit],
+         LIMIT $1`,
+        [fetchLimit],
       );
       return fallback.map(normalize);
     }
     return rows.map(normalize);
-  });
+  }).then((rows) => rows.filter((r) => r.id !== excludeId).slice(0, limit));
+}
+
+/** "更多来自该博主" — X profile 风格的同作者卡片流。
+ *  按发布时间倒序,排除当前文章。和 getRelated 的"同类目"维度互补 —
+ *  文章详情页同时展示两者,读者既能横向(同主题)也能纵向(同作者)继续刷。
+ *  缓存 60s 跟其他 feed 一致。 */
+export async function getMoreFromAuthor(
+  sourceId: string,
+  excludeId: string,
+  limit = 6,
+): Promise<ArticleCardRow[]> {
+  // 同 getRelated:cache key 不带 excludeId, 取 limit+1 在内存过滤当前 id。
+  const fetchLimit = limit + 1;
+  return cached(`author:${sourceId}:${fetchLimit}`, HOT_TTL, async () => {
+    // 同标题只保留最新一条 — 跟 getRelated 一致, 防博主重发 / 同推文多次入库。
+    const dedupKey = `COALESCE(NULLIF(TRIM(i.title), ''), CAST(i.id AS CHAR))`;
+    const rows = await query<ArticleCardRow>(
+      `SELECT ${ARTICLE_COLS}
+       FROM (
+         SELECT i.*,
+                ROW_NUMBER() OVER (PARTITION BY ${dedupKey} ORDER BY i.published_at DESC) AS dedup_rn
+         FROM items i
+         WHERE i.status IN ('PUBLISHED','DISTRIBUTED') AND i.source_id = $1
+       ) i
+       JOIN sources s ON s.id = i.source_id
+       LEFT JOIN raw_items r ON r.id = i.raw_item_id
+       WHERE i.dedup_rn = 1
+       ORDER BY i.published_at DESC
+       LIMIT $2`,
+      [sourceId, fetchLimit],
+    );
+    return rows.map(normalize);
+  }).then((rows) => rows.filter((r) => r.id !== excludeId).slice(0, limit));
 }
 
 function normalize(r: any): ArticleCardRow {
@@ -652,10 +762,15 @@ function normalize(r: any): ArticleCardRow {
     duration_sec: r.duration_sec != null ? Number(r.duration_sec) : null,
     category: r.category,
     tags,
-    published_at: r.published_at,
+    // mysql2 把 TIMESTAMP/DATETIME 返成 Date 对象;ArticleCardRow 类型声明是 string,
+    // React 渲染 dateTime / formatTimeAgo 比对会 hydration mismatch。统一拍扁 ISO 串。
+    published_at: r.published_at
+      ? (typeof r.published_at === 'string' ? r.published_at : new Date(r.published_at).toISOString())
+      : null,
     source: r.source ?? null,
     source_platform: r.source_platform ?? null,
     source_avatar: r.source_avatar ?? null,
+    source_handle: r.source_handle ?? null,
     comment_count: Number(r.comment_count ?? 0),
     content_length: Number(r.content_length ?? 0),
     likes: Number(r.likes ?? 0),

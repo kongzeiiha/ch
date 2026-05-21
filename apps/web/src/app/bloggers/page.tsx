@@ -133,8 +133,8 @@ function pagerLinks(page: number, totalPages: number, q: string, sort: Sort) {
 }
 
 // 单行博主卡 — 头像渐变 + 化名 / handle / 统计 + 关注按钮
-function BloggerRow({ s }: { s: { id: string; name: string; platform: string; avatar_url: string | null; article_count: number; last_article_at: string | null } }) {
-  const vb = virtualBlogger(s.id, { platform: s.platform, name: s.name });
+function BloggerRow({ s }: { s: { id: string; name: string; platform: string; external_id: string; avatar_url: string | null; article_count: number; last_article_at: string | null } }) {
+  const vb = virtualBlogger(s.id, { platform: s.platform, name: s.name, externalId: s.external_id });
   const lastActive = s.last_article_at ? formatTimeAgo(s.last_article_at) : '未发帖';
   return (
     <Link href={`/topic/source-${s.id}`} style={{
@@ -182,13 +182,18 @@ function avatarGradient(seed: string): React.CSSProperties {
   return { background: `linear-gradient(135deg, hsl(${hue},70%,50%), hsl(${(hue+40)%360},70%,30%))` };
 }
 
+// 之前用 Date.now() + toLocaleDateString,两个都是 hydration mismatch 雷区:
+//   - Date.now() server / client 取值不同, 跨分钟会显示 "5m 前" vs "6m 前"
+//   - 'zh-CN' locale 在 Node ICU 和浏览器 ICU 下格式可能不一致
+// 改成绝对日期 "MM-DD HH:mm" / "YYYY-MM-DD HH:mm",server 和 client 永远一致。
 function formatTimeAgo(iso: string): string {
-  const t = new Date(iso).getTime();
-  const m = Math.floor((Date.now() - t) / 60_000);
-  if (m < 60) return `${Math.max(1, m)}m 前`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h 前`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d 前`;
-  return new Date(iso).toLocaleDateString('zh-CN');
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const mm = p2(d.getMonth() + 1);
+  const dd = p2(d.getDate());
+  const hh = p2(d.getHours());
+  const mi = p2(d.getMinutes());
+  return sameYear ? `${mm}-${dd} ${hh}:${mi}` : `${d.getFullYear()}-${mm}-${dd} ${hh}:${mi}`;
 }

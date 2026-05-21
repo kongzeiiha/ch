@@ -7,12 +7,11 @@ import { JsonLd } from '../_components/JsonLd';
 import { XLayout } from '../_components/XLayout';
 import { XFeedHeader } from '../_components/XFeedHeader';
 
-// ISR — the tag index aggregates JSON_TABLE over every published article and
-// is one of the most expensive SSR pages once the corpus grows. Tag counts
-// shift slowly (next publish bumps maybe one tag's count) so 60s of stale
-// data is invisible to humans. publishing's revalidatePath('/tag') flushes
-// this immediately on each new article, the TTL is just the safety net.
-export const revalidate = 60;
+// force-dynamic so `next build` doesn't try to prerender (which fails when
+// MySQL is unreachable at build time — happens during fresh boots / CI).
+// Request-time SQL is fine since /tag is rarely visited and the page already
+// goes through Redis-cached helpers in lib/feed.ts.
+export const dynamic = 'force-dynamic';
 
 const TAG_INDEX_DESC = '按标签浏览全站内容,聚合所有标签入口,快速发现感兴趣的话题。涵盖热门精选、最新更新、深度长文等长尾内容。';
 

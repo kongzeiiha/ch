@@ -9,6 +9,7 @@ import { startSourceScoringWorker } from './source-scoring/index.js';
 import { startDistributionWorker } from './distribution/index.js';
 import { startAnalyticsWorker } from './analytics/index.js';
 import { startCredentialRefreshWorker } from './credential-refresh/index.js';
+import { startXCommentsWorker } from './x-comments/index.js';
 
 /**
  * Each real Agent lives in its own folder and exports a `start*Worker()`.
@@ -24,6 +25,7 @@ const REAL_WORKERS: Record<string, () => Worker> = {
   [QUEUE_NAMES.distribution]: startDistributionWorker,
   [QUEUE_NAMES.analytics]: startAnalyticsWorker,
   [QUEUE_NAMES.credentialRefresh]: startCredentialRefreshWorker,
+  [QUEUE_NAMES.xComments]: startXCommentsWorker,
 };
 
 export function startWorkers(): Worker[] {
