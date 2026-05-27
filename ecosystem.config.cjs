@@ -2,18 +2,50 @@
  * PM2 生产进程配置。
  *
  * 用法 (服务器上):
- *   cd /root/ch
+ *   cd /root/Code/ch
  *   git pull && pnpm install --frozen-lockfile
  *   pnpm --filter web build && pnpm --filter api build
- *   pm2 start ecosystem.config.cjs
+ *   pm2 start ecosystem.config.cjs --update-env
  *   pm2 save
  *
  * 两个进程都用 pnpm 的生产 start (next start / 编译后的 dist),
  * 不要用 `pnpm dev` — 那是开发模式, 跑 prod 会暴露 HMR + cross-origin warning。
  *
+ * .env 自动加载 — 不依赖外部 shell source。改完 .env 直接
+ *   pm2 restart ecosystem.config.cjs --update-env
+ * 进程就拿到新值,不用手动 `set -a; source .env`(避开 .env 里非 KEY=VAL 行
+ * 让 bash 报 `command not found` 的坑)。
+ *
  * 日志: ~/.pm2/logs/<name>-{out,error}.log
  * 进程崩了自动重启, 内存超 max_memory_restart 也会重启。
  */
+
+// 手动解析 .env 而不是依赖 dotenv 包,免去 `pnpm i dotenv` 的麻烦。
+// 只接受 `KEY=VALUE` 这种规范行(KEY 以字母/下划线开头),其它一律跳过 —
+// 这样 .env 里如果不小心混进了日志/注释/无效内容,也不会报错。
+const fs = require('node:fs');
+const path = require('node:path');
+function readEnv() {
+  const envPath = path.join(__dirname, '.env');
+  if (!fs.existsSync(envPath)) return {};
+  const out = {};
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let val = m[2];
+    // 剥掉首尾配对的单/双引号
+    if ((val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    out[m[1]] = val;
+  }
+  return out;
+}
+const ENV = readEnv();
+
 module.exports = {
   apps: [
     {
@@ -23,9 +55,8 @@ module.exports = {
       script: 'pnpm',
       args: '--filter web start',
       env: {
-        NODE_ENV: 'production',
-        // PORT/HOST 在 .env 里设过的话 pnpm dotenv 会带过来;
-        // 没设的话 next start 默认 :3000。
+        ...ENV,                  // 灌入 .env 里所有键
+        NODE_ENV: 'production',  // 兜底显式覆盖
       },
       // Next start 单进程, instances=1 + fork 模式即可 (cluster 模式下 Next 会有 socket 重复绑定问题)
       instances: 1,
@@ -49,6 +80,7 @@ module.exports = {
       script: 'pnpm',
       args: '--filter api start',
       env: {
+        ...ENV,
         NODE_ENV: 'production',
       },
       instances: 1,
