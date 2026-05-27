@@ -1,11 +1,15 @@
 services:
   mysql:
     image: mysql:8.0
+    # MYSQL_PASSWORD / MYSQL_ROOT_PASSWORD 都从 .env 读;不设默认回到本地 dev 的 'ch'。
+    # 注意:MYSQL_*_PASSWORD 仅在卷**首次**初始化时生效。若 mysqldata 已经存在,
+    # 改密码不会自动同步进库,要么 `docker compose down -v` 清卷重建,
+    # 要么进库手动 ALTER USER 'ch'@'%' IDENTIFIED BY '<新密码>'; FLUSH PRIVILEGES;
     environment:
-      MYSQL_ROOT_PASSWORD: ch
-      MYSQL_USER: ch
-      MYSQL_PASSWORD: ch
-      MYSQL_DATABASE: ch
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-ch}"
+      MYSQL_USER: "${MYSQL_USER:-ch}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-ch}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-ch}"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -15,17 +19,26 @@ services:
     volumes:
       - mysqldata:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "ch", "-pch"]
+      # 用 sh -c 让 ${MYSQL_PASSWORD} 在容器里展开,避免硬编码。
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u \"$$MYSQL_USER\" -p\"$$MYSQL_PASSWORD\""]
       interval: 5s
       timeout: 3s
       retries: 10
 
   redis:
     image: redis:6-alpine
+    # 通过 ${REDIS_PASSWORD} 环境变量启用 AUTH:
+    #   - 本地 dev 不设环境变量 → command 里 --requirepass "" 等价于关闭密码
+    #   - 生产把 REDIS_PASSWORD 写进 .env, docker compose up 会自动注入
+    # 用 sh -c 是因为 docker compose 的 command 数组形式不支持环境变量插值。
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # 健康检查也要带密码;空字符串时 `-a ""` 仍能通过(redis 把空当成无 AUTH)。
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 10

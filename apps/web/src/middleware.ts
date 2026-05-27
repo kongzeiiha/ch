@@ -84,10 +84,25 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   return NextResponse.redirect(url);
 }
 
-// 全站 gate:除 /login 页面 + /api/auth/* 登录端点 + Next 静态资源 + favicon 之外,
-// 所有路由都要 cookie / Basic Auth。这样未登录访客打开站点直接跳 /login,
-// 即便手敲 /workbench /admin /a/<slug> /tag /search 等也一样。
-// (regex 用负 lookahead — 写作 alternative list 时 Next 不支持。)
+// 全站 gate,但**公开内容只读 API 必须放行**,否则文章页 CommentSection 等
+// 客户端组件即便用户已登录,fetch 命中 middleware 时也会被拦掉(实际场景常见:
+// 客户端 SameSite/分号格式问题、读 cookie 延迟、新 tab 异步水合阶段没拿到
+// cookie)—— 总之 read-only 公开数据没必要走鉴权,否则一旦 cookie 链路有
+// 任何抖动评论 / 点赞 / 浏览数 / 图片代理全废。
+//
+// 白名单(均为读类公共内容,无副作用):
+//   /api/external-comments  X 评论同步快照
+//   /api/comments           本站匿名评论(写入有自己的 rate-limit + ad-filter)
+//   /api/likes              点赞计数读
+//   /api/item-stats         批量计数读
+//   /api/img-proxy          封面 / 图片代理(去 X CDN 反爬)
+//   /api/m                  movies (视频源) 重定向
+//   /api/pv                 浏览数 beacon
+//   /api/revalidate         publishing worker 回调(自己有 secret)
+//
+// 仍 gate 的:页面路由(/、/a/*、/tag/*、/search ...)+ /api/admin/* + /workbench /admin。
 export const config = {
-  matcher: ['/((?!login|api/auth|_next/static|_next/image|favicon).*)'],
+  matcher: [
+    '/((?!login|api/auth|api/external-comments|api/comments|api/likes|api/item-stats|api/img-proxy|api/m|api/pv|api/revalidate|_next/static|_next/image|favicon).*)',
+  ],
 };
