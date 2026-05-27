@@ -95,7 +95,7 @@ cat >>"$NGINX_CONF" <<NGINX_EOF
 # ── 运营域名 ${ADMIN_DOMAIN} ── (同进程,middleware 用 ADMIN_HOSTS 判别)
 server {
     listen 80;
-    listen [::]:80
+    listen [::]:80;
     server_name ${ADMIN_DOMAIN};
 
     client_max_body_size 50m;
