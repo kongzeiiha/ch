@@ -24,7 +24,7 @@ INCLUDE_WWW_REDIRECT=0                              # 1 = 也配置 www.${PUBLIC
 EMAIL_FOR_CERTBOT="admin@xbozhu.com"                # Let's Encrypt 注册邮箱(用来发到期提醒,主域邮箱即可)
 WEB_PORT="3000"                                     # Next web app 本地端口
 API_PORT="4000"                                     # Fastify api 本地端口 (next.config rewrites 已指向)
-REPO_DIR="/root/ch"                                 # 仓库在服务器上的位置(.env 要改在这里)
+REPO_DIR="/root/Code/ch"                                 # 仓库在服务器上的位置(.env 要改在这里)
 PM2_WEB="web"                                       # pm2 list 里 Next web 进程名
 PM2_API="api"                                       # pm2 list 里 Fastify api 进程名
 # ====================================================
@@ -95,7 +95,7 @@ cat >>"$NGINX_CONF" <<NGINX_EOF
 # ── 运营域名 ${ADMIN_DOMAIN} ── (同进程,middleware 用 ADMIN_HOSTS 判别)
 server {
     listen 80;
-    listen [::]:80;
+    listen [::]:80
     server_name ${ADMIN_DOMAIN};
 
     client_max_body_size 50m;
