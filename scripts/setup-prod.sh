@@ -18,8 +18,9 @@
 set -euo pipefail
 
 # ============== CONFIG (跑之前自检/修改) ==============
-PUBLIC_DOMAIN="test.xbozhu.com"                     # 公开站点域名(本环境是个 test 子域,正式上线改回 xbozhu.com)
-ADMIN_DOMAIN="ops.test.xbozhu.com"                  # 运营/工作台域名;留空字符串 "" 表示不分离
+PUBLIC_DOMAIN="web.xbozhu.com"                      # 公开站点域名(给访客看)
+ADMIN_DOMAIN="admin.xbozhu.com"                     # 运营/工作台域名(只有运营进);留空 "" 表示不分离
+INCLUDE_WWW_REDIRECT=0                              # 1 = 也配置 www.${PUBLIC_DOMAIN} → ${PUBLIC_DOMAIN} 跳转(apex 域名才需要,子域不需要)
 EMAIL_FOR_CERTBOT="admin@xbozhu.com"                # Let's Encrypt 注册邮箱(用来发到期提醒,主域邮箱即可)
 WEB_PORT="3000"                                     # Next web app 本地端口
 API_PORT="4000"                                     # Fastify api 本地端口 (next.config rewrites 已指向)
@@ -73,6 +74,11 @@ server {
     }
 }
 
+NGINX_EOF
+
+# www 重定向块 — 只在 INCLUDE_WWW_REDIRECT=1 时追加(apex 域名才需要,子域如 web.xbozhu.com 不需要)
+if [[ "$INCLUDE_WWW_REDIRECT" == "1" ]]; then
+cat >>"$NGINX_CONF" <<NGINX_EOF
 # ── www → 301 跳 apex ──
 server {
     listen 80;
@@ -81,6 +87,7 @@ server {
     return 301 https://${PUBLIC_DOMAIN}\$request_uri;
 }
 NGINX_EOF
+fi
 
 if [[ -n "$ADMIN_DOMAIN" ]]; then
 cat >>"$NGINX_CONF" <<NGINX_EOF
@@ -114,7 +121,8 @@ systemctl reload nginx
 log "nginx HTTP 80 已就绪"
 
 # ---- 3. certbot 申证书 ----
-CERT_DOMAINS=("-d" "$PUBLIC_DOMAIN" "-d" "www.$PUBLIC_DOMAIN")
+CERT_DOMAINS=("-d" "$PUBLIC_DOMAIN")
+[[ "$INCLUDE_WWW_REDIRECT" == "1" ]] && CERT_DOMAINS+=("-d" "www.$PUBLIC_DOMAIN")
 [[ -n "$ADMIN_DOMAIN" ]] && CERT_DOMAINS+=("-d" "$ADMIN_DOMAIN")
 
 log "申/续 Let's Encrypt 证书: ${CERT_DOMAINS[*]}"
@@ -171,19 +179,24 @@ echo "============================================================"
 echo " 公网 IP: ${IP:-<取不到,手动跑 curl ifconfig.me>}"
 echo
 echo " Cloudflare DNS 填这几条 (类型 A,Proxied 状态):"
-echo "   A  @     ${IP:-<IP>}"
-echo "   A  www   ${IP:-<IP>}"
+# 拆掉 PUBLIC_DOMAIN 子域部分(web.xbozhu.com → web)和 ADMIN_DOMAIN 子域部分。
+# 注:如果你 CF 上托管的是 xbozhu.com 这个 apex zone,Name 列只填子域字符串。
+public_label="${PUBLIC_DOMAIN%%.*}"
+echo "   A  ${public_label}     ${IP:-<IP>}"
+if [[ "$INCLUDE_WWW_REDIRECT" == "1" ]]; then
+  echo "   A  www.${public_label}   ${IP:-<IP>}"
+fi
 if [[ -n "$ADMIN_DOMAIN" ]]; then
-  ops_label="${ADMIN_DOMAIN%%.*}"
-  echo "   A  ${ops_label}   ${IP:-<IP>}"
+  admin_label="${ADMIN_DOMAIN%%.*}"
+  echo "   A  ${admin_label}   ${IP:-<IP>}"
 fi
 echo
 echo " 解析生效后(通常 1-5 分钟)访问:"
 echo "   https://${PUBLIC_DOMAIN}"
-echo "   https://www.${PUBLIC_DOMAIN}   (应该 301 → apex)"
+[[ "$INCLUDE_WWW_REDIRECT" == "1" ]] && echo "   https://www.${PUBLIC_DOMAIN}   (应该 301 → ${PUBLIC_DOMAIN})"
 [[ -n "$ADMIN_DOMAIN" ]] && echo "   https://${ADMIN_DOMAIN}        (运营入口,需要登录)"
 echo
 echo " 检查命令:"
 echo "   curl -I https://${PUBLIC_DOMAIN}"
-echo "   curl -I https://www.${PUBLIC_DOMAIN}"
+[[ -n "$ADMIN_DOMAIN" ]] && echo "   curl -I https://${ADMIN_DOMAIN}"
 echo "============================================================"
