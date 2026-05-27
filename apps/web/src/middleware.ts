@@ -8,12 +8,42 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// 后台路径(workbench / admin / 后端 admin API)集中在这里 —— 用 host 分流时
+// 公开域名访问这些路径会被直接 404,不暴露入口存在。任何前缀匹配,所以
+// /workbench/anything、/admin/x/y、/api/admin/abc 都覆盖。
+const ADMIN_PATH_PREFIXES = ['/workbench', '/admin', '/api/admin'];
+
+function isAdminPath(pathname: string): boolean {
+  return ADMIN_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+// ADMIN_HOSTS: 逗号分隔的运营专用 host 名单(裸 hostname,不含端口/协议)。
+// 命中其中之一 → 当前请求来自"后台域名",workbench/admin 入口可见。
+// 未命中 → 公开域名,后台路径一律 404。
+// 空 / 未设 → 不做 host 区分(开发或单域名部署仍可访问后台,只看 cookie)。
+function isAdminHost(host: string | null): boolean {
+  const list = (process.env.ADMIN_HOSTS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length === 0) return true; // 未配置 → 视为允许,等同旧行为
+  const h = (host ?? '').split(':')[0].toLowerCase();
+  return list.includes(h);
+}
+
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const password = process.env.ADMIN_PASSWORD;
   // No password set → local dev, allow all
   if (!password) return NextResponse.next();
 
   const username = process.env.ADMIN_USER ?? 'admin';
+
+  // Host 分流: 公开域名上的后台路径直接 404,不进鉴权环节也不暴露存在。
+  // 注意要在 cookie 检查之前 —— 即使带着合法 cookie 从公开域名访问 /workbench
+  // 也应该 404,因为公开域名根本不该提供运营入口。
+  if (isAdminPath(req.nextUrl.pathname) && !isAdminHost(req.headers.get('host'))) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   // /api/admin/* gets rewritten to Fastify by next.config.mjs. We inject
   // the verified username so the backend's op-log records who did what.
@@ -54,6 +84,10 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   return NextResponse.redirect(url);
 }
 
+// 全站 gate:除 /login 页面 + /api/auth/* 登录端点 + Next 静态资源 + favicon 之外,
+// 所有路由都要 cookie / Basic Auth。这样未登录访客打开站点直接跳 /login,
+// 即便手敲 /workbench /admin /a/<slug> /tag /search 等也一样。
+// (regex 用负 lookahead — 写作 alternative list 时 Next 不支持。)
 export const config = {
-  matcher: ['/admin/:path*', '/workbench/:path*', '/workbench', '/api/admin/:path*'],
+  matcher: ['/((?!login|api/auth|_next/static|_next/image|favicon).*)'],
 };

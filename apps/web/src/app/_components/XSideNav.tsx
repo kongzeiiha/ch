@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { X } from './theme';
 import {
   HomeIcon, FlameIcon, PlayIcon, ImageIcon, HashIcon,
-  NewspaperIcon, SearchIcon, CogIcon, StarIcon, UsersIcon,
+  NewspaperIcon, SearchIcon, CogIcon, UsersIcon,
 } from './XIcons';
 
 // X.com 风格的左侧 sticky 导航。240px 宽,SVG 图标 + label。
@@ -82,30 +82,9 @@ export function XSideNav({ active }: { active?: NavKey }) {
         );
       })}
 
-      {/* 主 CTA — X 上是"发帖"按钮,我们站点上面向运营的是"进工作台"。
-          全宽红色胶囊,视觉地位最重。 */}
-      <Link href="/workbench" className="xnav-cta" style={{
-        marginTop: 12,
-        padding: '14px',
-        background: X.accent,
-        color: '#ffffff',
-        border: 'none',
-        borderRadius: 9999,
-        fontSize: 15,
-        fontWeight: 800,
-        textAlign: 'center',
-        textDecoration: 'none',
-        cursor: 'pointer',
-      }}>进入工作台</Link>
-
-      {/* 底部小字工具链接 */}
+      {/* 工作台 / Admin 入口已从公开导航移除 —— 运营人员直接通过 URL 进 /workbench
+          /admin (中间件鉴权),不再从前端泄露入口。 */}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 12, borderTop: `1px solid ${X.border}` }}>
-        <Link href="/admin" className="xnav-item" style={{ ...navItemStyle(false), fontSize: 14, padding: '8px 14px', color: X.accent }}>
-          <span style={{ width: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-            <StarIcon size={20} />
-          </span>
-          <span>Admin</span>
-        </Link>
         <Link href="/about/terms" className="xnav-item" style={{ ...navItemStyle(false), fontSize: 14, padding: '8px 14px' }}>
           <span style={{ width: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <CogIcon size={20} />

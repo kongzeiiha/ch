@@ -55,12 +55,8 @@ export function SiteHeader({ crumb, activeTab }: { crumb?: ReactNode; activeTab?
             <span style={{ fontSize: 14, color: X.textSecondary, fontWeight: 500 }}>{crumb}</span>
           </>
         )}
-        {/* Top-right inline search hidden — full search is available via the
-         *  "站内搜索" tab in the nav row below, so the chrome row stays clean. */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Link href="/workbench" style={chromeLinkStyle}>工作台 →</Link>
-          <Link href="/admin" style={{ ...chromeLinkStyle, color: X.accent, borderColor: X.accent }} title="按 Day 分页的验收后台">Admin →</Link>
-        </div>
+        {/* 工作台 / Admin 入口已从公开 chrome 移除 —— 运营走 URL 直访 + 中间件鉴权,
+         *  公开页面不再渲染任何指向内部工具的链接。 */}
       </div>
 
       {/* ── Row 2 — primary nav tabs ── */}
@@ -115,12 +111,3 @@ export function SiteLogo({ size = 28 }: { size?: number }) {
   );
 }
 
-const chromeLinkStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: X.text,
-  textDecoration: 'none',
-  padding: '6px 14px',
-  border: `1px solid ${X.borderStrong}`,
-  borderRadius: 9999,
-  fontWeight: 600,
-};

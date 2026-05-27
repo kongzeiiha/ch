@@ -7,7 +7,10 @@ import { Suspense } from 'react';
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params?.get('next') ?? '/workbench';
+  // 默认回首页 —— host 分流后,公开域名不再有 /workbench,
+  // 默认跳 workbench 会让从公开域名直访 /login 的人撞 404。
+  // middleware 在保护页面被拦时一定会设 `?next=<原路径>`,这里只兜底直访场景。
+  const next = params?.get('next') ?? '/';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
