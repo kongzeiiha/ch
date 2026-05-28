@@ -106,6 +106,14 @@ export function isJunkTag(tag: string | null | undefined): boolean {
   // Tag starts with an LLM meta-label (with or without closing bracket).
   // Catches truncated leftovers the tail-anchored patterns miss.
   if (LLM_TAG_HEAD.test(t)) return true;
+  // Tag CONTAINS an LLM meta-label anywhere (catches variants like
+  // "本部关键词", "正文关键词", "文章标签", "推荐主题" — LLM occasionally
+  // prefixes the label with its own context word, surviving the head-anchored
+  // check above). Real tags are short noun phrases that never reference
+  // "关键词"/"标签"/"keywords"/etc. by name, so a substring match is safe.
+  if (/(关键词|关键字|标签|分类|主题|话题|题材|keywords?|tags?|category|topic)/iu.test(t)) {
+    return true;
+  }
   // CJK tags are typically 2-6 characters ("探花", "动漫"). Anything beyond ~10
   // CJK chars is almost certainly a sentence fragment classify-title mistook
   // for a tag. ASCII tags can be longer (e.g. "twitter-marketing"), so we use
