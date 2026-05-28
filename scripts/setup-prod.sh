@@ -18,7 +18,7 @@
 set -euo pipefail
 
 # ============== CONFIG (跑之前自检/修改) ==============
-PUBLIC_DOMAIN="web.xbozhu.com"                      # 公开站点域名(给访客看)
+PUBLIC_DOMAIN="www.xbozhu.com"                      # 公开站点域名(给访客看)
 ADMIN_DOMAIN="admin.xbozhu.com"                     # 运营/工作台域名(只有运营进);留空 "" 表示不分离
 INCLUDE_WWW_REDIRECT=0                              # 1 = 也配置 www.${PUBLIC_DOMAIN} → ${PUBLIC_DOMAIN} 跳转(apex 域名才需要,子域不需要)
 EMAIL_FOR_CERTBOT="admin@xbozhu.com"                # Let's Encrypt 注册邮箱(用来发到期提醒,主域邮箱即可)

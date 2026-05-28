@@ -38,27 +38,33 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   const username = process.env.ADMIN_USER ?? 'admin';
 
+  const adminHostList = (process.env.ADMIN_HOSTS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const reqHost = (req.headers.get('host') ?? '').split(':')[0].toLowerCase();
+  const onAdminHost = adminHostList.length > 0 && adminHostList.includes(reqHost);
+
   // Host 分流: 公开域名上的后台路径直接 404,不进鉴权环节也不暴露存在。
   // 注意要在 cookie 检查之前 —— 即使带着合法 cookie 从公开域名访问 /workbench
   // 也应该 404,因为公开域名根本不该提供运营入口。
-  if (isAdminPath(req.nextUrl.pathname) && !isAdminHost(req.headers.get('host'))) {
+  if (isAdminPath(req.nextUrl.pathname) && !onAdminHost) {
     return new NextResponse(null, { status: 404 });
   }
 
+  // 公开域名 (host 不在 ADMIN_HOSTS) 完全不要求登录 —— 访客直接浏览所有公开页面。
+  // 已经在上一步把后台路径挡成 404 了,这里剩下的都是公开内容(/、/a/*、/tag/*、
+  // /search ... 以及未在 matcher 白名单中的少数 API)。
+  if (adminHostList.length > 0 && !onAdminHost) {
+    return NextResponse.next();
+  }
+
   // 运营域名上访问根路径 / 时直接跳 /workbench —— 运营从 admin.xbozhu.com 进来
-  // 显然是要找工作台,没必要先看公开首页。仅在 ADMIN_HOSTS 显式配置且当前
-  // host 命中白名单时生效;dev/单域名部署不受影响。
-  if (req.nextUrl.pathname === '/') {
-    const list = (process.env.ADMIN_HOSTS ?? '')
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-    const h = (req.headers.get('host') ?? '').split(':')[0].toLowerCase();
-    if (list.length > 0 && list.includes(h)) {
-      const url = req.nextUrl.clone();
-      url.pathname = '/workbench';
-      return NextResponse.redirect(url);
-    }
+  // 显然是要找工作台,没必要先看公开首页。
+  if (req.nextUrl.pathname === '/' && onAdminHost) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/workbench';
+    return NextResponse.redirect(url);
   }
 
   // /api/admin/* gets rewritten to Fastify by next.config.mjs. We inject
