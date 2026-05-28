@@ -45,6 +45,22 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 404 });
   }
 
+  // 运营域名上访问根路径 / 时直接跳 /workbench —— 运营从 admin.xbozhu.com 进来
+  // 显然是要找工作台,没必要先看公开首页。仅在 ADMIN_HOSTS 显式配置且当前
+  // host 命中白名单时生效;dev/单域名部署不受影响。
+  if (req.nextUrl.pathname === '/') {
+    const list = (process.env.ADMIN_HOSTS ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const h = (req.headers.get('host') ?? '').split(':')[0].toLowerCase();
+    if (list.length > 0 && list.includes(h)) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/workbench';
+      return NextResponse.redirect(url);
+    }
+  }
+
   // /api/admin/* gets rewritten to Fastify by next.config.mjs. We inject
   // the verified username so the backend's op-log records who did what.
   const passThrough = (operator: string): NextResponse => {
